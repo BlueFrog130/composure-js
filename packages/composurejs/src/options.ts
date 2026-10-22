@@ -138,8 +138,7 @@ export const option = {
   boolean: (description: string) => make<boolean>(OptionType.Boolean, description),
   user: (description: string) => make<ResolvedUser>(OptionType.User, description),
   /** `types` restricts which channel types can be picked (`ChannelType` numbers). */
-  channel: (description: string, { types }: { types?: readonly number[] } = {}) =>
-    make<PartialChannel>(OptionType.Channel, description, { channelTypes: types }),
+  channel: (description: string, { types }: { types?: readonly number[] } = {}) => make<PartialChannel>(OptionType.Channel, description, { channelTypes: types }),
   role: (description: string) => make<Role>(OptionType.Role, description),
   mentionable: (description: string) => make<ResolvedUser | Role>(OptionType.Mentionable, description),
   attachment: (description: string) => make<Attachment>(OptionType.Attachment, description),

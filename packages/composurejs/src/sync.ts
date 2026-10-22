@@ -42,7 +42,10 @@ export function configFromEnv(env: Record<string, string | undefined>): SyncConf
   const scopes: Record<string, string[]> = {}
   for (const [name, value] of Object.entries(env)) {
     if (!name.startsWith(SCOPE_VAR_PREFIX) || !value) continue
-    const guilds = value.split(",").map((g) => g.trim()).filter(Boolean)
+    const guilds = value
+      .split(",")
+      .map((g) => g.trim())
+      .filter(Boolean)
     for (const guild of guilds) if (!SNOWFLAKE.test(guild)) throw new SyncError(`${name}: "${guild}" is not a guild id`)
     scopes[name.slice(SCOPE_VAR_PREFIX.length)] = guilds
   }
@@ -193,7 +196,11 @@ function isDefault(key: string, value: unknown): boolean {
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys)
   if (value === null || typeof value !== "object") return value
-  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, sortKeys(v)]))
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => [k, sortKeys(v)]),
+  )
 }
 
 /** Sync waits out rate limits of up to a minute; it runs at deploy time, not in a request. */

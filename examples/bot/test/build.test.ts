@@ -51,7 +51,8 @@ async function startServer(cmd: string, args: string[]): Promise<{ child: ChildP
   child.stdout!.on("data", (c: Buffer) => (output += c.toString()))
   child.stderr!.on("data", (c: Buffer) => (output += c.toString()))
   for (let i = 0; i < 100; i++) {
-    if (child.exitCode !== null) throw new Error(`${cmd} exited with ${child.exitCode}:
+    if (child.exitCode !== null)
+      throw new Error(`${cmd} exited with ${child.exitCode}:
 ${output}`)
     const up = await new Promise<boolean>((resolve) => {
       const req = httpRequest({ host: "127.0.0.1", port, path: "/", method: "GET" }, (res) => (res.resume(), resolve(true)))

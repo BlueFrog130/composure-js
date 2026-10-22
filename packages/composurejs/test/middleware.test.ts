@@ -27,9 +27,7 @@ describe("middleware", () => {
     const passive = middleware(async (_c, next) => {
       await next()
     })
-    const app = new App()
-      .use(guildOnly, passive)
-      .command(command({ name: "x", description: "X", handler: () => ((ran = true), "ran") }))
+    const app = new App().use(guildOnly, passive).command(command({ name: "x", description: "X", handler: () => ((ran = true), "ran") }))
     const dm = await t.answer(app, t.command("x").inDm())
     expect([dm.text, dm.isEphemeral, ran]).toEqual(["Servers only.", true, false])
     expect((await t.answer(app, t.command("x"))).text).toBe("ran")

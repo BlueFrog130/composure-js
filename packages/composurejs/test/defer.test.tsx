@@ -41,7 +41,16 @@ describe("c.defer", () => {
   test("a failure edits the original with the Error Renderer's output", async () => {
     const { logger } = recordingLogger()
     const app = new App({ logger })
-      .command(command({ name: "x", description: "X", handler: (c) => c.defer(async () => { throw new UserError("Out of cookies") }) }))
+      .command(
+        command({
+          name: "x",
+          description: "X",
+          handler: (c) =>
+            c.defer(async () => {
+              throw new UserError("Out of cookies")
+            }),
+        }),
+      )
       .onError((error) => `⚠️ ${(error as Error).message}`)
     const [edit] = await (await answer(app, invoke("x"))).settle()
     expect(edit).toMatchObject({ method: "PATCH", json: { content: "⚠️ Out of cookies" } })

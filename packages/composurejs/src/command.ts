@@ -8,16 +8,7 @@ import type {
 import type { Context } from "./context.ts"
 import { type ChatInputInteraction, CommandType } from "./discord.ts"
 import { AppConfigError } from "./errors.ts"
-import {
-  checkLength,
-  checkName,
-  checkOptions,
-  OptionType,
-  optionDefinitions,
-  type Options,
-  type OptionValues,
-  type ResolvedUser,
-} from "./options.ts"
+import { checkLength, checkName, checkOptions, OptionType, optionDefinitions, type Options, type OptionValues, type ResolvedUser } from "./options.ts"
 import type { Output } from "./response.ts"
 import type { Env, MaybePromise } from "./types.ts"
 

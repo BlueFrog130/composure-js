@@ -66,7 +66,12 @@ for (let i = 0; i < runs; i++) {
 const rows = ["startup", "first", "firstCommand", "warm"].map((k) => {
   const b = medianOf(results.bot, k)
   const base = medianOf(results.baseline, k)
-  return { metric: { startup: "startup (workerd + module)", first: "first request (PING)", firstCommand: "first Command", warm: `warm Command (median of ${WARM})` }[k], "example bot (ms)": b.toFixed(2), "JS baseline (ms)": base.toFixed(2), "composurejs (ms)": (b - base).toFixed(2) }
+  return {
+    metric: { startup: "startup (workerd + module)", first: "first request (PING)", firstCommand: "first Command", warm: `warm Command (median of ${WARM})` }[k],
+    "example bot (ms)": b.toFixed(2),
+    "JS baseline (ms)": base.toFixed(2),
+    "composurejs (ms)": (b - base).toFixed(2),
+  }
 })
 console.log(`Cold start on workerd, median of ${runs} runs:`)
 console.table(rows)

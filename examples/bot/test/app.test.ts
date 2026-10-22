@@ -26,7 +26,12 @@ test("/cookie uses resolved users and optional Options", async () => {
 
 test("/cookie suggests toppings", async () => {
   const res = await answer(app, autocomplete("cookie").focused("topping", "S"))
-  expect(res.data).toEqual({ choices: [{ name: "sprinkles", value: "sprinkles" }, { name: "sea salt", value: "sea salt" }] })
+  expect(res.data).toEqual({
+    choices: [
+      { name: "sprinkles", value: "sprinkles" },
+      { name: "sea salt", value: "sea salt" },
+    ],
+  })
 })
 
 test("/server is guild-only through middleware", async () => {
@@ -64,7 +69,10 @@ test("/report defers, then edits the original with the View", async () => {
   const res = await answer(app, command("report"))
   expect(res.body).toEqual({ type: 5 })
   const [edit] = await res.settle()
-  expect(edit).toMatchObject({ method: "PATCH", json: { components: [{ type: 17, components: [{ content: "### Report for alice" }, { content: "-# generated in the background" }] }] } })
+  expect(edit).toMatchObject({
+    method: "PATCH",
+    json: { components: [{ type: 17, components: [{ content: "### Report for alice" }, { content: "-# generated in the background" }] }] },
+  })
 })
 
 test("Webhook Events are ACKed and logged", async () => {

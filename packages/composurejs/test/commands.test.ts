@@ -74,7 +74,8 @@ describe("Options", () => {
     )
     const res = await t.answer(
       app,
-      t.command("cookie")
+      t
+        .command("cookie")
         .user("user", { id: "2", username: "bob", global_name: "Bob" }, { nick: "Bobby" })
         .option("flavor", "oat")
         .option("ratio", 0.5)
@@ -165,7 +166,12 @@ describe("Options", () => {
       'Command "/x" option "Bad" "Bad" must be 1-32 lowercase',
     )
     expect(() => option.string("")).toThrow(AppConfigError)
-    expect(() => option.string("x").choices(Flavor).autocomplete(() => [])).toThrow("both choices and autocomplete")
+    expect(() =>
+      option
+        .string("x")
+        .choices(Flavor)
+        .autocomplete(() => []),
+    ).toThrow("both choices and autocomplete")
     const tooMany = defineChoices(Array.from({ length: 26 }, (_, i) => ({ name: `c${i}`, value: `c${i}` })))
     expect(() => command({ name: "x", description: "X", options: { c: option.string("c").choices(tooMany) }, handler: () => "x" })).toThrow("at most 25 choices")
     expect(() => command({ name: "x", description: "X", options: { n: option.integer("n", { min: 5, max: 1 }) }, handler: () => "x" })).toThrow("min is greater than max")
@@ -191,7 +197,12 @@ describe("Options", () => {
 describe("Groups", () => {
   const ban = command({ name: "ban", description: "Ban", options: { user: option.user("Who") }, handler: (_c, { user }) => `banned ${user.username}` })
   const add = command({ name: "add", description: "Add role", options: { role: option.role("Role") }, handler: (_c, { role }) => `added ${role.name}` })
-  const admin = group({ name: "admin", description: "Admin tools", subcommands: [ban, group({ name: "role", description: "Roles", subcommands: [add] })], defaultMemberPermissions: "0" })
+  const admin = group({
+    name: "admin",
+    description: "Admin tools",
+    subcommands: [ban, group({ name: "role", description: "Roles", subcommands: [add] })],
+    defaultMemberPermissions: "0",
+  })
 
   test("dispatch to subcommands and nested Groups", async () => {
     const app = new App().command(admin)
@@ -212,7 +223,12 @@ describe("Groups", () => {
       default_member_permissions: "0",
       options: [
         { type: 1, name: "ban", description: "Ban", options: [{ type: 6, name: "user", description: "Who", required: true }] },
-        { type: 2, name: "role", description: "Roles", options: [{ type: 1, name: "add", description: "Add role", options: [{ type: 8, name: "role", description: "Role", required: true }] }] },
+        {
+          type: 2,
+          name: "role",
+          description: "Roles",
+          options: [{ type: 1, name: "add", description: "Add role", options: [{ type: 8, name: "role", description: "Role", required: true }] }],
+        },
       ],
     })
   })
@@ -268,7 +284,12 @@ describe("autocomplete", () => {
   })
 
   test("at most 25 suggestions are sent", async () => {
-    const many = command({ name: "many", description: "Many", options: { n: option.integer("N").autocomplete(() => Array.from({ length: 40 }, (_, i) => i)) }, handler: () => "ok" })
+    const many = command({
+      name: "many",
+      description: "Many",
+      options: { n: option.integer("N").autocomplete(() => Array.from({ length: 40 }, (_, i) => i)) },
+      handler: () => "ok",
+    })
     const res = await t.answer(new App().command(many), t.autocomplete("many").focused("n", "", 4))
     expect((res.data!.choices as unknown[]).length).toBe(25)
   })
@@ -281,7 +302,16 @@ describe("autocomplete", () => {
 
   test("a failing handler logs and suggests nothing", async () => {
     const { logger, entries } = recordingLogger()
-    const broken = command({ name: "b", description: "B", options: { q: option.string("Q").autocomplete(() => { throw new Error("db down") }) }, handler: () => "ok" })
+    const broken = command({
+      name: "b",
+      description: "B",
+      options: {
+        q: option.string("Q").autocomplete(() => {
+          throw new Error("db down")
+        }),
+      },
+      handler: () => "ok",
+    })
     const res = await t.answer(new App({ logger }).command(broken), t.autocomplete("b").focused("q", "x"))
     expect(res.body).toEqual({ type: 8, data: { choices: [] } })
     expect(entries[0]).toMatchObject({ level: "error", msg: "Autocomplete failed", error: { message: "db down" } })

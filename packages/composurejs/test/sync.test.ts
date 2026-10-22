@@ -70,7 +70,9 @@ describe("targets", () => {
   })
 
   test("--guild sends everything to one guild", () => {
-    expect(targets(defs(ping, debug, cookie), { ...config(), guild: OTHER_GUILD }).map((t) => [t.label, t.commands.map((c) => c.name)])).toEqual([[`guild ${OTHER_GUILD}`, ["ping", "debug", "cookie"]]])
+    expect(targets(defs(ping, debug, cookie), { ...config(), guild: OTHER_GUILD }).map((t) => [t.label, t.commands.map((c) => c.name)])).toEqual([
+      [`guild ${OTHER_GUILD}`, ["ping", "debug", "cookie"]],
+    ])
   })
 
   test("a Scope without guilds is an error naming the env var", () => {
@@ -81,11 +83,7 @@ describe("targets", () => {
 describe("plan", () => {
   test("compares with Discord's stored Commands, ignoring its defaults", async () => {
     const transport = new MockTransport()
-      .reply(200, [
-        stored(ping.definition()),
-        stored({ ...cookie.definition(), description: "Old description" }),
-        stored({ name: "gone", description: "Removed from code" }),
-      ])
+      .reply(200, [stored(ping.definition()), stored({ ...cookie.definition(), description: "Old description" }), stored({ name: "gone", description: "Removed from code" })])
       .reply(200, [])
     const result = await plan(defs(ping, cookie, quote, debug), config({ DEV: [DEV_GUILD] }), { transport: transport.fetch })
     expect(transport.requests.map((r) => [r.method, r.path])).toEqual([
@@ -107,15 +105,7 @@ describe("plan", () => {
     ])
     expect(counts(result)).toEqual({ create: 2, update: 1, delete: 1 })
     expect(formatPlan(result)).toBe(
-      [
-        "global: (1 unchanged)",
-        "  ~ /cookie",
-        "  + Quote (message)",
-        "  - /gone",
-        `guild ${DEV_GUILD} (dev):`,
-        "  + /debug",
-        "2 to create, 1 to update, 1 to delete",
-      ].join("\n"),
+      ["global: (1 unchanged)", "  ~ /cookie", "  + Quote (message)", "  - /gone", `guild ${DEV_GUILD} (dev):`, "  + /debug", "2 to create, 1 to update, 1 to delete"].join("\n"),
     )
   })
 
@@ -123,7 +113,11 @@ describe("plan", () => {
     expect(same(ping.definition(), stored(ping.definition()) as never)).toBe(true)
     expect(same(cookie.definition(), stored({ ...cookie.definition(), contexts: [0, 1, 2] }) as never)).toBe(false)
     expect(same(cookie.definition(), stored({ ...cookie.definition(), contexts: [0, 1] }) as never)).toBe(true)
-    const admin = group({ name: "admin", description: "A", subcommands: [command({ name: "ban", description: "B", options: { n: option.integer("N", { min: 1 }) }, handler: () => "x" })] })
+    const admin = group({
+      name: "admin",
+      description: "A",
+      subcommands: [command({ name: "ban", description: "B", options: { n: option.integer("N", { min: 1 }) }, handler: () => "x" })],
+    })
     // Discord returns 1.0 bounds and explicit defaults like autocomplete: false.
     const fromDiscord = JSON.parse(JSON.stringify(admin.definition()).replace('"min_value":1', '"min_value":1.0,"autocomplete":false'))
     expect(same(admin.definition(), stored(fromDiscord) as never)).toBe(true)

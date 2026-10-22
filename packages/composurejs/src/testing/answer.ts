@@ -37,11 +37,7 @@ export interface AnswerOptions<E extends Env> {
 let sharedKey: Promise<TestKey> | undefined
 
 /** Runs the App on `interaction` the way an Adapter does: signed request, full pipeline. */
-export async function answer<E extends Env>(
-  app: App<E>,
-  interaction: Interaction | Buildable,
-  options: AnswerOptions<E> = {},
-): Promise<TestResponse> {
+export async function answer<E extends Env>(app: App<E>, interaction: Interaction | Buildable, options: AnswerOptions<E> = {}): Promise<TestResponse> {
   const key = await (sharedKey ??= TestKey.generate())
   const env = (options.env ?? {}) as BindingsOf<E>
   const payload = "build" in interaction ? interaction.build() : interaction
@@ -166,7 +162,9 @@ export class TestResponse {
     const selects = this.allComponents.filter((c) => [3, 5, 6, 7, 8].includes(c.type as number))
     const select = selects.find((c) => c.custom_id === idOrPlaceholder) ?? selects.find((c) => c.placeholder === idOrPlaceholder)
     if (!select) throw new Error(`No select "${idOrPlaceholder}"; selects: ${selects.map((s) => String(s.custom_id)).join(", ") || "none"}`)
-    return component(select.custom_id as string).values(values, select.type as number).onMessage(this.#message())
+    return component(select.custom_id as string)
+      .values(values, select.type as number)
+      .onMessage(this.#message())
   }
 
   /** Submitting the modal this response opens, with values by input `custom_id`. */

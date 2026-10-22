@@ -428,7 +428,10 @@ export function md(strings: TemplateStringsArray, ...values: unknown[]): string 
   // Dedent the literal parts only, so interpolated values cannot change the indentation.
   const HOLE = "\u0000"
   const raw = strings.join(HOLE)
-  const lines = raw.replace(/^[ \t]*\r?\n/, "").replace(/\r?\n[ \t]*$/, "").split(/\r?\n/)
+  const lines = raw
+    .replace(/^[ \t]*\r?\n/, "")
+    .replace(/\r?\n[ \t]*$/, "")
+    .split(/\r?\n/)
   const indent = Math.min(...lines.filter((l) => l.trim() !== "").map((l) => l.match(/^[ \t]*/)![0].length))
   let i = 0
   return lines

@@ -31,7 +31,18 @@ vi.spyOn(process.stdout, "write").mockImplementation(() => true)
 describe("generate", () => {
   test.each(["cloudflare", "node", "bun"] as Template[])("%s: the shared App and tests, plus its entry", (template) => {
     const files = generate(template, "my-bot", VERSIONS)
-    for (const path of ["package.json", "tsconfig.json", "vite.config.ts", "vitest.config.ts", "src/app.tsx", "src/counter.tsx", "test/app.test.ts", ".env.example", ".gitignore", "README.md"]) {
+    for (const path of [
+      "package.json",
+      "tsconfig.json",
+      "vite.config.ts",
+      "vitest.config.ts",
+      "src/app.tsx",
+      "src/counter.tsx",
+      "test/app.test.ts",
+      ".env.example",
+      ".gitignore",
+      "README.md",
+    ]) {
       expect(files, path).toHaveProperty([path])
     }
     const pkg = JSON.parse(files["package.json"]!)

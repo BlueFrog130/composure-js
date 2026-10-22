@@ -39,9 +39,7 @@ describe("REST Endpoints against the OpenAPI spec", () => {
 
   test("coverage", () => {
     const implemented = new Set(Object.values(ROUTES).map((r) => `${r.method} ${r.path}`))
-    const missing = operations
-      .filter((o) => !Object.keys(OUT_OF_SCOPE).some((prefix) => o.path.startsWith(prefix)))
-      .filter((o) => !implemented.has(`${o.method} ${o.path}`))
+    const missing = operations.filter((o) => !Object.keys(OUT_OF_SCOPE).some((prefix) => o.path.startsWith(prefix))).filter((o) => !implemented.has(`${o.method} ${o.path}`))
     if (process.env.PRINT_UNIMPLEMENTED) console.info(`Not implemented (${missing.length}):\n${missing.map((o) => `  ${o.method} ${o.path} (${o.operationId})`).join("\n")}`)
     expect(implemented.size).toBe(Object.keys(ROUTES).length)
   })

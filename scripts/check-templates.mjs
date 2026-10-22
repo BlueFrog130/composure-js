@@ -17,7 +17,14 @@ let failed = 0
 for (const template of templates) {
   const dir = join(out, template)
   const link = (pkg) => `link:${relative(dir, join(root, "packages", pkg)).replace(/\\/g, "/")}`
-  const files = generate(template, `check-${template}`, { composurejs: link("composurejs"), cli: link("cli"), vitePlugin: link("vite"), adapterNode: link("adapter-node"), adapterBun: link("adapter-bun"), vite: "^8.3.5" })
+  const files = generate(template, `check-${template}`, {
+    composurejs: link("composurejs"),
+    cli: link("cli"),
+    vitePlugin: link("vite"),
+    adapterNode: link("adapter-node"),
+    adapterBun: link("adapter-bun"),
+    vite: "^8.3.5",
+  })
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true })
     writeFileSync(join(dir, path), content)

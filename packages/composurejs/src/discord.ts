@@ -14,12 +14,7 @@ import type {
   APIUser,
 } from "discord-api-types/v10"
 
-export type {
-  APIInteractionResponse as InteractionResponse,
-  APIInteractionGuildMember as Member,
-  APIUser as User,
-  APIEntitlement as Entitlement,
-}
+export type { APIInteractionResponse as InteractionResponse, APIInteractionGuildMember as Member, APIUser as User, APIEntitlement as Entitlement }
 
 /** Any Interaction, including kinds this version does not know (passed through raw). */
 export type Interaction =

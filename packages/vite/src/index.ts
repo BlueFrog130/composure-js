@@ -79,9 +79,7 @@ export default function composure(options: ComposureOptions = {}): Plugin {
       root = config.root
       if (target !== "cloudflare" || config.command !== "build") return
       if (!config.plugins.some((p) => p.name.startsWith("vite-plugin-cloudflare"))) {
-        throw new Error(
-          'composure({ target: "cloudflare" }) builds through @cloudflare/vite-plugin: add it, plugins: [composure({ target: "cloudflare" }), cloudflare()]',
-        )
+        throw new Error('composure({ target: "cloudflare" }) builds through @cloudflare/vite-plugin: add it, plugins: [composure({ target: "cloudflare" }), cloudflare()]')
       }
     },
 

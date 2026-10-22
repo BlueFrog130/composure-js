@@ -45,10 +45,12 @@ export async function serve<E extends Env>(app: App<E>, options: ServeOptions<E>
       res.writeHead(200, { "content-type": "text/plain" }).end("ok")
       return
     }
-    toRequest(req).then(
-      async (request) => send(res, request ? await app.fetch(request, env, platform) : new Response("Payload Too Large", { status: 413 })),
-      () => send(res, new Response("Bad Request", { status: 400 })),
-    ).catch(() => res.destroy())
+    toRequest(req)
+      .then(
+        async (request) => send(res, request ? await app.fetch(request, env, platform) : new Response("Payload Too Large", { status: 413 })),
+        () => send(res, new Response("Bad Request", { status: 400 })),
+      )
+      .catch(() => res.destroy())
   })
 
   await new Promise<void>((resolve) => server.listen(port, hostname, resolve))

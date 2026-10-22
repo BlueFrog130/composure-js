@@ -7,10 +7,7 @@
   },
   {
     "name": "core + Views: App, command, tags, JSX runtime",
-    "path": [
-      "packages/composurejs/dist/index.js",
-      "packages/composurejs/dist/jsx-runtime.js"
-    ],
+    "path": ["packages/composurejs/dist/index.js", "packages/composurejs/dist/jsx-runtime.js"],
     "import": {
       "packages/composurejs/dist/index.js": "{ App, command, Container, Text, Row, Button }",
       "packages/composurejs/dist/jsx-runtime.js": "{ jsx }"

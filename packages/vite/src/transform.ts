@@ -255,7 +255,12 @@ export interface TransformOptions {
  * `__composure_handler(id, captures, make)`, and its site becomes `ref.bind([captured values])`.
  * Undefined when the module has none.
  */
-export function transformHandlers(code: string, id: string, options: TransformOptions = {}, parse: () => Node | undefined = () => parseModule(code, id)): TransformResult | undefined {
+export function transformHandlers(
+  code: string,
+  id: string,
+  options: TransformOptions = {},
+  parse: () => Node | undefined = () => parseModule(code, id),
+): TransformResult | undefined {
   if (!/\bon(?:Click|Select|Submit)\b|\bnamed\s*\(/.test(code)) return undefined
   const program = parse()
   if (!program) return undefined
@@ -275,7 +280,11 @@ export function transformHandlers(code: string, id: string, options: TransformOp
   const isNamed = (node: Node) =>
     node.type === "CallExpression" &&
     ((node.callee.type === "Identifier" && namedLocals.has(node.callee.name)) ||
-      (node.callee.type === "MemberExpression" && !node.callee.computed && node.callee.object.type === "Identifier" && namespaces.has(node.callee.object.name) && node.callee.property.name === "named"))
+      (node.callee.type === "MemberExpression" &&
+        !node.callee.computed &&
+        node.callee.object.type === "Identifier" &&
+        namespaces.has(node.callee.object.name) &&
+        node.callee.property.name === "named"))
 
   const sites: Site[] = []
   walk(program, {
@@ -285,16 +294,21 @@ export function transformHandlers(code: string, id: string, options: TransformOp
         if (isFunction(expr)) {
           sites.push({ replace: expr, closure: expr, name: undefined, owner: ownerOf(parents), attr: node.name.name, locals: captureLocals(expr, scopes, node.name.name) })
         } else if (expr.type === "Identifier" && findScope(scopes, expr.name) >= 0) {
-          throw new HandlerTransformError(`${node.name.name}={${expr.name}}: write the handler inline, so it can be hoisted with what it captures (or use named("id", ..))`, expr.start)
+          throw new HandlerTransformError(
+            `${node.name.name}={${expr.name}}: write the handler inline, so it can be hoisted with what it captures (or use named("id", ..))`,
+            expr.start,
+          )
         }
         return
       }
       if (isNamed(node)) {
         const [nameArg, fn] = node.arguments as Node[]
         const name =
-          nameArg?.type === "Literal" && typeof nameArg.value === "string" ? nameArg.value
-          : nameArg?.type === "TemplateLiteral" && nameArg.expressions.length === 0 ? (nameArg.quasis[0].value.cooked as string)
-          : undefined
+          nameArg?.type === "Literal" && typeof nameArg.value === "string"
+            ? nameArg.value
+            : nameArg?.type === "TemplateLiteral" && nameArg.expressions.length === 0
+              ? (nameArg.quasis[0].value.cooked as string)
+              : undefined
         if (name === undefined) throw new HandlerTransformError("named() needs a string literal id", node.start)
         if (!NAMED_ID.test(name)) throw new HandlerTransformError(`named("${name}", ..): ids are 1-32 letters, digits, "_" or "-", not starting with "_"`, node.start)
         if (!fn || !isFunction(fn)) throw new HandlerTransformError(`named("${name}", ..) needs the handler written inline`, node.start)
@@ -310,7 +324,13 @@ export function transformHandlers(code: string, id: string, options: TransformOp
   const ids = sites.map((site) => {
     const ordinal = ordinals.get(site.owner) ?? 0
     ordinals.set(site.owner, ordinal + 1)
-    return site.name ?? `_${createHash("sha256").update(`${file}|${site.owner}|${ordinal}|${site.attr}|${site.locals.join(",")}`).digest("base64url").slice(0, 7)}`
+    return (
+      site.name ??
+      `_${createHash("sha256")
+        .update(`${file}|${site.owner}|${ordinal}|${site.attr}|${site.locals.join(",")}`)
+        .digest("base64url")
+        .slice(0, 7)}`
+    )
   })
 
   // Innermost first, so a handler that returns markup with handlers carries them rewritten.
@@ -324,7 +344,8 @@ export function transformHandlers(code: string, id: string, options: TransformOp
     s.overwrite(site.replace.start, site.replace.end, `${ref}.bind([${site.locals.join(", ")}])`)
     const roots = [...new Set(site.locals.map((path) => path.split(".")[0]!))]
     const where = `${file}: ${site.owner}`
-    decls[i] = `const ${ref} = __composure_handler(${JSON.stringify(ids[i])}, ${JSON.stringify(site.locals)}, (${roots.length > 0 ? `{ ${roots.join(", ")} }` : ""}) => (${closure}), ${JSON.stringify(where)});`
+    decls[i] =
+      `const ${ref} = __composure_handler(${JSON.stringify(ids[i])}, ${JSON.stringify(site.locals)}, (${roots.length > 0 ? `{ ${roots.join(", ")} }` : ""}) => (${closure}), ${JSON.stringify(where)});`
   }
   const header = `\nimport { __handler as __composure_handler } from "composurejs";\n${decls.join("\n")}\n`
   if (lastImport) s.appendLeft(lastImport.end, header)
@@ -369,7 +390,10 @@ function captureLocals(closure: Node, scopes: Scope[], what: string): string[] {
         if (root?.type !== "JSXIdentifier" || !/^[A-Z]/.test(root.name)) return
         const at = findScope(inner, root.name)
         if (at >= 0 && at < scopes.length) {
-          throw new HandlerTransformError(`<${root.name}> is defined inside a function, but the ${what} handler rendering it is hoisted to module scope: define ${root.name} at module scope`, node.start)
+          throw new HandlerTransformError(
+            `<${root.name}> is defined inside a function, but the ${what} handler rendering it is hoisted to module scope: define ${root.name} at module scope`,
+            node.start,
+          )
         }
       },
       reference(node, parents, inner) {

@@ -1,24 +1,6 @@
 // Signed regression fixtures: Interaction shapes as Discord sends them, each with the status
 // and JSON the regression App must answer with. Replayed against every Adapter over its entry.
-import {
-  App,
-  Button,
-  command,
-  Container,
-  File,
-  group,
-  Label,
-  messageCommand,
-  named,
-  Modal,
-  option,
-  Row,
-  Text,
-  TextInput,
-  upload,
-  userCommand,
-  UserError,
-} from "composurejs"
+import { App, Button, command, Container, File, group, Label, messageCommand, named, Modal, option, Row, Text, TextInput, upload, userCommand, UserError } from "composurejs"
 import { TestKey } from "composurejs/testing"
 
 const SEED = new Uint8Array(32).fill(7)
@@ -34,7 +16,11 @@ const ALICE = { id: "100000000000000001", username: "alice", global_name: "Alice
 // this module loads; no App lists them.
 export const Counter = ({ n }: { n: number }) => (
   <Row>
-    <Button onClick={named("counter-inc", () => <Counter n={n + 1} />)}>{`Count ${n}`}</Button>
+    <Button
+      onClick={named("counter-inc", () => (
+        <Counter n={n + 1} />
+      ))}
+    >{`Count ${n}`}</Button>
   </Row>
 )
 export const Poll = ({ poll }: { poll: string }) => (
@@ -71,8 +57,24 @@ export const regressionApp = new App({ transport: async () => new Response(null,
     }),
   )
   .command(command({ name: "secret", description: "Ephemeral", handler: (c) => c.ephemeral("shh") }))
-  .command(command({ name: "oops", description: "User Error", handler: () => { throw new UserError("Not here") } }))
-  .command(command({ name: "crash", description: "Crash", handler: () => { throw new Error("boom", { cause: new Error("root") }) } }))
+  .command(
+    command({
+      name: "oops",
+      description: "User Error",
+      handler: () => {
+        throw new UserError("Not here")
+      },
+    }),
+  )
+  .command(
+    command({
+      name: "crash",
+      description: "Crash",
+      handler: () => {
+        throw new Error("boom", { cause: new Error("root") })
+      },
+    }),
+  )
   .command(
     command({
       name: "cookie",
@@ -91,7 +93,11 @@ export const regressionApp = new App({ transport: async () => new Response(null,
       description: "Group",
       subcommands: [
         command({ name: "ban", description: "Ban", options: { user: option.user("Who") }, handler: (_c, { user }) => `ban ${user.username}` }),
-        group({ name: "role", description: "Roles", subcommands: [command({ name: "add", description: "Add", options: { role: option.role("Role") }, handler: (_c, { role }) => `add ${role.name}` })] }),
+        group({
+          name: "role",
+          description: "Roles",
+          subcommands: [command({ name: "add", description: "Add", options: { role: option.role("Role") }, handler: (_c, { role }) => `add ${role.name}` })],
+        }),
       ],
     }),
   )
@@ -168,14 +174,28 @@ export const cases: Case[] = [
       type: 4,
       data: {
         flags: V2,
-        components: [{ type: 17, accent_color: 0x5865f2, components: [{ type: 10, content: "## Title" }, { type: 10, content: "line one\nline two" }] }],
+        components: [
+          {
+            type: 17,
+            accent_color: 0x5865f2,
+            components: [
+              { type: 10, content: "## Title" },
+              { type: 10, content: "line one\nline two" },
+            ],
+          },
+        ],
       },
     },
   },
   { name: "ephemeral", body: json(slash("secret")), status: 200, response: message("shh", EPHEMERAL) },
   { name: "deferred", body: json(slash("slow")), status: 200, response: { type: 5 } },
   { name: "webhook event PING", path: "/events", body: json({ version: 1, application_id: APP, type: 0 }), status: 204 },
-  { name: "webhook event", path: "/events", body: json({ version: 1, application_id: APP, type: 1, event: { type: "BRAND_NEW_EVENT", timestamp: "2026-01-01T00:00:00Z", data: {} } }), status: 204 },
+  {
+    name: "webhook event",
+    path: "/events",
+    body: json({ version: 1, application_id: APP, type: 1, event: { type: "BRAND_NEW_EVENT", timestamp: "2026-01-01T00:00:00Z", data: {} } }),
+    status: 204,
+  },
   { name: "webhook event, tampered", path: "/events", signing: "tampered", body: json({ version: 1, application_id: APP, type: 0 }), status: 401 },
   { name: "View with a file, via the callback endpoint", body: json(slash("export")), status: 202 },
   {
@@ -270,7 +290,22 @@ export const cases: Case[] = [
         target_id: "500000000000000002",
         resolved: {
           messages: {
-            "500000000000000002": { id: "500000000000000002", channel_id: CHANNEL, author: BOB, content: "cookies!", timestamp: "2024-01-01T00:00:00.000Z", edited_timestamp: null, tts: false, mention_everyone: false, mentions: [], mention_roles: [], attachments: [], embeds: [], pinned: false, type: 0 },
+            "500000000000000002": {
+              id: "500000000000000002",
+              channel_id: CHANNEL,
+              author: BOB,
+              content: "cookies!",
+              timestamp: "2024-01-01T00:00:00.000Z",
+              edited_timestamp: null,
+              tts: false,
+              mention_everyone: false,
+              mentions: [],
+              mention_roles: [],
+              attachments: [],
+              embeds: [],
+              pinned: false,
+              type: 0,
+            },
           },
         },
       },
@@ -285,44 +320,92 @@ export const cases: Case[] = [
       ...inGuild,
       id: "900000000000000008",
       type: 4,
-      data: { id: "800000000000000001", name: "cookie", type: 1, options: [{ name: "user", type: 6, value: BOB.id }, { name: "flavor", type: 3, value: "ch", focused: true }] },
+      data: {
+        id: "800000000000000001",
+        name: "cookie",
+        type: 1,
+        options: [
+          { name: "user", type: 6, value: BOB.id },
+          { name: "flavor", type: 3, value: "ch", focused: true },
+        ],
+      },
     }),
     status: 200,
     response: { type: 8, data: { choices: [{ name: "chocolate", value: "chocolate" }] } },
   },
   {
     name: "autocomplete without handler",
-    body: json({ ...base, ...inGuild, id: "900000000000000002", type: 4, data: { id: "800000000000000001", name: "ping", type: 1, options: [{ name: "q", type: 3, value: "a", focused: true }] } }),
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000002",
+      type: 4,
+      data: { id: "800000000000000001", name: "ping", type: 1, options: [{ name: "q", type: 3, value: "a", focused: true }] },
+    }),
     status: 200,
     response: { type: 8, data: { choices: [] } },
   },
   {
     name: "component without handler",
-    body: json({ ...base, ...inGuild, id: "900000000000000003", type: 3, data: { custom_id: "gone:click", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 } }),
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000003",
+      type: 3,
+      data: { custom_id: "gone:click", component_type: 2 },
+      message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 },
+    }),
     status: 200,
     response: message("This message is outdated.", EPHEMERAL),
   },
   {
     name: "handler with a captured value",
-    body: json({ ...base, ...inGuild, id: "900000000000000010", type: 3, data: { custom_id: "vote:s123", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 } }),
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000010",
+      type: 3,
+      data: { custom_id: "vote:s123", component_type: 2 },
+      message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 },
+    }),
     status: 200,
     response: message("vote up on 123"),
   },
   {
     name: "markup from a click updates the message",
-    body: json({ ...base, ...inGuild, id: "900000000000000011", type: 3, data: { custom_id: "counter-inc:n1", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: V2 } }),
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000011",
+      type: 3,
+      data: { custom_id: "counter-inc:n1", component_type: 2 },
+      message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: V2 },
+    }),
     status: 200,
     response: { type: 7, data: { flags: V2, components: [{ type: 1, components: [{ type: 2, style: 2, custom_id: "counter-inc:n2", label: "Count 2" }] }] } },
   },
   {
     name: "modal submit, values by input name",
-    body: json({ ...base, ...inGuild, id: "900000000000000012", type: 5, data: { custom_id: "fb", components: [{ type: 18, id: 1, component: { type: 4, id: 2, custom_id: "what", value: "cookies" } }] } }),
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000012",
+      type: 5,
+      data: { custom_id: "fb", components: [{ type: 18, id: 1, component: { type: 4, id: 2, custom_id: "what", value: "cookies" } }] },
+    }),
     status: 200,
     response: message("thanks for: cookies"),
   },
   {
     name: "captures that do not decode go to the Fallback",
-    body: json({ ...base, ...inGuild, id: "900000000000000013", type: 3, data: { custom_id: "counter-inc:x1", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 } }),
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000013",
+      type: 3,
+      data: { custom_id: "counter-inc:x1", component_type: 2 },
+      message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 },
+    }),
     status: 200,
     response: message("This message is outdated.", EPHEMERAL),
   },

@@ -16,18 +16,21 @@ const tester = new RuleTester({ languageOptions: { parserOptions: { ecmaFeatures
 // The cases checkPlacement covers are tested in @composurejs/vite; these test the rule around it.
 tester.run("placement", plugin.rules.placement, {
   valid: [
-    IMPORT + "const v = <Container><Row><Button customId=\"a\">A</Button></Row></Container>",
-    IMPORT + "const v = <Section accessory={<Button customId=\"a\">A</Button>}><Text>a</Text></Section>",
+    IMPORT + 'const v = <Container><Row><Button customId="a">A</Button></Row></Container>',
+    IMPORT + 'const v = <Section accessory={<Button customId="a">A</Button>}><Text>a</Text></Section>',
     'import { Row, Text } from "./mine"\nconst v = <Row><Text>a</Text></Row>',
   ],
   invalid: [
     {
-      code: IMPORT + "const v = <Container><Button customId=\"a\">A</Button></Container>",
+      code: IMPORT + 'const v = <Container><Button customId="a">A</Button></Container>',
       errors: [{ message: "<Button> cannot go inside <Container>", line: 2, column: 22 }],
     },
     {
       code: IMPORT + "const v = <Row>\n  hello\n  <Text>a</Text>\n</Row>",
-      errors: [{ message: "text cannot go inside <Row>", line: 2 }, { message: "<Text> cannot go inside <Row>", line: 4, column: 3 }],
+      errors: [
+        { message: "text cannot go inside <Row>", line: 2 },
+        { message: "<Text> cannot go inside <Row>", line: 4, column: 3 },
+      ],
     },
   ],
 })
@@ -48,10 +51,7 @@ describe("oxlint", () => {
 
   test("loads the plugin as a JS plugin and reports in TSX", () => {
     mkdirSync(dir, { recursive: true })
-    writeFileSync(
-      join(dir, ".oxlintrc.json"),
-      JSON.stringify({ jsPlugins: [resolve(here, "../src/index.ts").replace(/\\/g, "/")], rules: { "@composurejs/placement": "error" } }),
-    )
+    writeFileSync(join(dir, ".oxlintrc.json"), JSON.stringify({ jsPlugins: [resolve(here, "../src/index.ts").replace(/\\/g, "/")], rules: { "@composurejs/placement": "error" } }))
     writeFileSync(join(dir, "view.tsx"), `${IMPORT}export const v = (n: number) => <Row>{(<Text>{n}</Text>) as any}</Row>\n`)
     const bin = resolve(here, "../node_modules/oxlint/bin/oxlint")
     let output = ""

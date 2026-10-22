@@ -1,18 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": [
-      "es2023",
-      "dom"
-    ],
-    "types": [
-      "node"
-    ],
+    "lib": ["es2023", "dom"],
+    "types": ["node"],
     "resolveJsonModule": true
   },
-  "include": [
-    "src",
-    "test",
-    "*.config.ts"
-  ]
+  "include": ["src", "test", "*.config.ts"]
 }

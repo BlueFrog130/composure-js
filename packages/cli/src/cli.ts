@@ -123,7 +123,11 @@ export async function sync(options: SyncOptions, io: Io): Promise<number> {
         return 1
       }
     }
-    await ui.step("Syncing", () => apply(planned, config, rest), () => `Synced ${total} change${total === 1 ? "" : "s"}`)
+    await ui.step(
+      "Syncing",
+      () => apply(planned, config, rest),
+      () => `Synced ${total} change${total === 1 ? "" : "s"}`,
+    )
     ui.outro("Discord is up to date.")
     return 0
   } catch (error) {

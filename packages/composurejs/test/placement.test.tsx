@@ -126,14 +126,17 @@ const PARENTS: Record<string, (c: View) => JSX.Element> = {
 }
 
 const PLACEMENT_ERROR = /cannot go|can only be the root|goes in|accessory/
-const errorOf = (view: JSX.Element) => render(view).then(
-  () => undefined,
-  (e: Error) => e.message,
-)
+const errorOf = (view: JSX.Element) =>
+  render(view).then(
+    () => undefined,
+    (e: Error) => e.message,
+  )
 const kinds = [TEXT, "br", ...TAGS]
 
 test("TAGS lists every built-in tag", () => {
-  const exported = Object.entries(components).filter(([name, value]) => /^[A-Z]/.test(name) && typeof value === "function").map(([name]) => name)
+  const exported = Object.entries(components)
+    .filter(([name, value]) => /^[A-Z]/.test(name) && typeof value === "function")
+    .map(([name]) => name)
   expect([...TAGS].sort()).toEqual(exported.sort())
   expect(Object.keys(PARENTS).sort()).toEqual(Object.keys(PLACEMENT).sort())
 })

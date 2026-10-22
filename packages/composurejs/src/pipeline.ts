@@ -217,9 +217,7 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
     }
     case InteractionType.ApplicationCommandAutocomplete: {
       const entry = built.commands.get(`${interaction.data.type}:${interaction.data.name}`)
-      return runChain(entry?.chain ?? built.middleware, c, () =>
-        entry ? autocomplete(entry.command, c as Context<E, APIApplicationCommandAutocompleteInteraction>) : NO_CHOICES,
-      )
+      return runChain(entry?.chain ?? built.middleware, c, () => (entry ? autocomplete(entry.command, c as Context<E, APIApplicationCommandAutocompleteInteraction>) : NO_CHOICES))
     }
     case InteractionType.MessageComponent:
     case InteractionType.ModalSubmit: {
@@ -255,7 +253,8 @@ interface CommandData {
 function rerender(output: Output, interaction: Interaction): Output {
   const [inner, reply] = unwrapReply(output)
   if (reply) return inner
-  const fromMessage = interaction.type === InteractionType.MessageComponent || (interaction.type === InteractionType.ModalSubmit && "message" in interaction && interaction.message !== undefined)
+  const fromMessage =
+    interaction.type === InteractionType.MessageComponent || (interaction.type === InteractionType.ModalSubmit && "message" in interaction && interaction.message !== undefined)
   return fromMessage && (isNode(output) || output instanceof Promise) ? rerendered(output) : output
 }
 

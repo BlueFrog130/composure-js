@@ -222,7 +222,13 @@ export const deleteWebhook = (rest: RestClient, webhookId: string, audit: Audit 
   rest.request(ROUTES.deleteWebhook, { params: { webhook_id: webhookId }, ...audit })
 
 /** Sends through a webhook (by its token; needs no bot token). Waits for the message, which it returns. */
-export async function executeWebhook(rest: RestClient, webhookId: string, token: string, message: MessageInput<Body<"executeWebhook">>, query: Q<"executeWebhook"> = {}): Res<"executeWebhook"> {
+export async function executeWebhook(
+  rest: RestClient,
+  webhookId: string,
+  token: string,
+  message: MessageInput<Body<"executeWebhook">>,
+  query: Q<"executeWebhook"> = {},
+): Res<"executeWebhook"> {
   const { json, files } = await toMessageBody(message)
   const withComponents = json.components !== undefined ? { with_components: true } : {}
   return rest.request(ROUTES.executeWebhook, { params: { webhook_id: webhookId, webhook_token: token }, query: { wait: true, ...withComponents, ...query }, body: json, files })
@@ -251,8 +257,12 @@ export const getGuildCommands = (rest: RestClient, applicationId: string, guildI
   rest.request(ROUTES.getGuildCommands, { params: { application_id: applicationId, guild_id: guildId }, query })
 
 /** Replaces every Command Definition in one guild with `commands`. */
-export const bulkOverwriteGuildCommands = (rest: RestClient, applicationId: string, guildId: string, commands: Body<"bulkOverwriteGuildCommands">): Res<"bulkOverwriteGuildCommands"> =>
-  rest.request(ROUTES.bulkOverwriteGuildCommands, { params: { application_id: applicationId, guild_id: guildId }, body: commands })
+export const bulkOverwriteGuildCommands = (
+  rest: RestClient,
+  applicationId: string,
+  guildId: string,
+  commands: Body<"bulkOverwriteGuildCommands">,
+): Res<"bulkOverwriteGuildCommands"> => rest.request(ROUTES.bulkOverwriteGuildCommands, { params: { application_id: applicationId, guild_id: guildId }, body: commands })
 
 // ---- Users ---------------------------------------------------------------------------------
 

@@ -231,7 +231,11 @@ COMPOSURE_DEV_GUILD=
 
 function readme(template: Template, name: string): string {
   const run =
-    template === "cloudflare" ? "pnpm build && pnpm wrangler secret put DISCORD_PUBLIC_KEY && pnpm deploy" : template === "node" ? "pnpm build && pnpm start" : "pnpm build && bun dist/index.js"
+    template === "cloudflare"
+      ? "pnpm build && pnpm wrangler secret put DISCORD_PUBLIC_KEY && pnpm deploy"
+      : template === "node"
+        ? "pnpm build && pnpm start"
+        : "pnpm build && bun dist/index.js"
   return `# ${name}
 
 A Discord bot built with [composurejs](https://github.com/BlueFrog130/composure-js) on ${TEMPLATES[template].label}.

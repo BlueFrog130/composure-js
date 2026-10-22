@@ -78,7 +78,9 @@ class Walk {
   customId(value: unknown, owner: string, register = true): string {
     if (typeof value !== "string" || value === "") throw new RenderError(`${tag(owner)} needs a customId`)
     if (value.length > LIMITS.customId) {
-      throw new RenderError(`${tag(owner)} custom_id is ${value.length} characters; the limit is ${LIMITS.customId}. Carry an id and load the rest instead: "${value.slice(0, 40)}…"`)
+      throw new RenderError(
+        `${tag(owner)} custom_id is ${value.length} characters; the limit is ${LIMITS.customId}. Carry an id and load the rest instead: "${value.slice(0, 40)}…"`,
+      )
     }
     const first = this.customIds.get(value)
     if (first) throw new RenderError(`custom_id "${value}" is used twice in one ${this.modal ? "modal" : "message"} (${tag(first)} and ${tag(owner)})`)

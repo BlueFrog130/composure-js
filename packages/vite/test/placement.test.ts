@@ -14,9 +14,7 @@ const check = (body: string, header = IMPORT) => {
 
 describe("checkPlacement", () => {
   test("a tag directly inside a parent that cannot hold it", () => {
-    expect(check(`const v = <Container><Button customId="a">A</Button></Container>`)).toEqual([
-      '<Button> cannot go inside <Container> @ <Button customId="a">A</Button>',
-    ])
+    expect(check(`const v = <Container><Button customId="a">A</Button></Container>`)).toEqual(['<Button> cannot go inside <Container> @ <Button customId="a">A</Button>'])
     expect(check(`const v = <Container><Container><Text>a</Text></Container></Container>`)).toEqual([
       "<Container> cannot go inside <Container> @ <Container><Text>a</Text></Container>",
     ])
@@ -69,7 +67,16 @@ describe("the plugin", () => {
   const transform = (plugin: Plugin, code: string) => {
     const warnings: { message: string; pos: number }[] = []
     const hook = plugin.transform as (this: unknown, code: string, id: string) => unknown
-    hook.call({ warn: (w: { message: string; pos: number }) => warnings.push(w), error: (e: unknown) => { throw e } }, code, "/bot/src/view.tsx")
+    hook.call(
+      {
+        warn: (w: { message: string; pos: number }) => warnings.push(w),
+        error: (e: unknown) => {
+          throw e
+        },
+      },
+      code,
+      "/bot/src/view.tsx",
+    )
     return warnings
   }
 

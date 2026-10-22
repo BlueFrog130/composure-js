@@ -67,7 +67,9 @@ async function create(dirArg: string | undefined, options: CreateOptions, env: E
     }
   }
   const target = resolve(env.cwd, dir)
-  const name = basename(target).toLowerCase().replace(/[^a-z0-9-._~]/g, "-")
+  const name = basename(target)
+    .toLowerCase()
+    .replace(/[^a-z0-9-._~]/g, "-")
   if (!NAME.test(name)) return stop(`"${name}" is not a valid package name`)
   if (existsSync(target) && readdirSync(target).length > 0) {
     if (!ask) return stop(`${dir} is not empty`)
@@ -134,4 +136,3 @@ export function install(dir: string, packageManager: string): Promise<boolean> {
     child.on("error", () => done(false))
   })
 }
-

@@ -155,11 +155,7 @@ class ChatInputBuilder<I extends Interaction> extends ResolvingBuilder<I> {
 
   /** A string, integer (whole number), number or boolean Option value. */
   option(name: string, value: string | number | boolean): this {
-    const type =
-      typeof value === "string" ? OptionType.String
-      : typeof value === "boolean" ? OptionType.Boolean
-      : Number.isInteger(value) ? OptionType.Integer
-      : OptionType.Number
+    const type = typeof value === "string" ? OptionType.String : typeof value === "boolean" ? OptionType.Boolean : Number.isInteger(value) ? OptionType.Integer : OptionType.Number
     this.options.push({ name, type, value })
     return this
   }
@@ -192,9 +188,11 @@ class ChatInputBuilder<I extends Interaction> extends ResolvingBuilder<I> {
     const [first, second] = this.#path
     const leaf = this.options
     const options =
-      second !== undefined ? [{ type: OptionType.SubcommandGroup, name: first, options: [{ type: OptionType.Subcommand, name: second, options: leaf }] }]
-      : first !== undefined ? [{ type: OptionType.Subcommand, name: first, options: leaf }]
-      : leaf
+      second !== undefined
+        ? [{ type: OptionType.SubcommandGroup, name: first, options: [{ type: OptionType.Subcommand, name: second, options: leaf }] }]
+        : first !== undefined
+          ? [{ type: OptionType.Subcommand, name: first, options: leaf }]
+          : leaf
     const resolved = this.resolvedData()
     return { id: snowflake(), name: this.name, type: 1, ...(options.length > 0 && { options }), ...(resolved && { resolved }) }
   }
@@ -318,10 +316,13 @@ class ModalSubmitBuilder extends ResolvingBuilder<APIModalSubmitInteraction> {
   /** An input's value: a string for a text input or radio group, a boolean for a checkbox, a list for selects and checkbox groups. */
   field(customId: string, value: SubmittedValue): this {
     const component =
-      typeof value === "boolean" ? { type: 23, custom_id: customId, value }
-      : Array.isArray(value) ? { type: 3, custom_id: customId, values: value }
-      : value === null ? { type: 21, custom_id: customId, value: null }
-      : { type: 4, custom_id: customId, value }
+      typeof value === "boolean"
+        ? { type: 23, custom_id: customId, value }
+        : Array.isArray(value)
+          ? { type: 3, custom_id: customId, values: value }
+          : value === null
+            ? { type: 21, custom_id: customId, value: null }
+            : { type: 4, custom_id: customId, value }
     this.#inputs.push({ type: 18, component })
     return this
   }

@@ -58,7 +58,7 @@ const Profile = async ({ id }: { id: string }) => {
   const row = scores.get(id)!
   return (
     <Row>
-      <Button onClick={() => ((scores.get(id)!.score += 1), <Profile id={id} />)}>{`${row.name}: ${row.score}`}</Button>
+      <Button onClick={() => ((scores.get(id)!.score += 1), (<Profile id={id} />))}>{`${row.name}: ${row.score}`}</Button>
     </Row>
   )
 }
@@ -158,7 +158,16 @@ describe("Inline Handlers", () => {
   test("a handler returning markup with handlers works through every click", async () => {
     const Confirm = ({ item }: { item: string }) => (
       <Row>
-        <Button style="danger" onClick={() => <Row><Button onClick={(c) => c.reply(`deleted ${item}`)}>Yes, delete {item}</Button></Row>}>Delete</Button>
+        <Button
+          style="danger"
+          onClick={() => (
+            <Row>
+              <Button onClick={(c) => c.reply(`deleted ${item}`)}>Yes, delete {item}</Button>
+            </Row>
+          )}
+        >
+          Delete
+        </Button>
       </Row>
     )
     const confirm = new App().command(command({ name: "del", description: "Del", handler: () => <Confirm item="cookie" /> }))
@@ -203,7 +212,11 @@ describe("Inline Handlers", () => {
 
   test("capturing an object fails at render, saying what to capture instead", async () => {
     const { logger, entries } = recordingLogger()
-    const Bad = ({ user }: { user: { id: string } }) => <Row><Button onClick={() => JSON.stringify(user)}>x</Button></Row>
+    const Bad = ({ user }: { user: { id: string } }) => (
+      <Row>
+        <Button onClick={() => JSON.stringify(user)}>x</Button>
+      </Row>
+    )
     await answer(new App({ logger }).command(command({ name: "bad", description: "B", handler: (c) => <Bad user={{ id: c.user.id }} /> })), invoke("bad"))
     expect((entries[0]?.error as Error).message).toBe(
       "The handler in test/handlers.test.tsx: Bad captures `user`, which is an object; capture strings, numbers or booleans (like `user.id`), or load the rest from an id inside the handler",
@@ -214,7 +227,11 @@ describe("Inline Handlers", () => {
     const { logger, entries } = recordingLogger()
     const Helper = () => {
       const shout = (s: string) => s.toUpperCase()
-      return <Row><Button onClick={() => shout("hi")}>x</Button></Row>
+      return (
+        <Row>
+          <Button onClick={() => shout("hi")}>x</Button>
+        </Row>
+      )
     }
     await answer(new App({ logger }).command(command({ name: "h", description: "H", handler: () => <Helper /> })), invoke("h"))
     expect((entries[0]?.error as Error).message).toMatch(/captures `shout`, which is a function; define it at module scope/)
@@ -222,7 +239,11 @@ describe("Inline Handlers", () => {
 
   test("captures past the 100-character custom_id limit fail at render with a hint", async () => {
     const { logger, entries } = recordingLogger()
-    const Long = ({ text }: { text: string }) => <Row><Button onClick={() => text}>x</Button></Row>
+    const Long = ({ text }: { text: string }) => (
+      <Row>
+        <Button onClick={() => text}>x</Button>
+      </Row>
+    )
     await answer(new App({ logger }).command(command({ name: "long", description: "L", handler: () => <Long text={"x".repeat(100)} /> })), invoke("long"))
     expect((entries[0]?.error as Error).message).toMatch(/custom_id is \d+ characters; the limit is 100\. Carry an id and load the rest instead/)
   })
@@ -264,7 +285,13 @@ describe("modals", () => {
 
   test("modal inputs need a name", async () => {
     const { logger, entries } = recordingLogger()
-    const Nameless = () => <Modal title="t" onSubmit={() => "x"}><Label text="A"><TextInput {...({} as { name: string })} /></Label></Modal>
+    const Nameless = () => (
+      <Modal title="t" onSubmit={() => "x"}>
+        <Label text="A">
+          <TextInput {...({} as { name: string })} />
+        </Label>
+      </Modal>
+    )
     await answer(new App({ logger }).command(command({ name: "n", description: "N", handler: () => <Nameless /> })), invoke("n"))
     expect((entries[0]?.error as Error).message).toBe("<TextInput> in a <Modal> needs a name, its key in onSubmit's values")
   })
@@ -272,7 +299,11 @@ describe("modals", () => {
 
 describe("named()", () => {
   test("gives a handler a stable id", async () => {
-    const RoleMenu = ({ role }: { role: string }) => <Row><Button onClick={named("toggle-role", (c) => c.ephemeral(`toggled ${role}`))}>Toggle</Button></Row>
+    const RoleMenu = ({ role }: { role: string }) => (
+      <Row>
+        <Button onClick={named("toggle-role", (c) => c.ephemeral(`toggled ${role}`))}>Toggle</Button>
+      </Row>
+    )
     const roles = new App().command(command({ name: "roles", description: "R", handler: () => <RoleMenu role="baker" /> }))
     const res = await answer(roles, invoke("roles"))
     expect(res.allComponents.find((c) => c.type === 2)?.custom_id).toBe("toggle-role:sbaker")
@@ -289,9 +320,13 @@ describe("named()", () => {
 describe("without @composurejs/vite", () => {
   test("a function on* prop fails at render, saying the plugin must be in the build", async () => {
     const { logger, entries } = recordingLogger()
-    const raw = new App({ logger }).command(command({ name: "raw", description: "R", handler: () => jsx(Row, { children: jsx(RawButton, { onClick: () => "hi", children: "x" }) }) }))
+    const raw = new App({ logger }).command(
+      command({ name: "raw", description: "R", handler: () => jsx(Row, { children: jsx(RawButton, { onClick: () => "hi", children: "x" }) }) }),
+    )
     await answer(raw, invoke("raw"))
-    expect((entries[0]?.error as Error).message).toBe("<Button onClick> got a function: Inline Handlers are compiled by @composurejs/vite, which must be in the build (vite.config.ts: plugins: [composure()])")
+    expect((entries[0]?.error as Error).message).toBe(
+      "<Button onClick> got a function: Inline Handlers are compiled by @composurejs/vite, which must be in the build (vite.config.ts: plugins: [composure()])",
+    )
   })
 
   test("named() throws when called", () => {

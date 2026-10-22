@@ -25,9 +25,11 @@ type JsonOf<T> = T extends { content: { "application/json": infer B } } ? B : ne
 export type RequestBody<O extends Op> = operations[O] extends { requestBody?: infer R } ? JsonOf<NonNullable<R>> : never
 /** The JSON response of operation `O`; `undefined` for 204s. */
 export type ResponseBody<O extends Op> = operations[O]["responses"] extends infer R
-  ? R extends { 200: infer S } ? JsonOf<S>
-    : R extends { 201: infer S } ? JsonOf<S>
-    : undefined
+  ? R extends { 200: infer S }
+    ? JsonOf<S>
+    : R extends { 201: infer S }
+      ? JsonOf<S>
+      : undefined
   : never
 /** The query parameters of operation `O`. */
 export type Query<O extends Op> = operations[O]["parameters"] extends { query?: infer Q } ? { [K in keyof NonNullable<Q>]?: NonNullable<Q>[K] | undefined } : never

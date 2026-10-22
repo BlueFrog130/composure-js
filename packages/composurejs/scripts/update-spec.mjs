@@ -12,9 +12,9 @@ writeFileSync(new URL("../spec/openapi.json", import.meta.url), await spec.text(
 writeFileSync(new URL("../spec/PINNED", import.meta.url), `${sha}\n`)
 
 // openapi-typescript needs the TypeScript 5 compiler API, which TypeScript 7 does not ship.
-execFileSync(
-  "pnpm",
-  ["dlx", "--package=openapi-typescript@7.13.0", "--package=typescript@5.9.3", "openapi-typescript", "spec/openapi.json", "-o", "src/rest/schema.d.ts"],
-  { cwd: new URL("..", import.meta.url), stdio: "inherit", shell: process.platform === "win32" },
-)
+execFileSync("pnpm", ["dlx", "--package=openapi-typescript@7.13.0", "--package=typescript@5.9.3", "openapi-typescript", "spec/openapi.json", "-o", "src/rest/schema.d.ts"], {
+  cwd: new URL("..", import.meta.url),
+  stdio: "inherit",
+  shell: process.platform === "win32",
+})
 console.log(`Pinned ${repo}@${sha}`)

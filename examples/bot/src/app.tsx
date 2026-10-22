@@ -63,12 +63,14 @@ export const cookie = command({
     user: option.user("Who gets it"),
     flavor: option.string("Flavor").choices(Flavor),
     count: option.integer("How many", { min: 1, max: 12 }).optional(),
-    topping: option.string("Topping").autocomplete((_c, input) => TOPPINGS.filter((t) => t.startsWith(input.toLowerCase()))).optional(),
+    topping: option
+      .string("Topping")
+      .autocomplete((_c, input) => TOPPINGS.filter((t) => t.startsWith(input.toLowerCase())))
+      .optional(),
   },
   contexts: ["guild", "botDm", "privateChannel"],
   integrationTypes: ["guildInstall", "userInstall"],
-  handler: (_c, { user, flavor, count = 1, topping }) =>
-    `${user.displayName} gets ${count} ${flavor} ${count === 1 ? "cookie" : "cookies"}${topping ? ` with ${topping}` : ""} 🍪`,
+  handler: (_c, { user, flavor, count = 1, topping }) => `${user.displayName} gets ${count} ${flavor} ${count === 1 ? "cookie" : "cookies"}${topping ? ` with ${topping}` : ""} 🍪`,
 })
 
 /** Answers with an ephemeral notice outside servers. */
@@ -104,8 +106,12 @@ export const poll = command({
     <Container accentColor={BRAND}>
       <Text>### {question}</Text>
       <Row>
-        <Button style="success" emoji="👍" onClick={named("poll-yes", (c) => c.ephemeral(`${c.user.username} voted 👍`))}>Yes</Button>
-        <Button style="danger" emoji="👎" onClick={named("poll-no", (c) => c.ephemeral(`${c.user.username} voted 👎`))}>No</Button>
+        <Button style="success" emoji="👍" onClick={named("poll-yes", (c) => c.ephemeral(`${c.user.username} voted 👍`))}>
+          Yes
+        </Button>
+        <Button style="danger" emoji="👎" onClick={named("poll-no", (c) => c.ephemeral(`${c.user.username} voted 👎`))}>
+          No
+        </Button>
       </Row>
     </Container>
   ),
@@ -118,18 +124,24 @@ export const Feedback = () => (
   <Modal
     title="Feedback"
     onSubmit={(c, { mood, notes, followUp }: FeedbackValues) =>
-      c.ephemeral(<Container>
-        <Text>### Thanks for your feedback!</Text>
-        <Text>Mood: {mood}</Text>
-        {notes && (<>
-        <Separator />
-        <Text>Notes: {notes}</Text>
-        </>)}
-        {followUp && (<>
-        <Separator />
-        <Text>We'll be in touch!</Text>
-        </>)}
-      </Container>)
+      c.ephemeral(
+        <Container>
+          <Text>### Thanks for your feedback!</Text>
+          <Text>Mood: {mood}</Text>
+          {notes && (
+            <>
+              <Separator />
+              <Text>Notes: {notes}</Text>
+            </>
+          )}
+          {followUp && (
+            <>
+              <Separator />
+              <Text>We'll be in touch!</Text>
+            </>
+          )}
+        </Container>,
+      )
     }
   >
     <Label text="How is it going?">
@@ -173,7 +185,9 @@ export const app = new App()
   .events((_c, event) => {
     console.info({ msg: "Webhook Event", type: event.type })
   })
-  .use(middleware((c, next) => {
-    console.log(c.raw);
-    return next();
-  }))
+  .use(
+    middleware((c, next) => {
+      console.log(c.raw)
+      return next()
+    }),
+  )

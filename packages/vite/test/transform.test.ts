@@ -80,7 +80,9 @@ describe("transformHandlers", () => {
       )
     `)!
     expect(out).toContain(`onClick={__composure_h0.bind([user])}`)
-    expect(out).toMatch(/const __composure_h0 = __composure_handler\("_[\w-]{7}", \["user"\], \(\{ user \}\) => \(\(\) => <Button onClick=\{__composure_h1\.bind\(\[user\]\)\}>Confirm<\/Button>\), "src\/counter\.tsx: Menu"\);/)
+    expect(out).toMatch(
+      /const __composure_h0 = __composure_handler\("_[\w-]{7}", \["user"\], \(\{ user \}\) => \(\(\) => <Button onClick=\{__composure_h1\.bind\(\[user\]\)\}>Confirm<\/Button>\), "src\/counter\.tsx: Menu"\);/,
+    )
     expect(out).toMatch(/const __composure_h1 = __composure_handler\("_[\w-]{7}", \["user"\], \(\{ user \}\) => \(\(c\) => c\.ephemeral\(user\)\), "src\/counter\.tsx: Menu"\);/)
   })
 
@@ -92,9 +94,9 @@ describe("transformHandlers", () => {
     expect(idsIn(run(counter.replace(/Counter/g, "Tally")))[0]).not.toBe(a)
     // Editing a handler's body keeps its id; capturing something new changes it.
     expect(idsIn(run(counter.replace("<Counter count={0} owner={owner} />", "<Counter count={count * 0} owner={owner} />")))[1]).not.toBe(b)
-    expect(idsIn(run(counter.replace("c.ephemeral(\"Not yours\")", "c.ephemeral(\"Hands off\")")))[0]).toBe(a)
+    expect(idsIn(run(counter.replace('c.ephemeral("Not yours")', 'c.ephemeral("Hands off")')))[0]).toBe(a)
     expect(idsIn(run(counter.replace("c.user.id === owner ?", "c.user.id === owner && count < 100 ?")))[0]).toBe(a)
-    expect(idsIn(run(counter.replace("c.ephemeral(\"Not yours\")", "c.ephemeral(String(count))")))[0]).toBe(a)
+    expect(idsIn(run(counter.replace('c.ephemeral("Not yours")', "c.ephemeral(String(count))")))[0]).toBe(a)
     expect(idsIn(run(counter.replace("+{step}</Button>", "+{step}</Button>").replace("(c) => (c.user.id === owner", "(c) => (c.user.id === owner && STEP_LIMIT")))[0]).toBe(a)
   })
 
@@ -102,20 +104,22 @@ describe("transformHandlers", () => {
     expect(() =>
       run(`import { Button } from "composurejs"\nexport function make() { const Local = () => <Button>x</Button>; return <Button onClick={() => <Local />}>go</Button> }`),
     ).toThrow("<Local> is defined inside a function, but the onClick handler rendering it is hoisted to module scope: define Local at module scope")
-    expect(run(`import { Button } from "composurejs"\nconst Top = () => <Button>x</Button>\nexport function make() { return <Button onClick={() => <Top />}>go</Button> }`)).toContain(
-      "__composure_h0.bind([])",
-    )
+    expect(
+      run(`import { Button } from "composurejs"\nconst Top = () => <Button>x</Button>\nexport function make() { return <Button onClick={() => <Top />}>go</Button> }`),
+    ).toContain("__composure_h0.bind([])")
   })
 
   test("errors point at the handler", () => {
     expect(() => run(`import { Button } from "composurejs"\nexport const V = () => { const go = () => 1; return <Button onClick={go} /> }`)).toThrow(
       "onClick={go}: write the handler inline, so it can be hoisted with what it captures",
     )
-    expect(() => run(`import { Button, named } from "composurejs"\nconst id = "x"\nexport const V = () => <Button onClick={named(id, () => 1)} />`)).toThrow("named() needs a string literal id")
-    expect(() => run(`import { Button, named } from "composurejs"\nexport const V = () => <Button onClick={named("_x", () => 1)} />`)).toThrow('not starting with "_"')
-    expect(() => run(`import { Button, named } from "composurejs"\nexport const V = () => <><Button onClick={named("a", () => 1)} /><Button onClick={named("a", () => 2)} /></>`)).toThrow(
-      'named("a") is used twice in this module',
+    expect(() => run(`import { Button, named } from "composurejs"\nconst id = "x"\nexport const V = () => <Button onClick={named(id, () => 1)} />`)).toThrow(
+      "named() needs a string literal id",
     )
+    expect(() => run(`import { Button, named } from "composurejs"\nexport const V = () => <Button onClick={named("_x", () => 1)} />`)).toThrow('not starting with "_"')
+    expect(() =>
+      run(`import { Button, named } from "composurejs"\nexport const V = () => <><Button onClick={named("a", () => 1)} /><Button onClick={named("a", () => 2)} /></>`),
+    ).toThrow('named("a") is used twice in this module')
   })
 
   test("leaves references and modules without handlers alone", () => {

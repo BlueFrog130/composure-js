@@ -45,7 +45,11 @@ describe("answering", () => {
   test("context exposes user, guild, channel, locale", async () => {
     let seen: unknown
     const app = new App().command(
-      command({ name: "ctx", description: "Ctx", handler: (c) => ((seen = { user: c.user.id, guild: c.guildId, channel: c.channelId, locale: c.locale, member: !!c.member }), "ok") }),
+      command({
+        name: "ctx",
+        description: "Ctx",
+        handler: (c) => ((seen = { user: c.user.id, guild: c.guildId, channel: c.channelId, locale: c.locale, member: !!c.member }), "ok"),
+      }),
     )
     await answer(app, invoke("ctx").by({ id: "42" }).locale("fr"))
     expect(seen).toEqual({ user: "42", guild: "798662131062931547", channel: "300000000000000001", locale: "fr", member: true })
@@ -67,7 +71,15 @@ describe("answering", () => {
 describe("errors", () => {
   test("a User Error is shown as written, ephemeral, logged at debug", async () => {
     const { logger, entries } = recordingLogger()
-    const app = new App({ logger }).command(command({ name: "x", description: "X", handler: () => { throw new UserError("Nope") } }))
+    const app = new App({ logger }).command(
+      command({
+        name: "x",
+        description: "X",
+        handler: () => {
+          throw new UserError("Nope")
+        },
+      }),
+    )
     const res = await answer(app, invoke("x"))
     expect(res.text).toBe("Nope")
     expect(res.isEphemeral).toBe(true)
@@ -77,7 +89,13 @@ describe("errors", () => {
   test("other errors are logged with their cause chain and shown generically", async () => {
     const { logger, entries } = recordingLogger()
     const app = new App({ logger }).command(
-      command({ name: "x", description: "X", handler: () => { throw new Error("outer", { cause: new Error("inner") }) } }),
+      command({
+        name: "x",
+        description: "X",
+        handler: () => {
+          throw new Error("outer", { cause: new Error("inner") })
+        },
+      }),
     )
     const res = await answer(app, invoke("x"))
     expect(res.text).toBe("Something went wrong.")
@@ -87,7 +105,15 @@ describe("errors", () => {
   })
 
   test("onError renders errors, ephemeral, wherever it is in the tree", async () => {
-    const inner = new App().command(command({ name: "x", description: "X", handler: () => { throw new Error("boom") } }))
+    const inner = new App().command(
+      command({
+        name: "x",
+        description: "X",
+        handler: () => {
+          throw new Error("boom")
+        },
+      }),
+    )
     inner.onError((error) => <Text>Oops: {(error as Error).message}</Text>)
     const res = await answer(new App({ logger: recordingLogger().logger }).route(inner), invoke("x"))
     expect(res.isEphemeral).toBe(true)
@@ -96,8 +122,18 @@ describe("errors", () => {
 
   test("a failing Error Renderer falls back to the default message", async () => {
     const app = new App({ logger: recordingLogger().logger })
-      .command(command({ name: "x", description: "X", handler: () => { throw new UserError("Nope") } }))
-      .onError(() => { throw new Error("renderer") })
+      .command(
+        command({
+          name: "x",
+          description: "X",
+          handler: () => {
+            throw new UserError("Nope")
+          },
+        }),
+      )
+      .onError(() => {
+        throw new Error("renderer")
+      })
     expect((await answer(app, invoke("x"))).text).toBe("Nope")
   })
 

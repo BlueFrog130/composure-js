@@ -4,7 +4,8 @@ import { addMemberRole, BotClient, createMessage, executeWebhook, getMessages, k
 import { answer, command as invoke, MockTransport, TestKey } from "composurejs/testing"
 
 const quiet: Logger = { debug() {}, info() {}, warn() {}, error() {} }
-const bot = (transport: MockTransport, maxRateLimitWait?: number) => new BotClient("secret-token", { transport: transport.fetch, logger: quiet, ...(maxRateLimitWait !== undefined && { maxRateLimitWait }) })
+const bot = (transport: MockTransport, maxRateLimitWait?: number) =>
+  new BotClient("secret-token", { transport: transport.fetch, logger: quiet, ...(maxRateLimitWait !== undefined && { maxRateLimitWait }) })
 
 describe("BotClient", () => {
   test("sends authorized JSON to the filled path; decodes the response", async () => {
@@ -30,7 +31,10 @@ describe("BotClient", () => {
     const [req] = transport.requests
     expect(req!.json).toEqual({
       flags: 1 << 15,
-      components: [{ type: 10, content: "Report" }, { type: 13, file: { url: "attachment://r.csv" } }],
+      components: [
+        { type: 10, content: "Report" },
+        { type: 13, file: { url: "attachment://r.csv" } },
+      ],
       attachments: [{ id: 0, filename: "r.csv" }],
     })
     expect(req!.files.map((f) => f.name)).toEqual(["r.csv"])
@@ -94,7 +98,18 @@ describe("in handlers", () => {
     const key = await TestKey.generate()
     let thrown: unknown
     const app = new App({ credentials: { publicKey: key.publicKey }, logger: quiet }).command(
-      command({ name: "x", description: "X", handler: (c) => { try { void c.bot } catch (e) { thrown = e } return "ok" } }),
+      command({
+        name: "x",
+        description: "X",
+        handler: (c) => {
+          try {
+            void c.bot
+          } catch (e) {
+            thrown = e
+          }
+          return "ok"
+        },
+      }),
     )
     await app.fetch(await key.request(JSON.stringify(invoke("x").build())))
     expect(thrown).toBeInstanceOf(CredentialsError)
@@ -104,7 +119,11 @@ describe("in handlers", () => {
     const app = new App().command(command({ name: "x", description: "X", handler: async (c) => (c.waitUntil(c.client.followup(c.ephemeral("later"))), "now") }))
     const res = await answer(app, invoke("x"))
     const [followup] = await res.settle()
-    expect(followup).toMatchObject({ method: "POST", path: expect.stringMatching(/^\/webhooks\/1052322265397739523\/test-interaction-token\?wait=true$/), json: { content: "later", flags: 64 } })
+    expect(followup).toMatchObject({
+      method: "POST",
+      path: expect.stringMatching(/^\/webhooks\/1052322265397739523\/test-interaction-token\?wait=true$/),
+      json: { content: "later", flags: 64 },
+    })
     expect(followup!.headers.get("authorization")).toBeNull()
   })
 })

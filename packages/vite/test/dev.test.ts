@@ -28,7 +28,12 @@ function project(env: Record<string, string>, source = appSource("v1")): string 
   mkdirSync(`${dir}src`, { recursive: true })
   writeFileSync(`${dir}package.json`, JSON.stringify({ type: "module" }))
   writeFileSync(`${dir}tsconfig.json`, JSON.stringify({ compilerOptions: { jsx: "react-jsx", jsxImportSource: "composurejs" } }))
-  writeFileSync(`${dir}.env`, Object.entries({ DISCORD_PUBLIC_KEY: key.publicKey, ...env }).map(([k, v]) => `${k}=${v}`).join("\n"))
+  writeFileSync(
+    `${dir}.env`,
+    Object.entries({ DISCORD_PUBLIC_KEY: key.publicKey, ...env })
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n"),
+  )
   writeFileSync(`${dir}src/app.tsx`, source)
   return dir
 }
@@ -79,7 +84,7 @@ async function ask(port: number, interaction: { build(): unknown }) {
 }
 
 const until = async (check: () => boolean, ms = 5000) => {
-  for (const start = Date.now(); !check(); ) {
+  for (const start = Date.now(); !check();) {
     if (Date.now() - start > ms) throw new Error("timed out")
     await new Promise((r) => setTimeout(r, 25))
   }
@@ -125,8 +130,16 @@ describe("vite dev", { timeout: 30_000 }, () => {
     await start({ transport, startTunnel: async () => ({ url: "https://dev-bot.trycloudflare.com", close: async () => void (closed = true) }) }, logs)
 
     await until(() => calls.some((c) => c.method === "PATCH") && calls.some((c) => c.method === "PUT"))
-    expect(calls.find((c) => c.method === "PATCH")).toEqual({ method: "PATCH", path: "/applications/@me", body: { interactions_endpoint_url: "https://dev-bot.trycloudflare.com/interactions" } })
-    expect(calls.find((c) => c.method === "PUT")).toEqual({ method: "PUT", path: `/applications/${APP_ID}/guilds/${GUILD}/commands`, body: [{ type: 1, name: "hello", description: "Hi" }] })
+    expect(calls.find((c) => c.method === "PATCH")).toEqual({
+      method: "PATCH",
+      path: "/applications/@me",
+      body: { interactions_endpoint_url: "https://dev-bot.trycloudflare.com/interactions" },
+    })
+    expect(calls.find((c) => c.method === "PUT")).toEqual({
+      method: "PUT",
+      path: `/applications/${APP_ID}/guilds/${GUILD}/commands`,
+      body: [{ type: 1, name: "hello", description: "Hi" }],
+    })
     expect(logs.join("\n")).toContain(`dev Sync to guild ${GUILD}: 1 to create, 0 to update, 0 to delete`)
 
     writeFileSync(`${dir}src/app.tsx`, appSource("v1", `.command(command({ name: "bye", description: "Bye", handler: () => "bye" }))`))
