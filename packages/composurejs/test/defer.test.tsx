@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
-import { App, Button, command, component, Ephemeral, type LogEntry, type Logger, p, Row, Text, UserError, view } from "composurejs"
-import { answer, command as invoke, component as click, MockTransport, TestPlatform } from "composurejs/testing"
+import { App, Button, command, Ephemeral, type LogEntry, type Logger, Row, Text, UserError } from "composurejs"
+import { answer, command as invoke, MockTransport, TestPlatform } from "composurejs/testing"
 
 function recordingLogger() {
   const entries: (LogEntry & { level: string })[] = []
@@ -76,25 +76,36 @@ describe("c.defer", () => {
 })
 
 describe("c.deferUpdate", () => {
-  const refresh = component("refresh", {
-    handler: (c) =>
-      c.deferUpdate(async () => (
-        <Row>
-          <Button customId="refresh">Refreshed</Button>
-        </Row>
-      )),
-  })
-  const broken = component("broken", { handler: (c) => c.deferUpdate(async () => { throw new Error("db down") }) })
+  const Refreshable = ({ broken }: { broken: boolean }) => (
+    <Row>
+      <Button
+        onClick={(c) =>
+          c.deferUpdate(async () => {
+            if (broken) throw new Error("db down")
+            return (
+              <Row>
+                <Button customId="done">Refreshed</Button>
+              </Row>
+            )
+          })
+        }
+      >
+        Refresh
+      </Button>
+    </Row>
+  )
+  const app = (logger?: Logger) => new App(logger ? { logger } : {}).command(command({ name: "r", description: "R", handler: (c) => <Refreshable broken={c.locale === "fr"} /> }))
 
   test("acknowledges with type 6, then edits the component's message", async () => {
-    const res = await answer(new App().component(refresh), click("refresh"))
+    const res = await answer(app(), (await answer(app(), invoke("r"))).click("Refresh"))
     expect(res.body).toEqual({ type: 6 })
     const [edit] = await res.settle()
     expect(edit).toMatchObject({ method: "PATCH", path: expect.stringMatching(ORIGINAL), json: { components: [{ type: 1, components: [{ label: "Refreshed" }] }] } })
   })
 
   test("a failure goes out as an ephemeral follow-up, leaving the message alone", async () => {
-    const res = await answer(new App({ logger: recordingLogger().logger }).component(broken), click("broken"))
+    const quiet = recordingLogger().logger
+    const res = await answer(app(quiet), (await answer(app(quiet), invoke("r").locale("fr"))).click("Refresh"))
     const [followup] = await res.settle()
     expect(followup).toMatchObject({ method: "POST", json: { content: "Something went wrong.", flags: 64 } })
     expect(followup!.path).toMatch(/^\/webhooks\/\d+\/test-interaction-token\?wait=true$/)
@@ -111,14 +122,5 @@ describe("c.deferUpdate", () => {
       "deferUpdate only answers component clicks and modal submits",
       "deferUpdate edits the component's message, which cannot become ephemeral",
     ])
-  })
-
-  test("a deferred View with Inline Handlers must be listed", async () => {
-    const V = view("deferred", { props: { n: p.int() }, render: ({ n }, on) => <Row><Button onClick={on("go", () => V({ n }))}>{`n=${n}`}</Button></Row> })
-    const { logger, entries } = recordingLogger()
-    const app = new App({ logger }).command(command({ name: "x", description: "X", handler: (c) => c.defer(() => <V n={1} />) }))
-    const [edit] = await (await answer(app, invoke("x"))).settle()
-    expect(edit!.json).toEqual({ content: "Something went wrong." })
-    expect((entries.find((e) => e.level === "error")?.error as Error).message).toMatch(/View "deferred" places Inline Handlers but is not listed/)
   })
 })

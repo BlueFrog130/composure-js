@@ -1,9 +1,9 @@
+import type { RESTPostAPIApplicationCommandsJSONBody } from "discord-api-types/v10"
 import type { AnyCommand } from "./command.ts"
 import type { Context } from "./context.ts"
 import { type Credentials, credentialsFromEnv } from "./credentials.ts"
 import { AppConfigError } from "./errors.ts"
 import type { EventHandler } from "./events.ts"
-import type { ComponentHandler, ComponentRoute, ModalHandler, View } from "./handlers.ts"
 import { consoleLogger, type Logger, serializeError } from "./log.ts"
 import type { Middleware } from "./middleware.ts"
 import { handleInteraction } from "./pipeline.ts"
@@ -27,11 +27,17 @@ export interface AppOptions<E extends Env> {
   eventsPath?: string
 }
 
+/** A Command Definition and the Scope it is synced to (`undefined`: global). */
+export interface ScopedDefinition {
+  scope: string | undefined
+  definition: RESTPostAPIApplicationCommandsJSONBody
+}
+
 /** Renders what the user sees when a handler throws. At most one per App tree. */
 export type ErrorRenderer<E extends Env = Env> = (error: unknown, c: Context<E>) => MaybePromise<Output>
 
 /** Anything an App lists. */
-export type Route<E extends Env = Env> = AnyCommand<E> | ComponentRoute | App<E>
+export type Route<E extends Env = Env> = AnyCommand<E> | App<E>
 
 /** A top-level Command with the middleware around it, outermost first. */
 export interface RouteEntry<E extends Env = Env> {
@@ -43,9 +49,7 @@ export interface RouteEntry<E extends Env = Env> {
 export interface Built<E extends Env = Env> {
   /** Keyed by `${type}:${name}`. */
   commands: Map<string, RouteEntry<E>>
-  /** Component Handlers, Modal Handlers and Views, keyed by `custom_id` prefix. */
-  handlers: Map<string, { route: ComponentRoute; chain: Middleware<E>[] }>
-  /** The root App's middleware, for Interactions no Route answers. */
+  /** The root App's middleware: for Interactions no Command answers, and every component and modal submit. */
   middleware: Middleware<E>[]
   onError: ErrorRenderer<E> | undefined
   logger: Logger
@@ -85,21 +89,6 @@ export class App<E extends Env = Env> {
     return this.#add(command)
   }
 
-  /** Lists a View, so the Inline Handlers it places are answered. */
-  view(view: View<any, any, any>): this {
-    return this.#add(view)
-  }
-
-  /** Lists a Component Handler. */
-  component(handler: ComponentHandler<any, any>): this {
-    return this.#add(handler)
-  }
-
-  /** Lists a Modal Handler. */
-  modal(handler: ModalHandler<any, any, any>): this {
-    return this.#add(handler)
-  }
-
   /** Lists a nested App and everything it lists. */
   route(app: App<E>): this {
     if (app === this) throw new AppConfigError("An App cannot route to itself")
@@ -130,6 +119,11 @@ export class App<E extends Env = Env> {
     this.#events = handler
     this.#built = undefined
     return this
+  }
+
+  /** The Command Definitions this tree publishes, with their Scope (none: global). What Sync makes Discord match. */
+  definitions(): ScopedDefinition[] {
+    return [...this.#build().commands.values()].map(({ command }) => ({ scope: command.topLevel.scope, definition: command.definition() }))
   }
 
   /** Builds the tree and throws an {@link AppConfigError} for any rule it breaks. Ship it in a test. */
@@ -191,7 +185,6 @@ export class App<E extends Env = Env> {
     const logger = this.#options.logger ?? consoleLogger
     const built: Built<E> = {
       commands: new Map(),
-      handlers: new Map(),
       middleware: [...this.#middleware],
       onError: undefined,
       logger,
@@ -202,7 +195,6 @@ export class App<E extends Env = Env> {
       eventsPath: this.#options.eventsPath ?? "/events",
     }
     const seen = new Map<string, string>()
-    const prefixes = new Map<string, string>()
     let onErrorAt: string | undefined
     let eventsAt: string | undefined
 
@@ -227,13 +219,6 @@ export class App<E extends Env = Env> {
       app.#routes.forEach((route, index) => {
         const at = `${path}.route[${index}]`
         if (route instanceof App) return visit(route, at, stack, chain)
-        if (route.kind === "component" || route.kind === "modal" || route.kind === "view") {
-          const first = prefixes.get(route.prefix)
-          if (first) throw new AppConfigError(`custom_id prefix "${route.prefix}" is used twice: at ${first} and at ${at}`)
-          prefixes.set(route.prefix, at)
-          built.handlers.set(route.prefix, { route, chain })
-          return
-        }
         const key = `${route.type}:${route.name}`
         const first = seen.get(key)
         if (first) throw new AppConfigError(`${describe(route)} is listed twice: at ${first} and at ${at}`)

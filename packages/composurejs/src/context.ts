@@ -2,7 +2,7 @@ import type { Entitlement, Interaction, Member, User } from "./discord.ts"
 import { type Logger, serializeError } from "./log.ts"
 import type { Credentials } from "./credentials.ts"
 import { CredentialsError } from "./errors.ts"
-import { deferredOutput, type DeferredOutput, Ephemeral, type EphemeralOutput, type Output } from "./response.ts"
+import { deferredOutput, type DeferredOutput, Ephemeral, type EphemeralOutput, type Output, Reply } from "./response.ts"
 import { BotClient, type RestOptions } from "./rest/client.ts"
 import { InteractionClient } from "./rest/interaction.ts"
 import type { BindingsOf, DataOf, Env, MaybePromise, Platform, VariablesOf } from "./types.ts"
@@ -127,5 +127,10 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
   /** Answers with `output`, visible only to the invoking user. */
   ephemeral(output: Output): EphemeralOutput {
     return Ephemeral(output)
+  }
+
+  /** From a click: answers with a new message instead of updating the clicked one. */
+  reply(output: Output): Output {
+    return Reply(output)
   }
 }

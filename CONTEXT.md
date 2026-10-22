@@ -97,7 +97,7 @@ The explicit list of Routes a bot serves, built by chaining (`new App().command(
 _Avoid_: Router, registry, command set, bot (that is the Bot Client)
 
 **Route**:
-Anything an App lists: Command, Group, Component Handler, Modal Handler, View, or another App. It answers the Interactions addressed to it, by command name and type or by `custom_id` prefix.
+Anything an App lists: a Command, a Group, or another App. It answers the Interactions addressed to it by command name and type; clicks and modal submits route to Inline Handlers instead, which are not listed.
 _Avoid_: Handler (alone), endpoint
 
 **Middleware**:
@@ -121,7 +121,7 @@ A typed input a user supplies when invoking a Command; arrives in the handler re
 _Avoid_: Argument, parameter (when meaning the Discord-side input)
 
 **Choice**:
-One of a fixed set of values an Option, or a modal field, is restricted to; defined once with `defineChoices` and shared by both.
+One of a fixed set of values an Option, select or radio group is restricted to; defined once with `defineChoices` and shared.
 
 **Group**:
 A Command that only contains subcommands (or nested Groups) and cannot be invoked itself.
@@ -137,42 +137,31 @@ _Avoid_: Guild (when meaning the named destination), environment
 ### Components and Views
 
 **View**:
-A reusable piece of message or modal layout, defined as a pure function of its Props and written in JSX; the components it renders and the handlers for their events derive from it. Re-rendering means answering an Interaction with the View rendered from new Props. A View is the whole message: components, `ephemeral`, allowed mentions, files.
-_Avoid_: Template, widget, component (that word is Discord's)
-
-**Props**:
-The inputs a View renders from, declared with a codec (`p.*`). Inline handlers see only the Props and keys they capture.
-_Avoid_: Signal, store, state
+Markup a handler returns: built-in tags and plain function components (`const Counter = ({ count }) => <Row>..</Row>`), with no declaration or registration. Re-rendering means answering a click with the View rendered from new props. A View is the whole message: components, `ephemeral`, allowed mentions, files.
+_Avoid_: Template, widget, component (alone: that word is Discord's)
 
 **Inline Handler**:
-A closure in a View's markup (`onClick={on("like", () => ..)}`), named, and hoisted out of render by the Vite plugin, which encodes only the Props and keys it captures into its `custom_id`.
-_Avoid_: Callback, listener
+A function written as `onClick` / `onSelect` / `onSubmit` anywhere in markup. `@composurejs/vite` hoists it to module scope under a stable id, and what it reads from the functions around it (props, locals, loop variables, a command handler's `c`) travels in its `custom_id` (ADR 0015).
+_Avoid_: Callback, listener, Component Handler
 
-**Component Handler**:
-Code defined outside any View (`component("vote", {..})`) answering clicks and selections on components whose `custom_id` starts with its prefix, with typed Custom ID State.
-_Avoid_: Button handler, listener
+**Capture**:
+A value an Inline Handler reads from an enclosing function, carried in its `custom_id` as a self-describing field (`i` snowflake, `n` integer, `s` string, ...); objects and functions cannot be captured.
+_Avoid_: State (alone), props (a capture may be any local)
 
-**Modal Handler**:
-A modal and its submit handler defined together (`modal(prefix, { fields, render, handler })`), opened by answering with `.open(state)`; the handler receives the submitted values typed by its Fields.
+**Handler Id**:
+The routing part of a `custom_id`: generated (`_` and a hash of file, owner, position and captures) or chosen with `named("id", fn)` for messages meant to last.
+_Avoid_: Prefix, key
 
-**Field**:
-One entry of a modal's schema (`f.text()`, `f.choice(..)`, `f.checkbox()`, ...): types the submitted value and is bound to exactly one input in markup with `field={fields.x}`.
-_Avoid_: Input (that is the markup element), form field
+**Custom ID State**:
+A Handler Id followed by its Captures: `id:field:field`, `:` separated with `\` escapes, at most 100 characters.
+_Avoid_: Session, payload
+
+**Fallback**:
+What answers a component or modal submit whose Handler Id is unknown or whose Captures do not decode: "This message is outdated.", never a crash.
 
 **Upload**:
 A file sent with a message, created with `upload(name, data)` and placed as a `src`; render attaches it and refers to it as `attachment://<name>`.
 _Avoid_: Attachment (that is a file Discord already has), file (alone)
-
-**Custom ID State**:
-Values carried in a `custom_id` after its prefix and handler name instead of stored anywhere: `prefix:field:field` with `\` escapes, at most 100 characters.
-_Avoid_: Session, payload
-
-**Codec**:
-The compact, built-in description of how a value is written to and read from Custom ID State (`p.string()`, `p.int()`, `p.snowflake()`, ...).
-_Avoid_: Schema (that is a field schema or Standard Schema), serializer
-
-**Fallback**:
-What answers a component or modal submit whose prefix or handler name is unknown, or whose state does not decode: "this message is outdated", never a crash.
 
 **Limits**:
 Discord's constraints on a message (40 components, 4000 characters of text, 5 buttons per row, 100-character `custom_id`, placement rules, ...), checked by the one validation walk at render so a violation throws an error naming it instead of Discord answering "This interaction failed".

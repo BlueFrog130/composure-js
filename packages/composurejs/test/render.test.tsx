@@ -244,22 +244,22 @@ describe("component JSON", () => {
       <Modal title="Report" customId="report">
         <Text>Reporting **page**</Text>
         <Label text="What happened?" description="Be brief">
-          <TextInput customId="what" paragraph maxLength={500} placeholder="..." />
+          <TextInput name="what" paragraph maxLength={500} placeholder="..." />
         </Label>
         <Label text="Severity">
-          <RadioGroup customId="severity" options={Severity} />
+          <RadioGroup name="severity" options={Severity} />
         </Label>
         <Label text="Areas">
-          <CheckboxGroup customId="areas" minValues={0} maxValues={2}>
+          <CheckboxGroup name="areas" minValues={0} maxValues={2}>
             <Option value="ui">UI</Option>
             <Option value="api">API</Option>
           </CheckboxGroup>
         </Label>
         <Label text="Notify me">
-          <Checkbox customId="notify" default />
+          <Checkbox name="notify" default />
         </Label>
         <Label text="Screenshot">
-          <FileUpload customId="shot" maxValues={2} fileTypes={["image"]} required={false} />
+          <FileUpload name="shot" maxValues={2} fileTypes={["image"]} required={false} />
         </Label>
       </Modal>,
     ).catch((e: unknown) => e)
@@ -269,28 +269,27 @@ describe("component JSON", () => {
     const ok = await render(
       <Modal title="Report" customId="report">
         <Label text="What happened?" description="Be brief">
-          <TextInput customId="what" paragraph maxLength={500} placeholder="..." />
+          <TextInput name="what" paragraph maxLength={500} placeholder="..." />
         </Label>
         <Label text="Severity">
-          <RadioGroup customId="severity" options={Severity} />
+          <RadioGroup name="severity" options={Severity} />
         </Label>
         <Label text="Areas">
-          <CheckboxGroup customId="areas" minValues={0} maxValues={2}>
+          <CheckboxGroup name="areas" minValues={0} maxValues={2}>
             <Option value="ui">UI</Option>
             <Option value="api">API</Option>
           </CheckboxGroup>
         </Label>
         <Label text="Notify me">
-          <Checkbox customId="notify" default />
+          <Checkbox name="notify" default />
         </Label>
         <Label text="Screenshot">
-          <FileUpload customId="shot" maxValues={2} fileTypes={["image"]} required={false} />
+          <FileUpload name="shot" maxValues={2} fileTypes={["image"]} required={false} />
         </Label>
       </Modal>,
     )
     expect(ok).toEqual({
       kind: "modal",
-      handlerPrefixes: [],
       data: {
         custom_id: "report",
         title: "Report",
@@ -324,12 +323,12 @@ describe("placement errors name parent and child", () => {
     ["6 buttons", <Row>{[1, 2, 3, 4, 5, 6].map((i) => <Button customId={`b${i}`}>{i}</Button>)}</Row>, "A <Row> holds at most 5 <Button>s, this one has 6"],
     ["Message nested", <Container><Message><Text>x</Text></Message></Container>, "<Message> can only be the root of a View"],
     ["Modal nested", <Container><Modal title="t" customId="m" /></Container>, "<Modal> can only be the root of a View"],
-    ["input outside Label", <Modal title="t" customId="m"><TextInput customId="x" /></Modal>, "<TextInput> goes inside a <Label> in a <Modal>"],
-    ["Label with two inputs", <Modal title="t" customId="m"><Label text="L"><TextInput customId="a" /><TextInput customId="b" /></Label></Modal>, '<Label> holds exactly one input, "L" has 2'],
+    ["input outside Label", <Modal title="t" customId="m"><TextInput name="x" /></Modal>, "<TextInput> goes inside a <Label> in a <Modal>"],
+    ["Label with two inputs", <Modal title="t" customId="m"><Label text="L"><TextInput name="a" /><TextInput name="b" /></Label></Modal>, '<Label> holds exactly one input, "L" has 2'],
     ["Text in Gallery", <Gallery><Text>x</Text></Gallery>, "<Text> cannot go inside <Gallery>"],
     ["Item outside Gallery", <Item src="x" />, "<Item> cannot go at the top of a message"],
     ["required in a message", <Row><StringSelect customId="s" required><Option value="a">a</Option></StringSelect></Row>, "<StringSelect> required only applies in modals"],
-    ["required Checkbox", <Modal title="t" customId="m"><Label text="L"><Checkbox customId="c" {...({ required: true } as {})} /></Label></Modal>, "<Checkbox> is never required"],
+    ["required Checkbox", <Modal title="t" customId="m"><Label text="L"><Checkbox name="c" {...({ required: true } as {})} /></Label></Modal>, "<Checkbox> is never required"],
   ])("%s", async (_, view, message) => {
     await fails(view, message)
   })
@@ -356,7 +355,7 @@ describe("Limits are checked before Discord sees the message", () => {
     ["11 files", <>{Array.from({ length: 11 }, (_, i) => <File src={upload(`f${i}.txt`, "x")} />)}</>, "at most 10 files, this View has 11"],
     ["File with a URL", <File src={"https://x.test/a" as never} />, "<File> src must be an Upload or attachment://<name>"],
     ["modal title", <Modal title={"x".repeat(46)} customId="m"><Text>x</Text></Modal>, "<Modal> title is 46 characters; the limit is 45"],
-    ["text input length", <Modal title="t" customId="m"><Label text="L"><TextInput customId="a" maxLength={4001} /></Label></Modal>, "<TextInput> maxLength must be 1-4000"],
+    ["text input length", <Modal title="t" customId="m"><Label text="L"><TextInput name="a" maxLength={4001} /></Label></Modal>, "<TextInput> maxLength must be 1-4000"],
   ])("%s", async (_, view, message) => {
     await fails(view, message)
   })

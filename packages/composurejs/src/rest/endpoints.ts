@@ -55,6 +55,11 @@ export const ROUTES = {
   modifyWebhook: route("PATCH", "/webhooks/{webhook_id}", "update_webhook"),
   deleteWebhook: route("DELETE", "/webhooks/{webhook_id}", "delete_webhook"),
   executeWebhook: route("POST", "/webhooks/{webhook_id}/{webhook_token}", "execute_webhook"),
+  // Application Commands (Sync)
+  getGlobalCommands: route("GET", "/applications/{application_id}/commands", "list_application_commands"),
+  bulkOverwriteGlobalCommands: route("PUT", "/applications/{application_id}/commands", "bulk_set_application_commands"),
+  getGuildCommands: route("GET", "/applications/{application_id}/guilds/{guild_id}/commands", "list_guild_application_commands"),
+  bulkOverwriteGuildCommands: route("PUT", "/applications/{application_id}/guilds/{guild_id}/commands", "bulk_set_guild_application_commands"),
   // Users
   getCurrentUser: route("GET", "/users/@me", "get_my_user"),
   getUser: route("GET", "/users/{user_id}", "get_user"),
@@ -219,6 +224,23 @@ export async function executeWebhook(rest: RestClient, webhookId: string, token:
   const withComponents = json.components !== undefined ? { with_components: true } : {}
   return rest.request(ROUTES.executeWebhook, { params: { webhook_id: webhookId, webhook_token: token }, query: { wait: true, ...withComponents, ...query }, body: json, files })
 }
+
+// ---- Application Commands ------------------------------------------------------------------
+
+/** The Command Definitions Discord stores globally. */
+export const getGlobalCommands = (rest: RestClient, applicationId: string, query: Q<"getGlobalCommands"> = {}): Res<"getGlobalCommands"> =>
+  rest.request(ROUTES.getGlobalCommands, { params: { application_id: applicationId }, query })
+
+/** Replaces every global Command Definition with `commands`, creating, updating and deleting in one request. */
+export const bulkOverwriteGlobalCommands = (rest: RestClient, applicationId: string, commands: Body<"bulkOverwriteGlobalCommands">): Res<"bulkOverwriteGlobalCommands"> =>
+  rest.request(ROUTES.bulkOverwriteGlobalCommands, { params: { application_id: applicationId }, body: commands })
+
+export const getGuildCommands = (rest: RestClient, applicationId: string, guildId: string, query: Q<"getGuildCommands"> = {}): Res<"getGuildCommands"> =>
+  rest.request(ROUTES.getGuildCommands, { params: { application_id: applicationId, guild_id: guildId }, query })
+
+/** Replaces every Command Definition in one guild with `commands`. */
+export const bulkOverwriteGuildCommands = (rest: RestClient, applicationId: string, guildId: string, commands: Body<"bulkOverwriteGuildCommands">): Res<"bulkOverwriteGuildCommands"> =>
+  rest.request(ROUTES.bulkOverwriteGuildCommands, { params: { application_id: applicationId, guild_id: guildId }, body: commands })
 
 // ---- Users ---------------------------------------------------------------------------------
 

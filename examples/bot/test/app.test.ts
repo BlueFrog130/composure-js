@@ -41,14 +41,14 @@ test("/server member explains a non-member as a User Error", async () => {
   expect(res.text).toMatch(/^bob joined <t:\d+:R>$/)
 })
 
-test("/poll buttons route to the vote Component Handler", async () => {
+test("/poll buttons answer through named Inline Handlers", async () => {
   const res = await answer(app, command("poll").option("question", "Cookies?"))
   expect(res.text).toBe("### Cookies?")
   const voted = await answer(app, res.click("No"))
   expect([voted.text, voted.isEphemeral]).toEqual(["alice voted 👎", true])
 })
 
-test("/feedback opens a modal whose submit is typed by its fields", async () => {
+test("/feedback opens a modal; its submit gets values by input name", async () => {
   const opened = await answer(app, command("feedback"))
   expect(opened.type).toBe(9)
   const thanks = await answer(app, opened.submit({ mood: "great", notes: "Love it", followUp: true }))
@@ -72,4 +72,12 @@ test("Webhook Events are ACKed and logged", async () => {
   const res = await sendEvent(app, webhookEvent("SOMETHING_NEW", {}))
   expect(res.status).toBe(204)
   expect(info).toHaveBeenCalledWith({ msg: "Webhook Event", type: "unknown" })
+})
+
+test("/counter updates in place for its owner only", async () => {
+  const first = await answer(app, command("counter"))
+  const plus5 = await answer(app, first.click("+5"))
+  expect([plus5.type, plus5.text]).toEqual([7, "## Count: 5"])
+  const stranger = await answer(app, plus5.click("+10").by({ id: "2" }))
+  expect([stranger.text, stranger.isEphemeral]).toEqual(["Not your counter", true])
 })

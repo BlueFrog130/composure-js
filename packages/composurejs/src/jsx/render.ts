@@ -3,11 +3,10 @@
 import type { APIMessageTopLevelComponent, APIModalInteractionResponseCallbackData } from "discord-api-types/v10"
 import { type AllowedMentions, type Emoji, isUpload, type Upload } from "../components.ts"
 import { MessageFlags } from "../discord.ts"
-import { FIELD_INPUTS, isFieldRef } from "../fields.ts"
-import type { ExpandProps, RenderContext } from "../handlers.ts"
+import { uncompiledHandler } from "../handlers.ts"
 import { RenderError } from "../errors.ts"
 import type { Choices } from "../options.ts"
-import { type Child, createNode, type ElementNode, isNode } from "./node.ts"
+import { type Child, type ElementNode, isNode } from "./node.ts"
 
 /** Discord's limits, checked before it sees a message. */
 export const LIMITS = {
@@ -46,14 +45,11 @@ export interface RenderedMessage {
   data: MessageData
   /** Files to send with the message, in attachment order. */
   files: Upload[]
-  /** Prefixes of Views whose Inline Handlers it places; each must be listed in the App. */
-  handlerPrefixes: string[]
 }
 
 export interface RenderedModal {
   kind: "modal"
   data: ModalData
-  handlerPrefixes: string[]
 }
 
 export type Rendered = RenderedMessage | RenderedModal
@@ -72,13 +68,7 @@ class Walk {
   textLength = 0
   readonly customIds = new Map<string, string>()
   readonly files = new Map<string, Upload>()
-  /** Modal input custom_ids, for the field checks. */
-  readonly inputs: string[] = []
-
-  constructor(
-    readonly modal: boolean,
-    readonly ctx: RenderContext,
-  ) {}
+  constructor(readonly modal: boolean) {}
 
   /** Counts a component toward the 40. */
   add<T extends Json>(json: T): T {
@@ -113,16 +103,15 @@ class Walk {
 
 /** Renders a View: a Components V2 message, or a modal when its root is `<Modal>`. */
 export async function render(view: Child): Promise<Rendered> {
-  const ctx: RenderContext = { handlerPrefixes: new Set(), fieldChecks: [] }
-  const roots = await flatten(view, ctx)
+  const roots = await flatten(view)
   const only = roots.length === 1 ? roots[0] : undefined
   if (typeof only === "object" && only.tag === "Modal") {
-    return { kind: "modal", data: await renderModal(only, ctx), handlerPrefixes: [...ctx.handlerPrefixes] }
+    return { kind: "modal", data: await renderModal(only) }
   }
 
-  const walk = new Walk(false, ctx)
+  const walk = new Walk(false)
   const message = typeof only === "object" && only.tag === "Message" ? only : undefined
-  const children = message ? await flatten(message.props.children as Child, ctx) : roots
+  const children = message ? await flatten(message.props.children as Child) : roots
   const components = (await renderBlocks(children, undefined, walk)) as unknown as APIMessageTopLevelComponent[]
   if (components.length === 0) throw new RenderError("The View renders no components")
   if (walk.components > LIMITS.components) throw new RenderError(`A message can hold at most ${LIMITS.components} components, this View has ${walk.components}`)
@@ -135,7 +124,7 @@ export async function render(view: Child): Promise<Rendered> {
   if (props.suppressNotifications) flags |= MessageFlags.SuppressNotifications
   const data: MessageData = { flags, components }
   if (props.allowedMentions) data.allowed_mentions = allowedMentions(props.allowedMentions)
-  return { kind: "message", data, files: [...walk.files.values()], handlerPrefixes: [...ctx.handlerPrefixes] }
+  return { kind: "message", data, files: [...walk.files.values()] }
 }
 
 /** Renders a View that must be a message. */
@@ -145,20 +134,19 @@ export async function renderMessage(view: Child): Promise<RenderedMessage> {
   return rendered
 }
 
-async function flatten(child: Child, ctx: RenderContext, out: Flat[] = []): Promise<Flat[]> {
+async function flatten(child: Child, out: Flat[] = []): Promise<Flat[]> {
   if (child === null || child === undefined || typeof child === "boolean") return out
   if (typeof child === "string") out.push(child)
   else if (typeof child === "number" || typeof child === "bigint") out.push(String(child))
-  else if (child instanceof Promise) await flatten((await (child as Promise<unknown>)) as Child, ctx, out)
+  else if (child instanceof Promise) await flatten((await (child as Promise<unknown>)) as Child, out)
   else if (isNode(child)) {
-    if (child.tag === "Fragment") await flatten(child.props.children as Child, ctx, out)
-    else if (child.tag === "Expand") await flatten((await (child.props as unknown as ExpandProps).expand(ctx)) as Child, ctx, out)
+    if (child.tag === "Fragment") await flatten(child.props.children as Child, out)
     else out.push(child)
-  } else for (const c of child) await flatten(c, ctx, out)
+  } else for (const c of child) await flatten(c, out)
   return out
 }
 
-const childrenOf = (node: ElementNode, walk: Walk) => flatten(node.props.children as Child, walk.ctx)
+const childrenOf = (node: ElementNode) => flatten(node.props.children as Child)
 
 function misplaced(child: Flat, parent: string | undefined): RenderError {
   const what = typeof child === "string" ? "text" : tag(child.tag)
@@ -179,9 +167,9 @@ function checkText(owner: string, field: string, value: string | undefined, max:
 }
 
 /** Joins text children (strings and `<br />`), rejecting any other tag. */
-async function textOf(node: ElementNode, walk: Walk, field = "children"): Promise<string> {
+async function textOf(node: ElementNode, field = "children"): Promise<string> {
   let out = ""
-  for (const child of await flatten(node.props[field] as Child, walk.ctx)) {
+  for (const child of await flatten(node.props[field] as Child)) {
     if (typeof child === "string") out += child
     else if (child.tag === "br") out += "\n"
     else throw new RenderError(`${tag(child.tag)} cannot go inside ${tag(node.tag)}`)
@@ -240,7 +228,7 @@ function textDisplay(content: string, walk: Walk, id?: unknown): Json {
 }
 
 async function renderText(node: ElementNode, walk: Walk): Promise<Json> {
-  const content = typeof node.props.content === "string" ? node.props.content : await textOf(node, walk)
+  const content = typeof node.props.content === "string" ? node.props.content : await textOf(node)
   check(content.trim() !== "", "<Text> is empty; Discord rejects empty text")
   return textDisplay(content, walk, node.props.id)
 }
@@ -250,7 +238,7 @@ const withId = (id: unknown) => (typeof id === "number" ? { id } : {})
 async function renderContainer(node: ElementNode, walk: Walk): Promise<Json> {
   const { accentColor, spoiler, id } = node.props as { accentColor?: number; spoiler?: boolean; id?: number }
   const json = walk.add({ type: 17, ...withId(id) } as Json)
-  json.components = await renderBlocks(await childrenOf(node, walk), "Container", walk)
+  json.components = await renderBlocks(await childrenOf(node), "Container", walk)
   check((json.components as Json[]).length > 0, "<Container> is empty")
   if (accentColor !== undefined) json.accent_color = accentColor
   if (spoiler !== undefined) json.spoiler = spoiler
@@ -265,7 +253,7 @@ async function renderSection(node: ElementNode, walk: Walk): Promise<Json> {
     if (text !== undefined && text.trim() !== "") texts.push(textDisplay(text, walk))
     text = undefined
   }
-  for (const child of await childrenOf(node, walk)) {
+  for (const child of await childrenOf(node)) {
     if (typeof child === "string" || child.tag === "br") {
       text = (text ?? "") + (typeof child === "string" ? child : "\n")
       continue
@@ -280,7 +268,7 @@ async function renderSection(node: ElementNode, walk: Walk): Promise<Json> {
   check(texts.length >= 1 && texts.length <= LIMITS.sectionTexts, `<Section> needs 1-${LIMITS.sectionTexts} blocks of text, it has ${texts.length}`)
   json.components = texts
 
-  const accessory = await flatten(node.props.accessory as Child, walk.ctx)
+  const accessory = await flatten(node.props.accessory as Child)
   const [only] = accessory
   check(accessory.length === 1 && typeof only === "object", "<Section> needs exactly one accessory: a <Button> or <Thumbnail>")
   const acc = only as ElementNode
@@ -292,7 +280,7 @@ async function renderSection(node: ElementNode, walk: Walk): Promise<Json> {
 
 async function renderRow(node: ElementNode, walk: Walk): Promise<Json> {
   const json = walk.add({ type: 1, ...withId(node.props.id) } as Json)
-  const children = await childrenOf(node, walk)
+  const children = await childrenOf(node)
   const nodes: ElementNode[] = []
   for (const child of children) {
     if (typeof child === "string") {
@@ -318,7 +306,7 @@ const BUTTON_STYLES = { primary: 1, secondary: 2, success: 3, danger: 4 } as con
 
 async function renderButton(node: ElementNode, walk: Walk): Promise<Json> {
   const p = node.props as { style?: keyof typeof BUTTON_STYLES; customId?: string; url?: string; skuId?: string; label?: string; emoji?: Emoji; disabled?: boolean; id?: number }
-  const label = p.label ?? ((await textOf(node, walk)).trim() || undefined)
+  const label = p.label ?? ((await textOf(node)).trim() || undefined)
   const json = walk.add({ type: 2, ...withId(p.id) } as Json)
   if (p.skuId !== undefined) {
     check(label === undefined && p.emoji === undefined && p.customId === undefined && p.url === undefined, "A premium <Button> (skuId) has no label, emoji, customId or url")
@@ -361,8 +349,8 @@ async function renderSelect(node: ElementNode, walk: Walk): Promise<Json> {
     channelTypes?: number[]
     id?: number
   }
-  const json = walk.add({ type: SELECT_TYPES[node.tag], ...withId(p.id), custom_id: walk.customId(handlerId(node, "onSelect"), node.tag) } as Json)
-  if (!walk.modal) check(node.props.field === undefined, `${tag(node.tag)} field= only binds inputs in a <Modal>`)
+  const json = walk.add({ type: SELECT_TYPES[node.tag], ...withId(p.id), custom_id: walk.customId(walk.modal ? inputName(node) : handlerId(node, "onSelect"), node.tag) } as Json)
+  if (!walk.modal) check(node.props.name === undefined, `${tag(node.tag)} name only applies in a <Modal>; in a message use onSelect`)
   checkText(node.tag, "placeholder", p.placeholder, LIMITS.placeholder)
   if (p.placeholder !== undefined) json.placeholder = p.placeholder
   if (walk.modal) check(p.disabled === undefined, `${tag(node.tag)} disabled only applies in messages`)
@@ -400,14 +388,14 @@ function minMax(owner: string, json: Json, min: number | undefined, max: number 
 /** `options={choices}` first, then `<Option>` children. */
 async function renderOptions(node: ElementNode, walk: Walk, max: number, withEmoji: boolean): Promise<Json[]> {
   const out: Json[] = ((node.props.options as Choices<string> | undefined) ?? []).map(({ name, value }) => ({ label: name, value }))
-  for (const child of await childrenOf(node, walk)) {
+  for (const child of await childrenOf(node)) {
     if (typeof child === "string") {
       if (child.trim() === "") continue
       throw misplaced(child, node.tag)
     }
     if (child.tag !== "Option") throw misplaced(child, node.tag)
     const p = child.props as { value?: string; label?: string; description?: string; emoji?: Emoji; default?: boolean }
-    const option: Json = { label: p.label ?? (await textOf(child, walk)).trim(), value: p.value }
+    const option: Json = { label: p.label ?? (await textOf(child)).trim(), value: p.value }
     if (p.description !== undefined) option.description = p.description
     if (p.emoji !== undefined) {
       check(withEmoji, `<Option> emoji only applies in selects, not in ${tag(node.tag)}`)
@@ -443,7 +431,7 @@ function renderThumbnail(node: ElementNode, walk: Walk): Json {
 
 async function renderGallery(node: ElementNode, walk: Walk): Promise<Json> {
   const items: Json[] = []
-  for (const child of await childrenOf(node, walk)) {
+  for (const child of await childrenOf(node)) {
     if (typeof child === "string" && child.trim() === "") continue
     if (typeof child === "string" || child.tag !== "Item") throw misplaced(child, "Gallery")
     const p = child.props as { src?: unknown; description?: string; spoiler?: boolean }
@@ -485,8 +473,8 @@ function allowedMentions(a: AllowedMentions): Json {
 
 // ---- Modals --------------------------------------------------------------------------------
 
-async function renderModal(node: ElementNode, ctx: RenderContext): Promise<ModalData> {
-  const walk = new Walk(true, ctx)
+async function renderModal(node: ElementNode): Promise<ModalData> {
+  const walk = new Walk(true)
   const p = node.props as { title?: string; customId?: string }
   check(typeof p.title === "string", "<Modal> needs a title")
   checkText("Modal", "title", p.title, LIMITS.modalTitle, 1)
@@ -498,7 +486,7 @@ async function renderModal(node: ElementNode, ctx: RenderContext): Promise<Modal
     if (text !== undefined && text.trim() !== "") components.push(textDisplay(text, walk))
     text = undefined
   }
-  for (const child of await childrenOf(node, walk)) {
+  for (const child of await childrenOf(node)) {
     if (typeof child === "string" || child.tag === "br") {
       text = (text ?? "") + (typeof child === "string" ? child : "\n")
       continue
@@ -511,7 +499,6 @@ async function renderModal(node: ElementNode, ctx: RenderContext): Promise<Modal
   }
   flush()
   check(components.length >= 1 && components.length <= LIMITS.modalComponents, `A <Modal> holds 1-${LIMITS.modalComponents} <Label>s and <Text>s, it has ${components.length}`)
-  checkFields(walk)
   return { custom_id: customId, title: p.title!, components } as unknown as ModalData
 }
 
@@ -521,7 +508,7 @@ async function renderLabel(node: ElementNode, walk: Walk): Promise<Json> {
   checkText("Label", "text", p.text, LIMITS.labelText, 1)
   checkText("Label", "description", p.description, LIMITS.labelDescription)
   const inputs: ElementNode[] = []
-  for (const child of await childrenOf(node, walk)) {
+  for (const child of await childrenOf(node)) {
     if (typeof child === "string") {
       if (child.trim() === "") continue
       throw new RenderError("text cannot go inside <Label>; use its text and description props")
@@ -535,14 +522,14 @@ async function renderLabel(node: ElementNode, walk: Walk): Promise<Json> {
     ...withId(p.id),
     label: p.text,
     ...(p.description !== undefined && { description: p.description }),
-    component: await renderBoundInput(inputs[0]!, walk),
+    component: await renderInput(inputs[0]!, walk),
   })
 }
 
 async function renderInput(node: ElementNode, walk: Walk): Promise<Json> {
   if (SELECTS.includes(node.tag)) return renderSelect(node, walk)
-  const p = node.props as Record<string, unknown> & { customId?: string; required?: boolean; id?: number }
-  const json = walk.add({ ...withId(p.id), custom_id: walk.customId(p.customId, node.tag) } as Json)
+  const p = node.props as Record<string, unknown> & { required?: boolean; id?: number }
+  const json = walk.add({ ...withId(p.id), custom_id: walk.customId(inputName(node), node.tag) } as Json)
   if (p.required !== undefined) json.required = p.required
   switch (node.tag) {
     case "TextInput": {
@@ -588,38 +575,14 @@ async function renderInput(node: ElementNode, walk: Walk): Promise<Json> {
 function handlerId(node: ElementNode, prop: string): unknown {
   const { customId } = node.props
   const handler = node.props[prop]
+  if (typeof handler === "function") throw uncompiledHandler(`<${node.tag} ${prop}>`)
   if (customId !== undefined && handler !== undefined) throw new RenderError(`${tag(node.tag)} takes customId or ${prop}, not both`)
   return customId ?? handler
 }
 
-/** An input with `field={fields.x}`: its customId, required-ness and defaults come from the field. */
-async function renderBoundInput(node: ElementNode, walk: Walk): Promise<Json> {
-  const ref = node.props.field
-  let input = node
-  if (ref !== undefined) {
-    if (!isFieldRef(ref)) throw new RenderError(`${tag(node.tag)} field must be one of the View's fields (field={fields.x})`)
-    const { name, spec } = ref
-    const allowed = FIELD_INPUTS[spec.kind]
-    check(allowed.includes(node.tag), `Field "${name}" (${spec.kind}) cannot bind ${tag(node.tag)}; use ${allowed.map(tag).join(" or ")}`)
-    check(node.props.customId === undefined, `${tag(node.tag)} gets its customId from field "${name}"; leave customId out`)
-    check(node.props.required === undefined, `${tag(node.tag)} gets required from field "${name}"; use .optional() on the field`)
-    const props: Record<string, unknown> = { ...spec.input, ...node.props, customId: name }
-    delete props.field
-    if (spec.kind !== "checkbox") props.required = spec.required
-    if (spec.choices && props.options === undefined && node.props.children === undefined) props.options = spec.choices
-    if (node.tag === "StringSelect") props.maxValues ??= spec.kind === "choice" ? 1 : (spec.choices?.length ?? 1)
-    input = createNode(node.tag, props)
-  }
-  const json = await renderInput(input, walk)
-  walk.inputs.push(json.custom_id as string)
-  return json
-}
-
-/** Every field of a modal View or Modal Handler has exactly one input, and every input is a field. */
-function checkFields(walk: Walk): void {
-  for (const { owner, fields } of walk.ctx.fieldChecks) {
-    const names = Object.keys(fields)
-    for (const name of names) check(walk.inputs.includes(name), `Field "${name}" of ${owner} has no input; bind one with field={fields.${name}}`)
-    for (const id of walk.inputs) check(names.includes(id), `Input "${id}" in ${owner} is not one of its fields (${names.join(", ")})`)
-  }
+/** A modal input's `name`: its `custom_id`, and its key in the submit handler's values. */
+function inputName(node: ElementNode): string {
+  const { name } = node.props
+  check(typeof name === "string" && name !== "", `${tag(node.tag)} in a <Modal> needs a name, its key in onSubmit's values`)
+  return name as string
 }

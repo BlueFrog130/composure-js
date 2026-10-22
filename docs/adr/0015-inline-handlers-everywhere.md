@@ -1,0 +1,23 @@
+# Inline Handlers anywhere, compiled by the required Vite plugin; no View declarations
+
+Supersedes ADR 0005 and ADR 0012, and replaces the Codecs of ADR 0009.
+
+ADR 0005 carried composure-rs's constraints into TypeScript. Its handlers had to live in a `view(prefix, { props: { .. }, render: (props, on) => .. })` with Props declared as Codecs, named with `on("name", ..)` and listed with `app.view(..)`, plus `component()` / `modal()` for everything else. A counter declared its Props twice and its handlers by string. TypeScript and a required compiler allow what React developers expect instead. A component is a plain function, a handler is written where the button is, and a click "just" updates the message:
+
+```tsx
+const Counter = ({ count, owner }: { count: number; owner: string }) => (
+  <Row>
+    <Button onClick={(c) => (c.user.id === owner ? <Counter count={count + 1} owner={owner} /> : c.ephemeral("Not yours"))}>+1</Button>
+  </Row>
+)
+```
+
+**Vite is required.** Workers build through `@cloudflare/vite-plugin` and every other Adapter through Vite (ADR 0014), so `@composurejs/vite` is part of the framework, not an optimization, and there is no non-compiled fallback API. Without it, an `on*` prop that is still a function, or a call to `named()`, throws at render, saying the plugin must be in the build. This is the model of Next.js inline server actions: the compiler hoists the closure and the values it closes over travel with the client, which here is the `custom_id`.
+
+**What the plugin does.** In every module, each `onClick` / `onSelect` / `onSubmit` written as a function, and each `named("id", fn)`, becomes a module-level `__handler(id, captures, make, where)` placed after the imports. The site becomes `ref.bind([captured values])`, which returns the `custom_id`. Captures are found by scope analysis: bindings of enclosing functions (a component's props, locals, loop variables, a command handler's `c`), recorded as the member chains read from them (`c.user.id`, `item.id`), with a bare read capturing the whole value. Module-scope bindings and imports are not captured; the hoisted handler reaches them directly. So a component a handler renders must be defined at module scope too; one defined inside a function is a compile error naming it. Innermost handlers are rewritten first, so a handler returning markup with handlers works at every depth. A handler is registered when its module loads, so a bundle knows every handler before its first click. Nothing is listed on an App, which bends ADR 0001: Commands stay explicit because Sync publishes them, but handlers have no Discord-side definition to keep in sync.
+
+**Ids.** A generated id is `_` plus 7 base64url characters of a hash of the module path (relative to Vite's root), the owner (the named declarations around the handler, like `Counter` or `poll.handler`), the handler's position within that owner, the prop name, and the captured paths. Editing a handler's body or anything else in the file keeps its id. Moving it, renaming its owner, reordering handlers in one owner, or capturing something new changes it, and buttons already sent then get the Fallback, never the wrong handler with wrongly decoded values. Swapping two handlers with identical captures in one owner is the one change that can misroute, so `named("toggle-role", fn)` gives a fixed id for messages meant to last (role menus, polls). Named ids may not start with `_`, and two modules may not use the same one; re-evaluating the same module (HMR, tests) replaces its own handlers.
+
+**Captured values describe themselves** (ADR 0009's format, without Codecs): `i` snowflake in base 36 (19 digits become 12), `n` safe integer in base 36, `d` other number, `s` string, `T`/`F`, `u`, `z`. Objects, arrays and functions cannot be carried and fail at render with what to capture instead. The 100-character limit is checked at render with the hint to carry an id and load the rest, which async components make natural.
+
+**Answers.** Markup returned from a click, or from a modal opened by one, updates that message (type 7). A returned `<Modal>` opens. `c.reply(..)`, `c.ephemeral(..)` and strings answer with a new message. A modal's inputs take a `name`; `onSubmit` receives values keyed by it (strings, booleans for checkboxes, lists for selects and checkbox groups, attachments for uploads) and is typed by annotating them (`(c, v: { reason: string }) => ..`), because TypeScript cannot read them from JSX children. Selects type their values the same way. Discord enforces required inputs; a submission whose values do not decode goes to the Fallback. Clicks and submits run through the root App's middleware, since a handler no longer belongs to an App.

@@ -1,19 +1,16 @@
-// Inline Handler hoisting (composurejs ADR 0005). For each `view(prefix, { render(props, on) })`
-// imported from composurejs, every `on("name", closure)` in render becomes
-// `on.$("name", [locals])`, and the closure moves to a `handlers` entry on the same config:
-//
-//   name: { props: [[local, prop]..], locals: ["item.id"..], make: ({ ..captures }) => closure }
-//
-// Captures are found syntactically: identifiers the closure reads that are bound in render
-// (Props, locals, loop variables), but not module-scope ones. A Prop is captured whole (core
-// encodes it with its Codec); a local is captured as the member chains read from it.
+// Inline Handler hoisting (composurejs ADR 0015). Every onClick / onSelect / onSubmit written as a
+// function, in any module, moves to module scope under a stable id, and its site becomes a
+// reference bound to the values the closure reads from the functions around it. Captures are found
+// syntactically: bindings of enclosing functions (props, locals, loop variables, a command
+// handler's c), as the member chains read from them; module-scope bindings are not captured.
+import { createHash } from "node:crypto"
 import MagicString, { type SourceMap } from "magic-string"
 import { parseSync } from "oxc-parser"
 
 type Node = { type: string; start: number; end: number; [key: string]: any }
 
-export class ViewTransformError extends Error {
-  override name = "ViewTransformError"
+export class HandlerTransformError extends Error {
+  override name = "HandlerTransformError"
   constructor(
     message: string,
     readonly pos: number,
@@ -225,153 +222,167 @@ function memberChain(id: Node, parents: Node[]): string[] {
   return path
 }
 
-interface Hoisted {
-  name: string
-  call: Node
+const HANDLER_ATTRS = new Set(["onClick", "onSelect", "onSubmit"])
+/** Ids given with named(); generated ids start with `_`, so the two never collide. */
+const NAMED_ID = /^[A-Za-z0-9-][A-Za-z0-9_-]{0,31}$/
+
+interface Site {
+  /** What the handler reference replaces: the inline function, or the whole `named(..)` call. */
+  replace: Node
   closure: Node
-  props: [local: string, prop: string][]
+  /** The id from named(), else generated. */
+  name: string | undefined
+  owner: string
+  attr: string
+  /** Member chains of enclosing-function bindings the closure reads (`count`, `item.id`). */
   locals: string[]
 }
 
-/** Rewrites the Views in one module; undefined when there is nothing to do. */
-export function transformViews(code: string, id: string): TransformResult | undefined {
-  if (!code.includes("composurejs") || !/\bview\b/.test(code) || !/\bon\b/.test(code)) return undefined
+export interface TransformOptions {
+  /** Generated ids hash the module path relative to this (Vite's root). */
+  root?: string
+}
+
+/**
+ * Hoists every Inline Handler in one module (ADR 0015): `onClick` / `onSelect` / `onSubmit`
+ * written as a function, and `named("id", fn)`. Each becomes a module-level
+ * `__composure_handler(id, captures, make)`, and its site becomes `ref.bind([captured values])`.
+ * Undefined when the module has none.
+ */
+export function transformHandlers(code: string, id: string, options: TransformOptions = {}): TransformResult | undefined {
+  if (!/\bon(?:Click|Select|Submit)\b|\bnamed\s*\(/.test(code)) return undefined
   const { program, errors } = parseSync(id, code)
   if (errors.length > 0) return undefined // let the real compiler report it
 
-  const viewNames = new Set<string>()
+  const namedLocals = new Set<string>()
   const namespaces = new Set<string>()
+  let lastImport: Node | undefined
   for (const s of program.body as Node[]) {
-    if (s.type !== "ImportDeclaration" || s.source.value !== "composurejs" || s.importKind === "type") continue
+    if (s.type !== "ImportDeclaration") continue
+    lastImport = s
+    if (s.source.value !== "composurejs" || s.importKind === "type") continue
     for (const spec of s.specifiers) {
-      if (spec.type === "ImportSpecifier" && (spec.imported.name ?? spec.imported.value) === "view") viewNames.add(spec.local.name)
+      if (spec.type === "ImportSpecifier" && (spec.imported.name ?? spec.imported.value) === "named") namedLocals.add(spec.local.name)
       if (spec.type === "ImportNamespaceSpecifier") namespaces.add(spec.local.name)
     }
   }
-  if (viewNames.size === 0 && namespaces.size === 0) return undefined
+  const isNamed = (node: Node) =>
+    node.type === "CallExpression" &&
+    ((node.callee.type === "Identifier" && namedLocals.has(node.callee.name)) ||
+      (node.callee.type === "MemberExpression" && !node.callee.computed && node.callee.object.type === "Identifier" && namespaces.has(node.callee.object.name) && node.callee.property.name === "named"))
 
-  const s = new MagicString(code)
-  let changed = false
+  const sites: Site[] = []
   walk(program as unknown as Node, {
-    enter(node) {
-      if (node.type !== "CallExpression") return
-      const callee = node.callee
-      const isView =
-        (callee.type === "Identifier" && viewNames.has(callee.name)) ||
-        (callee.type === "MemberExpression" && !callee.computed && callee.object.type === "Identifier" && namespaces.has(callee.object.name) && callee.property.name === "view")
-      const config = node.arguments[1]
-      if (!isView || config?.type !== "ObjectExpression") return
-      if (hoistView(code, s, config)) changed = true
-    },
-  })
-  return changed ? { code: s.toString(), map: s.generateMap({ hires: true, source: id, includeContent: true }) } : undefined
-}
-
-function propertyNamed(object: Node, name: string): Node | undefined {
-  return object.properties.find((p: Node) => p.type === "Property" && !p.computed && (p.key.name ?? p.key.value) === name)
-}
-
-/** Hoists one View's Inline Handlers; true if it had any. */
-function hoistView(code: string, s: MagicString, config: Node): boolean {
-  const renderProp = propertyNamed(config, "render")
-  const render = renderProp?.value
-  if (!render || !isFunction(render)) return false
-  const onParam = render.params[1]
-  if (onParam?.type !== "Identifier") return false
-  const onName: string = onParam.name
-  if (propertyNamed(config, "handlers")) throw new ViewTransformError("A View's handlers are written by @composurejs/vite; remove the handlers property", config.start)
-
-  // Which render bindings are Props: `{ title, likes: l }` destructuring, or a `props` identifier.
-  const propsParam: Node | undefined = render.params[0]
-  const propLocals = new Map<string, string>()
-  let propsObject: string | undefined
-  if (propsParam?.type === "Identifier") propsObject = propsParam.name
-  else if (propsParam?.type === "ObjectPattern") {
-    for (const p of propsParam.properties) {
-      if (p.type !== "Property" || p.computed) continue
-      const value = p.value.type === "AssignmentPattern" ? p.value.left : p.value
-      if (value.type === "Identifier") propLocals.set(value.name, p.key.name ?? p.key.value)
-    }
-  }
-
-  const hoisted: Hoisted[] = []
-  walk(render, {
-    enter(node, _parents, scopes) {
-      if (node.type !== "CallExpression" || node.callee.type !== "Identifier" || node.callee.name !== onName) return
-      // `on` must still be render's parameter here, not a shadowing binding.
-      if (findScope(scopes, onName) !== 0) return
-      const [nameArg, closure] = node.arguments as Node[]
-      const name =
-        nameArg?.type === "Literal" && typeof nameArg.value === "string" ? nameArg.value
-        : nameArg?.type === "TemplateLiteral" && nameArg.expressions.length === 0 ? nameArg.quasis[0].value.cooked
-        : undefined
-      if (name === undefined) throw new ViewTransformError(`${onName}() needs a string literal handler name`, node.start)
-      if (!closure || (closure.type !== "ArrowFunctionExpression" && closure.type !== "FunctionExpression")) {
-        throw new ViewTransformError(`${onName}("${name}", ..) needs the handler written inline as a function, so it can be hoisted`, node.start)
+    enter(node, parents, scopes) {
+      if (node.type === "JSXAttribute" && node.name.type === "JSXIdentifier" && HANDLER_ATTRS.has(node.name.name) && node.value?.type === "JSXExpressionContainer") {
+        const expr: Node = node.value.expression
+        if (isFunction(expr)) {
+          sites.push({ replace: expr, closure: expr, name: undefined, owner: ownerOf(parents), attr: node.name.name, locals: captureLocals(expr, scopes, node.name.name) })
+        } else if (expr.type === "Identifier" && findScope(scopes, expr.name) >= 0) {
+          throw new HandlerTransformError(`${node.name.name}={${expr.name}}: write the handler inline, so it can be hoisted with what it captures (or use named("id", ..))`, expr.start)
+        }
+        return
       }
-      if (hoisted.some((h) => h.name === name)) throw new ViewTransformError(`Handler name "${name}" is used twice in one View`, node.start)
-      hoisted.push({ name, call: node, closure, ...captures(closure, scopes, onName, propLocals, propsObject) })
-      return false
+      if (isNamed(node)) {
+        const [nameArg, fn] = node.arguments as Node[]
+        const name =
+          nameArg?.type === "Literal" && typeof nameArg.value === "string" ? nameArg.value
+          : nameArg?.type === "TemplateLiteral" && nameArg.expressions.length === 0 ? (nameArg.quasis[0].value.cooked as string)
+          : undefined
+        if (name === undefined) throw new HandlerTransformError("named() needs a string literal id", node.start)
+        if (!NAMED_ID.test(name)) throw new HandlerTransformError(`named("${name}", ..): ids are 1-32 letters, digits, "_" or "-", not starting with "_"`, node.start)
+        if (!fn || !isFunction(fn)) throw new HandlerTransformError(`named("${name}", ..) needs the handler written inline`, node.start)
+        if (sites.some((s) => s.name === name)) throw new HandlerTransformError(`named("${name}") is used twice in this module`, node.start)
+        sites.push({ replace: node, closure: fn, name, owner: ownerOf(parents), attr: "named", locals: captureLocals(fn, scopes, `named("${name}")`) })
+      }
     },
   })
-  if (hoisted.length === 0) return false
+  if (sites.length === 0) return undefined
 
-  for (const h of hoisted) {
-    s.overwrite(h.call.start, h.call.end, `${onName}.$(${JSON.stringify(h.name)}, [${h.locals.join(", ")}])`)
-  }
-  const entries = hoisted.map((h) => {
-    const roots = [...new Set([...h.props.map(([local]) => local), ...h.locals].map((path) => path.split(".")[0]!))]
-    const params = roots.length > 0 ? `{ ${roots.join(", ")} }` : "_"
-    return `${JSON.stringify(h.name)}: { props: ${JSON.stringify(h.props)}, locals: ${JSON.stringify(h.locals)}, make: (${params}) => (${code.slice(h.closure.start, h.closure.end)}) }`
+  const file = relativePath(id, options.root)
+  const ordinals = new Map<string, number>()
+  const ids = sites.map((site) => {
+    const ordinal = ordinals.get(site.owner) ?? 0
+    ordinals.set(site.owner, ordinal + 1)
+    return site.name ?? `_${createHash("sha256").update(`${file}|${site.owner}|${ordinal}|${site.attr}|${site.locals.join(",")}`).digest("base64url").slice(0, 7)}`
   })
-  const last = config.properties[config.properties.length - 1]
-  s.appendLeft(last.end, `, handlers: { ${entries.join(", ")} }`)
-  return true
+
+  // Innermost first, so a handler that returns markup with handlers carries them rewritten.
+  const s = new MagicString(code)
+  const order = sites.map((_, i) => i).sort((a, b) => sites[b]!.replace.start - sites[a]!.replace.start)
+  const decls: string[] = []
+  for (const i of order) {
+    const site = sites[i]!
+    const ref = `__composure_h${i}`
+    const closure = s.slice(site.closure.start, site.closure.end)
+    s.overwrite(site.replace.start, site.replace.end, `${ref}.bind([${site.locals.join(", ")}])`)
+    const roots = [...new Set(site.locals.map((path) => path.split(".")[0]!))]
+    const where = `${file}: ${site.owner}`
+    decls[i] = `const ${ref} = __composure_handler(${JSON.stringify(ids[i])}, ${JSON.stringify(site.locals)}, (${roots.length > 0 ? `{ ${roots.join(", ")} }` : ""}) => (${closure}), ${JSON.stringify(where)});`
+  }
+  const header = `\nimport { __handler as __composure_handler } from "composurejs";\n${decls.join("\n")}\n`
+  if (lastImport) s.appendLeft(lastImport.end, header)
+  else s.prepend(header)
+  return { code: s.toString(), map: s.generateMap({ hires: true, source: id, includeContent: true }) }
 }
 
-function captures(closure: Node, renderScopes: Scope[], onName: string, propLocals: Map<string, string>, propsObject: string | undefined): Pick<Hoisted, "props" | "locals"> {
-  const props = new Map<string, string>()
-  const chains = new Map<string, string[][]>()
+/** `Counter`, `cookie.handler`, `Shop.render`: the named declarations around a handler. */
+function ownerOf(parents: Node[]): string {
+  const names: string[] = []
+  for (const p of parents) {
+    if ((p.type === "FunctionDeclaration" || p.type === "ClassDeclaration" || p.type === "FunctionExpression") && p.id) names.push(p.id.name)
+    else if (p.type === "VariableDeclarator" && p.id.type === "Identifier") names.push(p.id.name)
+    else if ((p.type === "Property" || p.type === "MethodDefinition" || p.type === "PropertyDefinition") && !p.computed) names.push(String(p.key.name ?? p.key.value))
+    else if (p.type === "ExportDefaultDeclaration") names.push("default")
+  }
+  return names.join(".") || "(module)"
+}
+
+function relativePath(id: string, root: string | undefined): string {
+  const file = id.replace(/\\/g, "/")
+  const base = root?.replace(/\\/g, "/").replace(/\/?$/, "/")
+  return base && file.startsWith(base) ? file.slice(base.length) : file
+}
+
+function rootOfJsxMember(name: Node): Node | undefined {
+  let at = name
+  while (at.type === "JSXMemberExpression") at = at.object
+  return at
+}
+
+/** What a closure reads from the functions around it: shortest member chains, roots read bare whole. */
+function captureLocals(closure: Node, scopes: Scope[], what: string): string[] {
+  const chains = new Map<string, string[]>()
   walk(
     closure,
     {
-      enter(node) {
-        if (node.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name === onName) {
-          throw new ViewTransformError(`${onName}() cannot be called inside a handler`, node.start)
+      // A tag is a reference too, but a component cannot travel in a custom_id.
+      enter(node, _parents, inner) {
+        if (node.type !== "JSXOpeningElement") return
+        const root = node.name.type === "JSXMemberExpression" ? rootOfJsxMember(node.name) : node.name
+        if (root?.type !== "JSXIdentifier" || !/^[A-Z]/.test(root.name)) return
+        const at = findScope(inner, root.name)
+        if (at >= 0 && at < scopes.length) {
+          throw new HandlerTransformError(`<${root.name}> is defined inside a function, but the ${what} handler rendering it is hoisted to module scope: define ${root.name} at module scope`, node.start)
         }
       },
-      reference(node, parents, scopes) {
-        const at = findScope(scopes, node.name)
-        // Declared in the closure itself (at >= renderScopes.length), or module scope / global (-1).
-        if (at < 0 || at >= renderScopes.length) return
-        const chain = memberChain(node, parents)
-        if (propLocals.has(node.name) && at === 0) props.set(node.name, propLocals.get(node.name)!)
-        else if (propsObject === node.name && at === 0) {
-          // `props.title` captures one Prop, as path `props.title`; bare `props` captures all.
-          if (chain.length > 1) props.set(`${node.name}.${chain[1]}`, chain[1]!)
-          else props.set(node.name, "*")
-        } else {
-          const list = chains.get(node.name) ?? []
-          list.push(chain)
-          chains.set(node.name, list)
-        }
+      reference(node, parents, inner) {
+        const at = findScope(inner, node.name)
+        // Declared in the closure itself, or module scope / global: not a capture.
+        if (at < 0 || at >= scopes.length) return
+        const list = chains.get(node.name) ?? []
+        list.push(memberChain(node, parents).join("."))
+        chains.set(node.name, list)
       },
     },
     [],
-    renderScopes,
+    scopes,
   )
-
-  // Whole-Props capture covers the per-Prop ones.
-  const all = propsObject !== undefined && props.get(propsObject) === "*"
-  const propEntries = [...props.entries()].filter(([local]) => !all || local === propsObject).map(([local, prop]) => [local, prop] as [string, string])
-
   const locals: string[] = []
   for (const list of chains.values()) {
-    // A bare read captures the root; otherwise keep the shortest chains that cover the others.
-    const sorted = list.map((c) => c.join(".")).sort((a, b) => a.length - b.length)
     const kept: string[] = []
-    for (const path of sorted) if (!kept.some((k) => path === k || path.startsWith(`${k}.`))) kept.push(path)
+    for (const path of [...new Set(list)].sort((a, b) => a.length - b.length)) if (!kept.some((k) => path === k || path.startsWith(`${k}.`))) kept.push(path)
     locals.push(...kept)
   }
-  return { props: propEntries, locals }
+  return locals
 }

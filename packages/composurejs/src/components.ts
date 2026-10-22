@@ -2,7 +2,7 @@
 // Placement and Discord's limits are checked by render, not by types.
 import type { JSX } from "./jsx-runtime.ts"
 import { type Child, createNode } from "./jsx/node.ts"
-import type { FieldRef } from "./fields.ts"
+import type { ClickHandler, HandlerRef, SelectHandler, SubmitHandler } from "./handlers.ts"
 import type { Choices } from "./options.ts"
 
 const UPLOAD = Symbol.for("composurejs.upload")
@@ -191,8 +191,12 @@ export interface ButtonProps extends Base {
   style?: "primary" | "secondary" | "success" | "danger"
   /** Routes the click to whatever handles this `custom_id`; max 100 characters. */
   customId?: string
-  /** The handler: `on("name", ..)` in a View, or `handler.id(state)`. Instead of `customId`. */
-  onClick?: string
+  /**
+   * Answers the click: `onClick={(c) => <Counter count={count + 1} />}`. Returned markup updates the
+   * clicked message; `c.reply(..)` / `c.ephemeral(..)` answer with a new one. Reads of the
+   * component's props and locals travel in the `custom_id` (ADR 0015). Instead of `customId`.
+   */
+  onClick?: ClickHandler | HandlerRef
   /** A link button opening this URL (max 512 characters); no `customId`. */
   url?: string
   /** A premium button offering this SKU; no label, emoji or `customId`. */
@@ -214,10 +218,10 @@ export function Button(props: ButtonProps): JSX.Element {
 interface SelectBase extends Base {
   /** Routes the selection to whatever handles this `custom_id`; max 100 characters. */
   customId?: string
-  /** The handler: `on("name", (c, values) => ..)` in a View, or `handler.id(state)`. Instead of `customId`. */
-  onSelect?: string
-  /** In a modal: binds this select to a field, which sets its customId and required-ness. */
-  field?: FieldRef
+  /** Answers the selection in a message: `onSelect={(c, values: Topping[]) => ..}`. Instead of `customId`. */
+  onSelect?: SelectHandler | HandlerRef
+  /** In a modal: the key of this select's values in `onSubmit`. */
+  name?: string
   /** Shown while nothing is selected; max 150 characters. */
   placeholder?: string
   /** Fewest selections, 0-25. Default 1. */
@@ -303,8 +307,8 @@ export interface ModalProps {
   title: string
   /** Routes the submit to whatever handles this `custom_id`; max 100 characters. */
   customId?: string
-  /** The handler: `on("name", (c, values) => ..)` in a modal View. Instead of `customId`. */
-  onSubmit?: string
+  /** Answers the submit: `onSubmit={(c, v: { reason: string }) => ..}`, values keyed by input `name`. Instead of `customId`. */
+  onSubmit?: SubmitHandler | HandlerRef
   /** 1-5 `<Label>`s and `<Text>`s. */
   children?: Child
 }
@@ -329,10 +333,8 @@ export function Label(props: LabelProps): JSX.Element {
 }
 
 export interface TextInputProps extends Base {
-  /** The field's `custom_id`; max 100 characters. */
-  customId?: string
-  /** Binds this input to a field: sets customId, required-ness and the field's defaults. */
-  field?: FieldRef
+  /** Required. The key of this input's value in `onSubmit` (and its `custom_id`). */
+  name: string
   /** Multi-line. Default single-line. */
   paragraph?: boolean
   /** 0-4000. */
@@ -353,8 +355,8 @@ export function TextInput(props: TextInputProps): JSX.Element {
 }
 
 export interface RadioGroupProps extends Base {
-  customId?: string
-  field?: FieldRef
+  /** Required. The key of this input's value in `onSubmit`. */
+  name: string
   /** Options from shared Choices, before any `<Option>` children. */
   options?: Choices<string>
   /** Default true. */
@@ -369,8 +371,8 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
 }
 
 export interface CheckboxGroupProps extends Base {
-  customId?: string
-  field?: FieldRef
+  /** Required. The key of this input's value in `onSubmit`. */
+  name: string
   options?: Choices<string>
   /** 0-10. */
   minValues?: number
@@ -387,8 +389,8 @@ export function CheckboxGroup(props: CheckboxGroupProps): JSX.Element {
 }
 
 export interface CheckboxProps extends Base {
-  customId?: string
-  field?: FieldRef
+  /** Required. The key of this input's value in `onSubmit`. */
+  name: string
   /** Checked initially. */
   default?: boolean
 }
@@ -399,8 +401,8 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
 }
 
 export interface FileUploadProps extends Base {
-  customId?: string
-  field?: FieldRef
+  /** Required. The key of this input's value in `onSubmit`. */
+  name: string
   /** 0-10. */
   minValues?: number
   /** 1-10. */

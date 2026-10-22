@@ -12,14 +12,15 @@ import type { AnyCommand, Command, Group } from "./command.ts"
 import { Context } from "./context.ts"
 import type { Credentials } from "./credentials.ts"
 import { type Interaction, type InteractionResponse, InteractionType, ResponseType } from "./discord.ts"
-import { FAIL, prefixOf } from "./codec.ts"
+import { FAIL } from "./codec.ts"
 import { DiscordApiError, InvalidOptionsError, RenderError, ResponseError, UnknownCommandError, UserError } from "./errors.ts"
 import { decodeEvent, EventContext } from "./events.ts"
-import { dispatchComponent, isViewNode } from "./handlers.ts"
+import { dispatchHandler } from "./handlers.ts"
+import { isNode } from "./jsx/node.ts"
 import { serializeError } from "./log.ts"
 import { runChain } from "./middleware.ts"
 import { OptionType, resolveOptions, resolveUser } from "./options.ts"
-import { type Answer, type Deferred, Ephemeral, isDeferred, type Output, rerendered, toAnswer, unwrapEphemeral } from "./response.ts"
+import { type Answer, type Deferred, Ephemeral, isDeferred, type Output, rerendered, toAnswer, unwrapEphemeral, unwrapReply } from "./response.ts"
 import type { RestOptions } from "./rest/client.ts"
 import { InteractionClient } from "./rest/interaction.ts"
 import { toMessageBody } from "./rest/message.ts"
@@ -166,9 +167,7 @@ async function answerInteraction<E extends Env>(
     rest,
   })
   try {
-    const answer = await toAnswer(await dispatch(built, c), interaction.type)
-    checkListed(built, answer.handlerPrefixes)
-    return { answer, c }
+    return { answer: await toAnswer(await dispatch(built, c), interaction.type), c }
   } catch (error) {
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
       // A message is no answer to autocomplete; the user sees no suggestions.
@@ -176,12 +175,6 @@ async function answerInteraction<E extends Env>(
       return { answer: { response: NO_CHOICES, files: [] }, c }
     }
     return { answer: await renderError(built, error, c), c }
-  }
-}
-
-function checkListed<E extends Env>(built: Built<E>, prefixes: readonly string[] | undefined): void {
-  for (const prefix of prefixes ?? []) {
-    if (!built.handlers.has(prefix)) throw new RenderError(`View "${prefix}" places Inline Handlers but is not listed in the App; add app.view(..) for it`)
   }
 }
 
@@ -198,9 +191,7 @@ async function runDeferred<E extends Env>(built: Built<E>, c: Context<E>, deferr
       throw new ResponseError("Ephemerality is decided when deferring, as Discord fixes it then: c.defer(work, { ephemeral: true })")
     }
     if (isDeferred(output)) throw new ResponseError("Deferred work cannot defer again")
-    const body = await toMessageBody(output)
-    checkListed(built, body.handlerPrefixes)
-    await c.client.editOriginal(body)
+    await c.client.editOriginal(await toMessageBody(output))
   } catch (error) {
     try {
       const [output] = unwrapEphemeral(await errorOutput(built, error, c))
@@ -232,13 +223,12 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
     }
     case InteractionType.MessageComponent:
     case InteractionType.ModalSubmit: {
-      const [prefix, rest] = prefixOf(interaction.data.custom_id)
-      const entry = built.handlers.get(prefix)
-      return runChain(entry?.chain ?? built.middleware, c, async () => {
-        const output = entry ? await dispatchComponent(entry.route, c, rest) : FAIL
+      const customId = interaction.data.custom_id
+      return runChain(built.middleware, c, async () => {
+        const output = await dispatchHandler(c, customId)
         if (output === FAIL) {
-          // Unknown prefix or handler name, or state that no longer decodes: the Fallback (ADR 0005).
-          built.logger.debug({ msg: "Fallback", prefix, interactionId: interaction.id })
+          // An unknown handler id, or captures that no longer decode: the Fallback (ADR 0015).
+          built.logger.debug({ msg: "Fallback", handler: customId.split(":")[0], interactionId: interaction.id })
           return Ephemeral(OUTDATED_MESSAGE)
         }
         return rerender(output, interaction)
@@ -258,10 +248,15 @@ interface CommandData {
   target_id?: string
 }
 
-/** A View returned from a component (or a modal opened from one) re-renders that message. */
+/**
+ * Markup returned from a click (or from a modal opened by one) updates that message; `c.reply(..)`
+ * and `c.ephemeral(..)` answer with a new one, as does anything answering a modal opened by a Command.
+ */
 function rerender(output: Output, interaction: Interaction): Output {
+  const [inner, reply] = unwrapReply(output)
+  if (reply) return inner
   const fromMessage = interaction.type === InteractionType.MessageComponent || (interaction.type === InteractionType.ModalSubmit && "message" in interaction && interaction.message !== undefined)
-  return fromMessage && isViewNode(output) ? rerendered(output) : output
+  return fromMessage && (isNode(output) || output instanceof Promise) ? rerendered(output) : output
 }
 
 function invokeCommand<E extends Env>(command: AnyCommand<E>, c: Context<E, APIApplicationCommandInteraction>) {

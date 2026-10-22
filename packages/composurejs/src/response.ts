@@ -9,6 +9,7 @@ const EPHEMERAL = Symbol.for("composurejs.ephemeral")
 const UPDATE = Symbol.for("composurejs.update")
 const RERENDER = Symbol("composurejs.rerender")
 const DEFER = Symbol.for("composurejs.defer")
+const REPLY = Symbol.for("composurejs.reply")
 
 /** An Output only the invoking user sees. */
 export interface EphemeralOutput {
@@ -60,7 +61,17 @@ export function Update(output: Output): UpdateOutput {
   return { [UPDATE]: output }
 }
 
-/** @internal A View re-rendered by its own handler: replaces the message, or opens a modal View. */
+/** Answers a component click with a new message instead of updating the clicked one. */
+export function Reply(output: Output): Output {
+  return { [REPLY]: output } as unknown as Output
+}
+
+/** Splits `Reply(x)` into `x` and whether it was wrapped. */
+export function unwrapReply(output: Output): [Output, boolean] {
+  return has(output, REPLY) ? [output[REPLY], true] : [output, false]
+}
+
+/** @internal Markup returned from a click on a message: updates that message, or opens a returned modal. */
 export function rerendered(output: Output): Output {
   return { [RERENDER]: output } as unknown as Output
 }
@@ -71,8 +82,6 @@ const has = <K extends symbol>(value: unknown, key: K): value is Record<K, Outpu
 export interface Answer {
   response: InteractionResponse
   files: Upload[]
-  /** Views whose Inline Handlers the answer places. */
-  handlerPrefixes?: string[]
   /** Work to run after answering, for deferred answers. */
   deferred?: Deferred
 }
@@ -107,6 +116,7 @@ export async function toAnswer(output: Output | undefined | void, interactionTyp
     const data = deferred.ephemeral ? { data: { flags: MessageFlags.Ephemeral } } : {}
     return { response: { type: ResponseType.DeferredChannelMessageWithSource, ...data }, files: [], deferred }
   }
+  if (has(output, REPLY)) return toAnswer(output[REPLY], interactionType)
   if (has(output, RERENDER)) {
     const answer = await toAnswer(output[RERENDER], interactionType)
     if (answer.response.type !== ResponseType.ChannelMessageWithSource) return answer
@@ -126,9 +136,9 @@ export async function toAnswer(output: Output | undefined | void, interactionTyp
     const rendered = await render(output)
     if (rendered.kind === "modal") {
       if (interactionType === InteractionType.ModalSubmit) throw new ResponseError("A modal submit cannot be answered with another <Modal>")
-      return { response: { type: ResponseType.Modal, data: rendered.data }, files: [], handlerPrefixes: rendered.handlerPrefixes }
+      return { response: { type: ResponseType.Modal, data: rendered.data }, files: [] }
     }
-    return { response: { type: ResponseType.ChannelMessageWithSource, data: rendered.data as never }, files: rendered.files, handlerPrefixes: rendered.handlerPrefixes }
+    return { response: { type: ResponseType.ChannelMessageWithSource, data: rendered.data as never }, files: rendered.files }
   }
   if (typeof output === "object" && output !== null && typeof (output as { type?: unknown }).type === "number") {
     const data = (output as { data?: { flags?: number; content?: string; embeds?: unknown[] } }).data

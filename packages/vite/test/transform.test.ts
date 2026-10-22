@@ -1,125 +1,129 @@
 import { describe, expect, test } from "vitest"
-import { transformViews } from "../src/transform.ts"
+import { transformHandlers } from "../src/transform.ts"
 
-const run = (code: string) => transformViews(code, "card.tsx")?.code
+const ROOT = "/bot"
+const run = (code: string, file = "/bot/src/counter.tsx") => transformHandlers(code, file, { root: ROOT })?.code
+const idsIn = (out: string | undefined) => [...(out ?? "").matchAll(/__composure_handler\("([^"]+)"/g)].map((m) => m[1])
 
-describe("transformViews", () => {
-  test("hoists a handler, capturing only the Props it reads", () => {
-    const out = run(`
-      import { view, p } from "composurejs"
-      export const Card = view("card", {
-        props: { title: p.string(), likes: p.int(), color: p.int() },
-        render: ({ title, likes, color }, on) => (
-          <Button onClick={on("like", () => Card({ title, likes: likes + 1, color }))}>Like {likes}</Button>
-        ),
-      })
-    `)
-    expect(out).toContain(`onClick={on.$("like", [])}`)
-    expect(out).toContain(
-      `, handlers: { "like": { props: [["title","title"],["likes","likes"],["color","color"]], locals: [], make: ({ title, likes, color }) => (() => Card({ title, likes: likes + 1, color })) } }`,
-    )
+const counter = `
+import { Button, Container, Row, Text } from "composurejs"
+
+export const Counter = ({ count, owner }: { count: number; owner: string }) => (
+  <Container>
+    <Text>## Count: {count}</Text>
+    <Row>
+      {[1, 5, 10].map((step) => (
+        <Button onClick={(c) => (c.user.id === owner ? <Counter count={count + step} owner={owner} /> : c.ephemeral("Not yours"))}>+{step}</Button>
+      ))}
+      <Button onClick={() => <Counter count={0} owner={owner} />}>Reset</Button>
+    </Row>
+  </Container>
+)
+`
+
+describe("transformHandlers", () => {
+  test("hoists inline handlers in any component, capturing props and loop variables", () => {
+    const out = run(counter)!
+    expect(out).toContain(`onClick={__composure_h0.bind([owner, count, step])}`)
+    expect(out).toContain(`onClick={__composure_h1.bind([owner])}`)
+    expect(out).toMatch(/const __composure_h0 = __composure_handler\("_[\w-]{7}", \["owner","count","step"\], \(\{ owner, count, step \}\) => \(\(c\) => \(c\.user\.id === owner/)
+    expect(out).toContain(`import { __handler as __composure_handler } from "composurejs";`)
+    // After the imports, before anything that could render at module load.
+    expect(out.indexOf("__composure_h0 =")).toBeLessThan(out.indexOf("export const Counter"))
   })
 
-  test("renamed and defaulted Props map to their keys; module bindings are not captured", () => {
+  test("a command handler's c is captured by member chain; a shadowing parameter is not", () => {
     const out = run(`
-      import { view as v } from "composurejs"
-      const BRAND = 1
-      export const C = v("c", {
-        render: ({ likes: l = 0, title }, on) => <Button onClick={on("x", (c) => c.ephemeral(BRAND + l))} />,
-      })
-    `)
-    expect(out).toContain(`"x": { props: [["l","likes"]], locals: [], make: ({ l }) => ((c) => c.ephemeral(BRAND + l)) }`)
-  })
-
-  test("loop variables are captured as member chains; method calls stop the chain", () => {
-    const out = run(`
-      import { view } from "composurejs"
-      export const Todo = view("todo", {
-        props: { list: p.string() },
-        render: async ({ list }, on) => {
-          const items = await load(list)
-          return items.map((item) => (
-            <Button onClick={on("remove", () => remove(list, item.id, item.name.toUpperCase(), item.meta.tag))}>x</Button>
-          ))
-        },
-      })
-    `)
-    expect(out).toContain(`on.$("remove", [item.id, item.name, item.meta.tag])`)
-    expect(out).toContain(`"remove": { props: [["list","list"]], locals: ["item.id","item.name","item.meta.tag"], make: ({ list, item }) =>`)
-  })
-
-  test("a bare read of a local captures it whole, covering its chains", () => {
-    const out = run(`
-      import { view } from "composurejs"
-      export const V = view("v", { render: (_, on) => { const n = 1; return <Button onClick={on("a", () => f(n, n.toFixed))} /> } })
-    `)
-    expect(out).toContain(`on.$("a", [n])`)
-    expect(out).toContain(`locals: ["n"]`)
-  })
-
-  test("a props identifier: props.x captures x by path; bare props captures all", () => {
-    const out = run(`
-      import { view } from "composurejs"
-      export const V = view("v", {
-        render: (props, on) => (
+      import { Button, command } from "composurejs"
+      export const ping = command({
+        name: "ping",
+        description: "Ping",
+        handler: (c) => (
           <>
-            <Button onClick={on("one", () => props.title)} />
-            <Button onClick={on("all", () => V(props))} />
+            <Button onClick={(b) => b.ephemeral(\`hi \${c.user.id} in \${c.guildId}\`)}>a</Button>
+            <Button onClick={(c) => c.ephemeral(c.user.id)}>b</Button>
           </>
         ),
       })
     `)
-    expect(out).toContain(`"one": { props: [["props.title","title"]], locals: [], make: ({ props }) => (() => props.title) }`)
-    expect(out).toContain(`"all": { props: [["props","*"]], locals: [], make: ({ props }) => (() => V(props)) }`)
+    expect(out).toContain(`__composure_h0.bind([c.user.id, c.guildId])`)
+    expect(out).toContain(`__composure_h1.bind([])`)
   })
 
-  test("handler parameters and closure-local bindings are not captures", () => {
+  test("module-scope bindings and imports are not captured; a bare read captures the root", () => {
     const out = run(`
-      import { view } from "composurejs"
-      export const V = view("v", {
-        render: (_, on) => <StringSelect onSelect={on("pick", (c, values) => { const first = values[0]; return first })} />,
-      })
+      import { Button, Row } from "composurejs"
+      import { db } from "./db"
+      const PREFIX = ">"
+      export function List({ items }: { items: string[] }) {
+        const first = items[0]
+        return <Row><Button onClick={() => db.save(PREFIX + first + items.length)}>save</Button></Row>
+      }
     `)
-    expect(out).toContain(`"pick": { props: [], locals: [], make: (_) => ((c, values) => { const first = values[0]; return first }) }`)
+    expect(out).toContain(`__composure_h0.bind([first, items.length])`)
   })
 
-  test("methods (render() {}) and namespace imports work", () => {
+  test("named() gives a stable id of your choosing", () => {
     const out = run(`
-      import * as cj from "composurejs"
-      export const V = cj.view("v", {
-        props: { n: cj.p.int() },
-        render({ n }, on) { return <Button onClick={on("inc", () => V({ n: n + 1 }))} /> },
-      })
+      import { Button, named } from "composurejs"
+      export const Roles = ({ role }: { role: string }) => <Button onClick={named("toggle-role", (c) => toggle(c, role))}>Toggle</Button>
     `)
-    expect(out).toContain(`on.$("inc", [])`)
-    expect(out).toContain(`"inc": { props: [["n","n"]]`)
+    expect(out).toContain(`onClick={__composure_h0.bind([role])}`)
+    expect(out).toContain(`__composure_handler("toggle-role", ["role"], ({ role }) => ((c) => toggle(c, role)), "src/counter.tsx: Roles")`)
   })
 
-  test("leaves modules without composurejs Views alone", () => {
-    expect(run(`import { view } from "elsewhere"; view("x", { render: (_, on) => on("a", () => 1) })`)).toBeUndefined()
-    expect(run(`import { view } from "composurejs"; export const V = view("x", { render: () => null })`)).toBeUndefined()
-  })
-
-  test("errors point at the problem", () => {
-    const base = (body: string) => `import { view } from "composurejs"\nexport const V = view("v", { render: (_, on) => ${body} })`
-    expect(() => run(base(`on(name, () => 1)`))).toThrow("on() needs a string literal handler name")
-    expect(() => run(base(`on("a", handler)`))).toThrow('on("a", ..) needs the handler written inline')
-    expect(() => run(base(`[on("a", () => 1), on("a", () => 2)]`))).toThrow('Handler name "a" is used twice in one View')
-    expect(() => run(base(`on("a", () => on("b", () => 1))`))).toThrow("on() cannot be called inside a handler")
-    expect(() => run(`import { view } from "composurejs"\nview("v", { render: (_, on) => on("a", () => 1), handlers: {} })`)).toThrow("remove the handlers property")
-  })
-
-  test("a shadowed on is left alone", () => {
+  test("a handler returning markup with handlers hoists both, the inner rewritten inside the outer", () => {
     const out = run(`
-      import { view } from "composurejs"
-      export const V = view("v", { render: (_, on) => [on("a", () => 1), [1].map((on) => on("b", () => 2))] })
-    `)
-    expect(out).toContain(`on.$("a", [])`)
-    expect(out).toContain(`(on) => on("b", () => 2)`)
+      import { Button } from "composurejs"
+      export const Menu = ({ user }: { user: string }) => (
+        <Button onClick={() => <Button onClick={(c) => c.ephemeral(user)}>Confirm</Button>}>Delete</Button>
+      )
+    `)!
+    expect(out).toContain(`onClick={__composure_h0.bind([user])}`)
+    expect(out).toMatch(/const __composure_h0 = __composure_handler\("_[\w-]{7}", \["user"\], \(\{ user \}\) => \(\(\) => <Button onClick=\{__composure_h1\.bind\(\[user\]\)\}>Confirm<\/Button>\), "src\/counter\.tsx: Menu"\);/)
+    expect(out).toMatch(/const __composure_h1 = __composure_handler\("_[\w-]{7}", \["user"\], \(\{ user \}\) => \(\(c\) => c\.ephemeral\(user\)\), "src\/counter\.tsx: Menu"\);/)
+  })
+
+  test("generated ids survive unrelated edits, and change with file, owner, position or captures", () => {
+    const [a, b] = idsIn(run(counter))
+    expect(a).not.toBe(b)
+    expect(idsIn(run(`// a comment\nconst unrelated = 1\n${counter.replace("## Count", "### Total")}`))).toEqual([a, b])
+    expect(idsIn(run(counter, "/bot/src/other.tsx"))[0]).not.toBe(a)
+    expect(idsIn(run(counter.replace(/Counter/g, "Tally")))[0]).not.toBe(a)
+    // Editing a handler's body keeps its id; capturing something new changes it.
+    expect(idsIn(run(counter.replace("<Counter count={0} owner={owner} />", "<Counter count={count * 0} owner={owner} />")))[1]).not.toBe(b)
+    expect(idsIn(run(counter.replace("c.ephemeral(\"Not yours\")", "c.ephemeral(\"Hands off\")")))[0]).toBe(a)
+    expect(idsIn(run(counter.replace("c.user.id === owner ?", "c.user.id === owner && count < 100 ?")))[0]).toBe(a)
+    expect(idsIn(run(counter.replace("c.ephemeral(\"Not yours\")", "c.ephemeral(String(count))")))[0]).toBe(a)
+    expect(idsIn(run(counter.replace("+{step}</Button>", "+{step}</Button>").replace("(c) => (c.user.id === owner", "(c) => (c.user.id === owner && STEP_LIMIT")))[0]).toBe(a)
+  })
+
+  test("a handler may not render a component defined inside a function", () => {
+    expect(() =>
+      run(`import { Button } from "composurejs"\nexport function make() { const Local = () => <Button>x</Button>; return <Button onClick={() => <Local />}>go</Button> }`),
+    ).toThrow("<Local> is defined inside a function, but the onClick handler rendering it is hoisted to module scope: define Local at module scope")
+    expect(run(`import { Button } from "composurejs"\nconst Top = () => <Button>x</Button>\nexport function make() { return <Button onClick={() => <Top />}>go</Button> }`)).toContain(
+      "__composure_h0.bind([])",
+    )
+  })
+
+  test("errors point at the handler", () => {
+    expect(() => run(`import { Button } from "composurejs"\nexport const V = () => { const go = () => 1; return <Button onClick={go} /> }`)).toThrow(
+      "onClick={go}: write the handler inline, so it can be hoisted with what it captures",
+    )
+    expect(() => run(`import { Button, named } from "composurejs"\nconst id = "x"\nexport const V = () => <Button onClick={named(id, () => 1)} />`)).toThrow("named() needs a string literal id")
+    expect(() => run(`import { Button, named } from "composurejs"\nexport const V = () => <Button onClick={named("_x", () => 1)} />`)).toThrow('not starting with "_"')
+    expect(() => run(`import { Button, named } from "composurejs"\nexport const V = () => <><Button onClick={named("a", () => 1)} /><Button onClick={named("a", () => 2)} /></>`)).toThrow(
+      'named("a") is used twice in this module',
+    )
+  })
+
+  test("leaves references and modules without handlers alone", () => {
+    expect(run(`import { Button } from "composurejs"\nimport { refresh } from "./refs"\nexport const V = () => <Button onClick={refresh} />`)).toBeUndefined()
+    expect(run(`export const x = 1`)).toBeUndefined()
   })
 
   test("emits a source map", () => {
-    const result = transformViews(`import { view } from "composurejs"\nexport const V = view("v", { render: (_, on) => on("a", () => 1) })`, "v.tsx")
-    expect(result?.map.mappings.length).toBeGreaterThan(0)
+    expect(transformHandlers(counter, "/bot/src/counter.tsx", { root: ROOT })?.map.mappings.length).toBeGreaterThan(0)
   })
 })

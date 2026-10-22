@@ -19,8 +19,10 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
+      # The example builds and runs its Bun target when Bun is present.
+      - uses: oven-sh/setup-bun@v2
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # Builds the packages first: the example's vite configs import the built @composurejs/vite,
+      # and test/build.test.ts builds and runs the example for every target.
       - run: pnpm test
-      - run: pnpm build
-      - run: pnpm --filter @composurejs/example-bot check:worker

@@ -12,7 +12,7 @@ function recordingLogger() {
 const report = (
   <Modal title="Report" customId="report">
     <Label text="What happened?">
-      <TextInput customId="what" />
+      <TextInput name="what" />
     </Label>
   </Modal>
 )

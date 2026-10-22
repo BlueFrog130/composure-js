@@ -2,37 +2,37 @@
 
 Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhere `fetch(Request) => Response` runs: Cloudflare Workers, Bun, Node (Deno, Vercel, Netlify and Lambda later). Hono for Discord bots: a small core built on Web Standards, one `app.fetch`, a thin Adapter per platform, a typed context, and JSX Views for responses.
 
-> Status: milestone 4. Working so far:
+> Status: working so far:
 >
 > - Commands: typed Options, Groups, context menu Commands, inline autocomplete
 > - middleware
 > - every Components V2 and modal tag, checked against Discord's limits before sending
+> - Inline Handlers: `onClick={(c) => ..}` anywhere, compiled by `@composurejs/vite` (required)
 > - file uploads
-> - Views with Inline Handlers, hoisted by `@composurejs/vite`
-> - Component and Modal Handlers, with modal values typed by Fields
 > - nested Apps
-> - the Cloudflare, Node and Bun Adapters
+> - the Cloudflare, Node and Bun Adapters, built with `vite build`
 > - `c.defer` / `c.deferUpdate`
 > - REST Endpoints (Tier 1, typed from Discord's OpenAPI spec)
 > - Webhook Events
+> - Sync: `composure sync` from `@composurejs/cli`
 >
-> Next: Sync, and the Vite dev loop and build targets.
+> Next: the rest of the Vite dev loop (Node dev server, tunnel, dev Sync).
 
 ```tsx
-import { App, Button, command, Container, p, Row, Text, view } from "composurejs"
+import { App, Button, command, Container, Row, Text } from "composurejs"
 
-export const Card = view("card", {
-  props: { title: p.string(), likes: p.int() },
-  render: ({ title, likes }, on) => (
-    <Container>
-      <Text>## {title}</Text>
-      <Row>
-        <Button onClick={on("like", () => Card({ title, likes: likes + 1 }))}>👍 {likes}</Button>
-      </Row>
-    </Container>
-  ),
-})
-// The click re-renders the message from new Props; its custom_id is "card:like:<title>:<likes>".
+const Counter = ({ count, owner }: { count: number; owner: string }) => (
+  <Container>
+    <Text>## Count: {count}</Text>
+    <Row>
+      <Button onClick={(c) => (c.user.id === owner ? <Counter count={count + 1} owner={owner} /> : c.ephemeral("Not yours"))}>+1</Button>
+    </Row>
+  </Container>
+)
+// The click updates the message with the markup it returns. No ids to choose, nothing to register:
+// the plugin hoists the handler, and count and owner travel in its custom_id.
+
+const app = new App().command(command({ name: "counter", description: "A counter", handler: (c) => <Counter count={0} owner={c.user.id} /> }))
 
 // Deferred work and REST (Endpoints are functions, so a bundle keeps only those it calls):
 import { createMessage } from "composurejs/rest"
@@ -44,7 +44,6 @@ const report = command({
     return <Text>Done</Text>
   }),
 })
-const app = new App().command(command({ name: "card", description: "A card", handler: () => <Card title="Hi" likes={0} /> })).view(Card)
 ```
 
 ```tsx
@@ -86,6 +85,27 @@ import { handle } from "composurejs/bun"
 export default handle(app)
 ```
 
+Build with Vite (required); the plugin compiles Inline Handlers and sets up the target:
+
+```ts
+// vite.config.ts: Cloudflare Workers (`vite dev` runs on workerd; `vite build && wrangler deploy`)
+import { cloudflare } from "@cloudflare/vite-plugin"
+import composure from "@composurejs/vite"
+import { defineConfig } from "vite"
+
+export default defineConfig({ plugins: [composure({ target: "cloudflare" }), cloudflare()] })
+
+// Node or Bun: one self-contained dist/index.js
+// export default defineConfig({ plugins: [composure({ target: "node", entry: "src/node.ts" })] })
+```
+
+Sync the Commands to Discord (shows the plan, asks, then applies; `--check` for CI):
+
+```sh
+DISCORD_TOKEN=... pnpm exec composure sync            # global; scope "dev" goes to COMPOSURE_SCOPE_DEV guilds
+pnpm exec composure sync --guild 798662131062931547  # everything to one guild, to try it out
+```
+
 Tests run the App the way an Adapter does, with real signatures:
 
 ```ts
@@ -99,7 +119,7 @@ expect(res.text).toBe("## Hello, Bob")
 
 [discord-hono](https://github.com/luisfun/discord-hono) is also a Hono-like framework for Discord bots on Workers. composurejs differs in these ways:
 
-- **JSX Views.** Responses are JSX, and component handlers are written inline in the markup. The Vite plugin hoists them, and each `custom_id` carries only the values the handler captures ([ADR 0005](docs/adr/0005-view-inline-handlers.md)).
+- **JSX with handlers inline, like React.** Responses are JSX, and `onClick={(c) => <Counter count={count + 1} />}` is written where the button is. The Vite plugin hoists it, each `custom_id` carries only what the handler captures, and returned markup updates the message ([ADR 0015](docs/adr/0015-inline-handlers-everywhere.md)).
 - **One definition per Command.** A Command's options type its handler's arguments, so the Command Definition and the handler signature can't drift apart.
 - **Explicit Apps that nest.** The same list drives both dispatch and Sync, and modules own their own lists ([ADR 0001](docs/adr/0001-explicit-registration.md)).
 - **Limits are checked before Discord sees the message.** Render validates placement and Discord's limits, and throws an error naming the broken rule, so you never get a silent "This interaction failed" ([ADR 0004](docs/adr/0004-jsx-runtime.md)).
@@ -112,14 +132,15 @@ expect(res.text).toBe("## Hello, Bob")
 | Path | What |
 |---|---|
 | `packages/composurejs` | Core and subpaths: `/jsx-runtime`, `/components`, `/testing`, `/cloudflare`, `/node`, `/bun` |
-| `packages/vite` | `@composurejs/vite`: hoists Views' Inline Handlers (the dev loop and build targets come later) |
-| `examples/bot` | One App served by Node (`pnpm dev:node`), Workers (`pnpm dev:worker`) and Bun (`bun src/bun.ts`) |
+| `packages/cli` | `@composurejs/cli`: `composure sync`, the Sync Plan and applying it (also a library) |
+| `packages/vite` | `@composurejs/vite`: compiles Inline Handlers and sets up `vite build` per target (the dev loop comes later) |
+| `examples/bot` | One App built for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`), Node (`pnpm build:node && pnpm start:node`) and Bun (`pnpm build:bun && bun dist/bun/index.js`) |
 | `CONTEXT.md` | Glossary. Use these words. |
 | `docs/adr/` | Decisions and why |
 
 ```sh
 pnpm install
-pnpm test        # all workspace tests (Vitest projects)
+pnpm test        # builds the packages, then all workspace tests (incl. building and running the example per target)
 pnpm typecheck   # includes a Node-free check of core
 pnpm build       # tsdown → packages/*/dist
 ```

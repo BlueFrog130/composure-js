@@ -4,19 +4,16 @@ import {
   Button,
   Checkbox,
   command,
-  component,
   Container,
   defineChoices,
   Ephemeral,
-  f,
   group,
   Label,
   md,
   middleware,
+  named,
   Modal,
-  modal,
   option,
-  p,
   RadioGroup,
   Row,
   Section,
@@ -26,6 +23,7 @@ import {
   userCommand,
   UserError,
 } from "composurejs"
+import { counter } from "./counter.tsx"
 
 const BRAND = 0x5865f2
 
@@ -97,14 +95,7 @@ export const server = new App().use(guildOnly).command(
 
 export const highFive = userCommand({ name: "High five", handler: (c, target) => `${c.user.username} high-fives ${target.displayName} 🙏` })
 
-// Handlers defined outside render work on every build. (Views with Inline Handlers need
-// @composurejs/vite in the build; this example's Node and Worker entries get it with the
-// Vite build targets.)
-export const vote = component("vote", {
-  state: { up: p.bool() },
-  handler: (c, { up }) => Ephemeral(`${c.user.username} voted ${up ? "👍" : "👎"}`),
-})
-
+// A poll meant to last: named() keeps its buttons working across deploys that move the handlers.
 export const poll = command({
   name: "poll",
   description: "Ask a yes/no question",
@@ -113,37 +104,50 @@ export const poll = command({
     <Container accentColor={BRAND}>
       <Text>### {question}</Text>
       <Row>
-        <Button style="success" emoji="👍" onClick={vote.id({ up: true })}>Yes</Button>
-        <Button style="danger" emoji="👎" onClick={vote.id({ up: false })}>No</Button>
+        <Button style="success" emoji="👍" onClick={named("poll-yes", (c) => c.ephemeral(`${c.user.username} voted 👍`))}>Yes</Button>
+        <Button style="danger" emoji="👎" onClick={named("poll-no", (c) => c.ephemeral(`${c.user.username} voted 👎`))}>No</Button>
       </Row>
     </Container>
   ),
 })
 
 const Mood = defineChoices({ great: "Great", fine: "Fine", meh: "Meh" })
+type FeedbackValues = { mood: "great" | "fine" | "meh"; notes: string | undefined; followUp: boolean }
 
-export const feedback = modal("feedback", {
-  fields: { mood: f.choice(Mood), notes: f.text({ paragraph: true, maxLength: 1000 }).optional(), followUp: f.checkbox() },
-  render: (_, fields) => (
-    <Modal title="Feedback">
-      <Label text="How is it going?">
-        <RadioGroup field={fields.mood} />
-      </Label>
-      <Label text="Anything to add?">
-        <TextInput field={fields.notes} placeholder="Optional" />
-      </Label>
-      <Label text="Contact me about this">
-        <Checkbox field={fields.followUp} />
-      </Label>
-    </Modal>
-  ),
-  handler: (_c, { mood, notes, followUp }) => Ephemeral(`Thanks! Mood: ${mood}${notes ? `, notes: ${notes}` : ""}${followUp ? " (we'll be in touch)" : ""}`),
-})
+export const Feedback = () => (
+  <Modal
+    title="Feedback"
+    onSubmit={(c, { mood, notes, followUp }: FeedbackValues) =>
+      c.ephemeral(<Container>
+        <Text>### Thanks for your feedback!</Text>
+        <Text>Mood: {mood}</Text>
+        {notes && (<>
+        <Separator />
+        <Text>Notes: {notes}</Text>
+        </>)}
+        {followUp && (<>
+        <Separator />
+        <Text>We'll be in touch!</Text>
+        </>)}
+      </Container>)
+    }
+  >
+    <Label text="How is it going?">
+      <RadioGroup name="mood" options={Mood} />
+    </Label>
+    <Label text="Anything to add?">
+      <TextInput name="notes" paragraph maxLength={1000} placeholder="Optional" required={false} />
+    </Label>
+    <Label text="Contact me about this">
+      <Checkbox name="followUp" />
+    </Label>
+  </Modal>
+)
 
-export const feedbackCommand = command({ name: "feedback", description: "Tell us how it's going", handler: () => feedback.open() })
+export const feedback = command({ name: "feedback", description: "Tell us how it's going", handler: () => <Feedback /> })
 
 const basics = new App().command(ping).command(hello).command(cookie).command(highFive)
-const interactive = new App().command(poll).component(vote).command(feedbackCommand).modal(feedback)
+const interactive = new App().command(poll).command(feedback).command(counter)
 
 /** Deferred: answers at once with a loading state, then edits in the result (up to ~30s on Workers). */
 export const report = command({
@@ -169,3 +173,7 @@ export const app = new App()
   .events((_c, event) => {
     console.info({ msg: "Webhook Event", type: event.type })
   })
+  .use(middleware((c, next) => {
+    console.log(c.raw);
+    return next();
+  }))
