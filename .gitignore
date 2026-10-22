@@ -5,3 +5,4 @@ coverage/
 .dev.vars
 .env
 *.log
+.tmp/

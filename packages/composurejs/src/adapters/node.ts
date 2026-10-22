@@ -70,7 +70,7 @@ export async function serve<E extends Env>(app: App<E>, options: ServeOptions<E>
 }
 
 /** The Web Request for `req`, or undefined when its body is over the cap. */
-async function toRequest(req: IncomingMessage): Promise<Request | undefined> {
+export async function toRequest(req: IncomingMessage): Promise<Request | undefined> {
   const headers = new Headers()
   for (const [name, value] of Object.entries(req.headers)) {
     if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value)
@@ -89,9 +89,11 @@ async function toRequest(req: IncomingMessage): Promise<Request | undefined> {
   return new Request(url, { method: req.method ?? "POST", headers, body: Buffer.concat(chunks) })
 }
 
-async function send(res: ServerResponse, response: Response): Promise<void> {
+/** Writes a Web Response to a node:http response. */
+export async function send(res: ServerResponse, response: Response): Promise<void> {
   const headers: Record<string, string> = {}
   response.headers.forEach((value, name) => (headers[name] = value))
   res.writeHead(response.status, headers)
   res.end(Buffer.from(await response.arrayBuffer()))
 }
+export { createTracker, type Tracker } from "./tracker.ts"

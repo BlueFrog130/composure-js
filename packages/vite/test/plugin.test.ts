@@ -27,8 +27,9 @@ describe("build targets", () => {
     expect(() => check(resolved(["composurejs", "vite-plugin-cloudflare"]))).not.toThrow()
   })
 
-  test("nothing changes for dev, or without a target", () => {
-    expect(config(composure({ target: "node" }), {}, serve)).toBeUndefined()
+  test("dev serves the App itself for node and bun; nothing changes without a target", () => {
+    expect(config(composure({ target: "node" }), {}, serve)).toEqual({ appType: "custom" })
+    expect(config(composure({ target: "cloudflare" }), {}, serve)).toBeUndefined()
     expect(config(composure(), {}, build)).toBeUndefined()
   })
 })

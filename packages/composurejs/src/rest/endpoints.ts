@@ -55,6 +55,9 @@ export const ROUTES = {
   modifyWebhook: route("PATCH", "/webhooks/{webhook_id}", "update_webhook"),
   deleteWebhook: route("DELETE", "/webhooks/{webhook_id}", "delete_webhook"),
   executeWebhook: route("POST", "/webhooks/{webhook_id}/{webhook_token}", "execute_webhook"),
+  // The application
+  getCurrentApplication: route("GET", "/applications/@me", "get_my_application"),
+  editCurrentApplication: route("PATCH", "/applications/@me", "update_my_application"),
   // Application Commands (Sync)
   getGlobalCommands: route("GET", "/applications/{application_id}/commands", "list_application_commands"),
   bulkOverwriteGlobalCommands: route("PUT", "/applications/{application_id}/commands", "bulk_set_application_commands"),
@@ -224,6 +227,15 @@ export async function executeWebhook(rest: RestClient, webhookId: string, token:
   const withComponents = json.components !== undefined ? { with_components: true } : {}
   return rest.request(ROUTES.executeWebhook, { params: { webhook_id: webhookId, webhook_token: token }, query: { wait: true, ...withComponents, ...query }, body: json, files })
 }
+
+// ---- The application -----------------------------------------------------------------------
+
+/** The bot's own application. */
+export const getCurrentApplication = (rest: RestClient): Res<"getCurrentApplication"> => rest.request(ROUTES.getCurrentApplication)
+
+/** Edits the bot's application, e.g. its `interactions_endpoint_url` (Discord PINGs a new URL before accepting it). */
+export const editCurrentApplication = (rest: RestClient, body: Body<"editCurrentApplication">): Res<"editCurrentApplication"> =>
+  rest.request(ROUTES.editCurrentApplication, { body })
 
 // ---- Application Commands ------------------------------------------------------------------
 

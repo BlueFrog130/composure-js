@@ -15,8 +15,9 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 > - REST Endpoints (Tier 1, typed from Discord's OpenAPI spec)
 > - Webhook Events
 > - Sync: `composure sync` from `@composurejs/cli`
+> - the Dev Loop: `vite dev` serves the bot, tunnels to it, points your dev application at it, and syncs to a dev guild on every change
 >
-> Next: the rest of the Vite dev loop (Node dev server, tunnel, dev Sync).
+> Next: `create-composurejs` templates, size and cold-start budgets, the docs site, releases.
 
 ```tsx
 import { App, Button, command, Container, Row, Text } from "composurejs"
@@ -98,6 +99,8 @@ export default defineConfig({ plugins: [composure({ target: "cloudflare" }), clo
 // Node or Bun: one self-contained dist/index.js
 // export default defineConfig({ plugins: [composure({ target: "node", entry: "src/node.ts" })] })
 ```
+
+Develop against Discord with one command. Put `DISCORD_PUBLIC_KEY`, `DISCORD_TOKEN`, `COMPOSURE_DEV_APPLICATION_ID` (your *dev* application, the only one it will repoint) and `COMPOSURE_DEV_GUILD` in `.env`, then `vite dev`: it opens a tunnel, sets the dev application's Interactions Endpoint URL, syncs Commands to the dev guild, and re-syncs on save.
 
 Sync the Commands to Discord (shows the plan, asks, then applies; `--check` for CI):
 

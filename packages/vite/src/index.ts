@@ -1,4 +1,5 @@
 import type { Plugin, UserConfig } from "vite"
+import { type DevOptions, setupDevLoop } from "./dev.ts"
 import { HandlerTransformError, transformHandlers } from "./transform.ts"
 
 export type Target = "cloudflare" | "node" | "bun"
@@ -17,6 +18,11 @@ export interface ComposureOptions {
   outDir?: string
   /** Modules to transform. Default: JS/TS/JSX/TSX outside node_modules. */
   include?: RegExp
+  /**
+   * The Dev Loop in `vite dev` (ADR 0017), when a `target` is set: serving the App (node, bun),
+   * the tunnel, and dev Sync. See {@link DevOptions}.
+   */
+  dev?: DevOptions
 }
 
 const DEFAULT_ENTRY: Record<Exclude<Target, "cloudflare">, string> = { node: "src/node.ts", bun: "src/bun.ts" }
@@ -36,6 +42,8 @@ export default function composure(options: ComposureOptions = {}): Plugin {
     enforce: "pre",
 
     config(config, env): UserConfig | undefined {
+      // The App answers requests itself: no SPA fallback or index.html.
+      if (env.command === "serve") return target === "node" || target === "bun" ? { appType: "custom" } : undefined
       if (env.command !== "build") return undefined
       // Bundle size is cold-start time on Workers; servers keep readable stack traces.
       if (target === "cloudflare") return config.build?.minify === undefined ? { build: { minify: true } } : undefined
@@ -63,6 +71,12 @@ export default function composure(options: ComposureOptions = {}): Plugin {
       }
     },
 
+    configureServer(server) {
+      // Only with a target: Vitest serves the plugin too, and must never reach Discord.
+      if (!target) return
+      setupDevLoop(server, options.dev ?? {}, target === "node" || target === "bun", () => composure({ include }))
+    },
+
     transform(code, id) {
       const file = id.split("?")[0]!
       if (!include.test(file) || /[\\/]node_modules[\\/]/.test(file)) return undefined
@@ -77,3 +91,4 @@ export default function composure(options: ComposureOptions = {}): Plugin {
 }
 
 export { composure, HandlerTransformError, transformHandlers }
+export type { DevOptions, Tunnel } from "./dev.ts"
