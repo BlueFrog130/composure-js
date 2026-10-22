@@ -58,11 +58,6 @@ export const ResponseType = {
 
 export const MessageFlags = {
   Ephemeral: 1 << 6,
+  SuppressNotifications: 1 << 12,
   IsComponentsV2: 1 << 15,
-} as const
-
-export const ComponentType = {
-  ActionRow: 1,
-  TextDisplay: 10,
-  Container: 17,
 } as const

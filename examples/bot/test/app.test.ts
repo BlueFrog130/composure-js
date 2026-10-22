@@ -12,7 +12,8 @@ test("/ping answers Pong!", async () => {
 
 test("/hello greets by display name in a View", async () => {
   const res = await answer(app, command("hello").by({ id: "1", global_name: "Bob" }))
-  expect(res.text).toBe("## Hello, Bob\n-# answered by composurejs")
+  expect(res.text).toBe("## Hello, Bob\n-# answered by composurejs\n- Views are JSX\n- Limits are checked before Discord sees them")
+  expect(res.allComponents.find((c) => c.type === 2)).toMatchObject({ style: 5, label: "Source" })
 })
 
 test("/cookie uses resolved users and optional Options", async () => {

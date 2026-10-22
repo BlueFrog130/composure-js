@@ -1,9 +1,11 @@
 import { type App, internals } from "../app.ts"
 import { type Interaction, type InteractionResponse, MessageFlags } from "../discord.ts"
 import { handleInteraction } from "../pipeline.ts"
+import type { Transport } from "../transport.ts"
 import type { BindingsOf, DataOf, Env, Platform } from "../types.ts"
 import type { Buildable } from "./builders.ts"
 import { TestKey } from "./key.ts"
+import { MockTransport, type RecordedFile } from "./transport.ts"
 
 /** Background Work held until the test runs it. */
 export class TestPlatform implements Required<Platform> {
@@ -28,6 +30,8 @@ export interface AnswerOptions<E extends Env> {
   /** Bot Data; default: the App's `data` loader run with `env`. */
   data?: DataOf<E>
   platform?: Platform
+  /** Default: a fresh {@link MockTransport}, so tests never reach Discord. */
+  transport?: MockTransport | Transport
 }
 
 let sharedKey: Promise<TestKey> | undefined
@@ -43,13 +47,17 @@ export async function answer<E extends Env>(
   const payload = "build" in interaction ? interaction.build() : interaction
   const request = await key.request(JSON.stringify(payload))
   const data = "data" in options ? (options.data as DataOf<E>) : await internals(app).loadData(env)
+  const mock = options.transport instanceof MockTransport ? options.transport : options.transport ? undefined : new MockTransport()
   const response = await handleInteraction(app, request, {
     credentials: { publicKey: key.publicKey },
     env,
     data,
     platform: options.platform ?? new TestPlatform(),
+    transport: mock?.fetch ?? (options.transport as Transport),
   })
-  return TestResponse.from(response)
+  // A 202 means the answer went through the callback endpoint (it carried files).
+  const callback = response.status === 202 ? mock?.requests.findLast((r) => r.path.endsWith("/callback")) : undefined
+  return callback ? TestResponse.of(202, callback.json as InteractionResponse, callback.files) : TestResponse.from(response)
 }
 
 type Json = Record<string, unknown>
@@ -58,17 +66,23 @@ type Json = Record<string, unknown>
 export class TestResponse {
   private constructor(
     readonly status: number,
-    /** The parsed JSON body, if any. */
+    /** The parsed JSON body, or for a 202 the payload sent through the callback endpoint. */
     readonly body: InteractionResponse | undefined,
+    /** Files sent with the answer. */
+    readonly files: RecordedFile[],
   ) {}
 
   static async from(response: Response): Promise<TestResponse> {
     const text = await response.text()
     const isJson = response.headers.get("content-type")?.includes("application/json")
-    return new TestResponse(response.status, isJson && text ? (JSON.parse(text) as InteractionResponse) : undefined)
+    return new TestResponse(response.status, isJson && text ? (JSON.parse(text) as InteractionResponse) : undefined, [])
   }
 
-  /** The interaction response type (4 message, 5 deferred, 7 update, ...). */
+  static of(status: number, body: InteractionResponse | undefined, files: RecordedFile[] = []): TestResponse {
+    return new TestResponse(status, body, files)
+  }
+
+  /** The interaction response type (4 message, 5 deferred, 7 update, 9 modal, ...). */
   get type(): number | undefined {
     return this.body?.type
   }
@@ -89,18 +103,29 @@ export class TestResponse {
     return (this.data?.components as Json[] | undefined) ?? []
   }
 
+  /** Every component in the tree, depth first: rows, buttons, accessories, Label inputs, ... */
+  get allComponents(): Json[] {
+    const out: Json[] = []
+    const walk = (c: Json) => {
+      out.push(c)
+      for (const child of (c.components as Json[] | undefined) ?? []) walk(child)
+      if (c.accessory) walk(c.accessory as Json)
+      if (c.component) walk(c.component as Json)
+    }
+    this.components.forEach(walk)
+    return out
+  }
+
   /** The message's text: its `content`, or every Text Display in order, joined by newlines. */
   get text(): string | undefined {
     const content = this.data?.content
     if (typeof content === "string") return content
-    const texts: string[] = []
-    const walk = (components: Json[]) => {
-      for (const component of components) {
-        if (typeof component.content === "string") texts.push(component.content)
-        if (Array.isArray(component.components)) walk(component.components as Json[])
-      }
-    }
-    walk(this.components)
+    const texts = this.allComponents.filter((c) => c.type === 10).map((c) => c.content as string)
     return texts.length > 0 ? texts.join("\n") : undefined
+  }
+
+  /** The component with this `custom_id`, if any. */
+  component(customId: string): Json | undefined {
+    return this.allComponents.find((c) => c.custom_id === customId)
   }
 }

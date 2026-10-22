@@ -151,6 +151,10 @@ _Avoid_: Button handler, listener
 **Modal Handler**:
 Code answering a modal submit routed by `custom_id` prefix, receiving the submitted fields typed by a field schema (`f.*`).
 
+**Upload**:
+A file sent with a message, created with `upload(name, data)` and placed as a `src`; render attaches it and refers to it as `attachment://<name>`.
+_Avoid_: Attachment (that is a file Discord already has), file (alone)
+
 **Custom ID State**:
 Values carried in a `custom_id` after its prefix and handler name instead of stored anywhere: `prefix:field:field` with `\` escapes, at most 100 characters.
 _Avoid_: Session, payload

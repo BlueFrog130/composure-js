@@ -1,5 +1,21 @@
 // The example's App, shared by every platform entry (src/node.ts, src/worker.ts, src/bun.ts).
-import { App, command, Container, defineChoices, Ephemeral, group, middleware, option, Text, userCommand, UserError } from "composurejs"
+import {
+  App,
+  Button,
+  command,
+  Container,
+  defineChoices,
+  Ephemeral,
+  group,
+  md,
+  middleware,
+  option,
+  Section,
+  Separator,
+  Text,
+  userCommand,
+  UserError,
+} from "composurejs"
 
 const BRAND = 0x5865f2
 
@@ -14,8 +30,17 @@ export const hello = command({
   description: "Say hello with a View",
   handler: (c) => (
     <Container accentColor={BRAND}>
-      <Text>## Hello, {c.user.global_name ?? c.user.username}</Text>
-      <Text>-# answered by composurejs</Text>
+      <Section accessory={<Button url="https://github.com/BlueFrog130/composure-js">Source</Button>}>
+        <Text>## Hello, {c.user.global_name ?? c.user.username}</Text>
+        <Text>-# answered by composurejs</Text>
+      </Section>
+      <Separator />
+      <Text>
+        {md`
+          - Views are JSX
+          - Limits are checked before Discord sees them
+        `}
+      </Text>
     </Container>
   ),
 })

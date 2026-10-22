@@ -16,7 +16,8 @@ import { InvalidOptionsError, UnknownCommandError, UserError } from "./errors.ts
 import { serializeError } from "./log.ts"
 import { runChain } from "./middleware.ts"
 import { OptionType, resolveOptions, resolveUser } from "./options.ts"
-import { Ephemeral, type Output, toInteractionResponse } from "./response.ts"
+import { type Answer, Ephemeral, type Output, toAnswer } from "./response.ts"
+import { DISCORD_API, multipart, type Transport } from "./transport.ts"
 import type { BindingsOf, DataOf, Env, Platform } from "./types.ts"
 import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verifySignature } from "./verify.ts"
 
@@ -33,6 +34,8 @@ export interface HandleOptions<E extends Env> {
   env: BindingsOf<E>
   data: DataOf<E>
   platform?: Platform | undefined
+  /** Overrides the App's Transport. */
+  transport?: Transport | undefined
 }
 
 /**
@@ -63,11 +66,33 @@ export async function handleInteraction<E extends Env>(app: App<E>, request: Req
   }
   if (!isInteraction(interaction)) return notAnInteraction()
 
-  return Response.json(await answerInteraction(built, interaction, options))
+  const answer = await answerInteraction(built, interaction, options)
+  if (answer.files.length > 0) return sendWithFiles(built, interaction, answer, options.transport ?? built.transport)
+  return Response.json(answer.response)
 }
 
-async function answerInteraction<E extends Env>(built: Built<E>, interaction: Interaction, options: HandleOptions<E>): Promise<InteractionResponse> {
-  if (interaction.type === InteractionType.Ping) return { type: ResponseType.Pong }
+/**
+ * Files cannot ride on the HTTP response: send the answer as multipart through the callback
+ * endpoint, then answer the request with 202. If Discord rejects it, the Interaction is still
+ * unanswered, so the HTTP response carries the generic error instead.
+ */
+async function sendWithFiles<E extends Env>(built: Built<E>, interaction: Interaction, answer: Answer, transport: Transport): Promise<Response> {
+  const url = `${DISCORD_API}/interactions/${interaction.id}/${interaction.token}/callback`
+  let failure: Record<string, unknown> | undefined
+  try {
+    const res = await transport(new Request(url, { method: "POST", body: multipart(answer.response as { data?: object }, answer.files) }))
+    if (res.ok) return new Response(null, { status: 202 })
+    failure = { status: res.status, body: (await res.text()).slice(0, 2000) }
+  } catch (error) {
+    failure = { error: serializeError(error) }
+  }
+  // Log the route template, never the URL: it holds the Interaction token.
+  built.logger.error({ msg: "Sending a response with files failed", route: "POST /interactions/{id}/{token}/callback", interactionId: interaction.id, ...failure })
+  return Response.json((await toAnswer(Ephemeral(GENERIC_ERROR_MESSAGE), interaction.type)).response)
+}
+
+async function answerInteraction<E extends Env>(built: Built<E>, interaction: Interaction, options: HandleOptions<E>): Promise<Answer> {
+  if (interaction.type === InteractionType.Ping) return { response: { type: ResponseType.Pong }, files: [] }
 
   const c = new Context<E>({
     interaction,
@@ -77,12 +102,12 @@ async function answerInteraction<E extends Env>(built: Built<E>, interaction: In
     logger: built.logger,
   })
   try {
-    return await toInteractionResponse(await dispatch(built, c))
+    return await toAnswer(await dispatch(built, c), interaction.type)
   } catch (error) {
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
       // A message is no answer to autocomplete; the user sees no suggestions.
       built.logger.error({ msg: "Autocomplete failed", interactionId: interaction.id, command: interaction.data.name, error: serializeError(error) })
-      return NO_CHOICES
+      return { response: NO_CHOICES, files: [] }
     }
     return renderError(built, error, c)
   }
@@ -181,7 +206,7 @@ async function autocomplete<E extends Env>(command: AnyCommand<E>, c: Context<E,
 }
 
 /** The Error Renderer's output, ephemeral; logs every error except User Errors. */
-async function renderError<E extends Env>(built: Built<E>, error: unknown, c: Context<E>): Promise<InteractionResponse> {
+async function renderError<E extends Env>(built: Built<E>, error: unknown, c: Context<E>): Promise<Answer> {
   const entry = { interactionId: c.interaction.id, type: c.interaction.type, ...routeOf(c.interaction), error: serializeError(error) }
   if (error instanceof UserError) built.logger.debug({ msg: "User Error", ...entry })
   else if (error instanceof UnknownCommandError) built.logger.warn({ msg: "Unknown Command", ...entry })
@@ -190,10 +215,10 @@ async function renderError<E extends Env>(built: Built<E>, error: unknown, c: Co
 
   try {
     const output = built.onError ? await built.onError(error, c) : defaultErrorOutput(error)
-    return await toInteractionResponse(Ephemeral(output))
+    return await toAnswer(Ephemeral(output), c.interaction.type)
   } catch (rendererError) {
     built.logger.error({ msg: "Error Renderer failed", interactionId: c.interaction.id, error: serializeError(rendererError) })
-    return toInteractionResponse(Ephemeral(defaultErrorOutput(error)))
+    return toAnswer(Ephemeral(defaultErrorOutput(error)), c.interaction.type)
   }
 }
 

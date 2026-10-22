@@ -2,7 +2,7 @@
 
 Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhere `fetch(Request) => Response` runs: Cloudflare Workers, Bun, Node (Deno, Vercel, Netlify and Lambda later). Hono for Discord bots: a small core built on Web Standards, one `app.fetch`, a thin Adapter per platform, a typed context, and JSX Views for responses.
 
-> Status: milestone 2. Commands with typed Options, Groups, context menu Commands, inline autocomplete, middleware, the error model, nested Apps, and the Cloudflare, Node and Bun Adapters work. The full JSX component set, Views with handlers, defer, REST, Sync and the Vite plugin are next.
+> Status: milestone 3. Commands with typed Options, Groups, context menu Commands, inline autocomplete and middleware work, along with every Components V2 and modal tag (validated against Discord's limits before sending), file uploads, nested Apps, and the Cloudflare, Node and Bun Adapters. Views with handlers, defer, REST, Sync and the Vite plugin are next.
 
 ```tsx
 import { App, command, Container, option, Text } from "composurejs"

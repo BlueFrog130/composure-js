@@ -49,7 +49,7 @@ export {
   type Choices,
   type ChoiceValue,
   defineChoices,
-  Option,
+  OptionBuilder,
   option,
   type Options,
   type OptionValues,
@@ -59,7 +59,10 @@ export {
   type Role,
 } from "./options.ts"
 export { GENERIC_ERROR_MESSAGE, handleInteraction, type HandleOptions, MAX_BODY_BYTES, OUTDATED_MESSAGE } from "./pipeline.ts"
-export { Ephemeral, type EphemeralOutput, type Output } from "./response.ts"
+export { Ephemeral, type EphemeralOutput, type Output, Update, type UpdateOutput } from "./response.ts"
+export { LIMITS, render, type Rendered, type RenderedMessage, type RenderedModal } from "./jsx/render.ts"
+export { DISCORD_API, fetchTransport, type Transport } from "./transport.ts"
 export type { BindingsOf, DataOf, Env, Platform, VariablesOf } from "./types.ts"
 export { verifySignature } from "./verify.ts"
-export { Container, type ContainerProps, Text, type TextProps } from "./components.ts"
+export * from "./components.ts"
+export type { JSX } from "./jsx-runtime.ts"

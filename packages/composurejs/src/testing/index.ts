@@ -19,3 +19,4 @@ export {
   type UserCommandBuilder,
 } from "./builders.ts"
 export { type SignedRequestInit, TestKey } from "./key.ts"
+export { MockTransport, type RecordedFile, type RecordedRequest } from "./transport.ts"

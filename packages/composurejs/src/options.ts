@@ -89,45 +89,45 @@ export interface OptionSpec {
 }
 
 /** An Option builder. `T` is the value the handler receives, `R` whether it is required. */
-export class Option<T, R extends boolean = true> {
+export class OptionBuilder<T, R extends boolean = true> {
   declare readonly __value: T
   declare readonly __required: R
 
   constructor(readonly spec: OptionSpec) {}
 
   /** The user may leave it out; the handler then gets `undefined`. Required Options are sent first. */
-  optional(): Option<T, false> {
-    return new Option({ ...this.spec, required: false })
+  optional(): OptionBuilder<T, false> {
+    return new OptionBuilder({ ...this.spec, required: false })
   }
 
   /** Restricts the value to `choices` (at most 25). Not with `autocomplete`. */
-  choices<const V extends T & (string | number)>(this: Option<string, R> | Option<number, R>, choices: Choices<V>): Option<V, R> {
+  choices<const V extends T & (string | number)>(this: OptionBuilder<string, R> | OptionBuilder<number, R>, choices: Choices<V>): OptionBuilder<V, R> {
     if (this.spec.autocomplete) throw new AppConfigError("An Option cannot have both choices and autocomplete")
-    return new Option({ ...this.spec, choices })
+    return new OptionBuilder({ ...this.spec, choices })
   }
 
   /** Suggests values while the user types. Not with `choices`. */
-  autocomplete(this: Option<string, R> | Option<number, R>, handler: AutocompleteHandler<T>): Option<T, R> {
+  autocomplete(this: OptionBuilder<string, R> | OptionBuilder<number, R>, handler: AutocompleteHandler<T>): OptionBuilder<T, R> {
     if (this.spec.choices) throw new AppConfigError("An Option cannot have both choices and autocomplete")
-    return new Option({ ...this.spec, autocomplete: handler })
+    return new OptionBuilder({ ...this.spec, autocomplete: handler })
   }
 }
 
-export type AnyOption = Option<any, boolean>
+export type AnyOption = OptionBuilder<any, boolean>
 export type Options = Record<string, AnyOption>
 
 type Simplify<T> = { [K in keyof T]: T[K] } & {}
 
 /** The handler's second argument for Options `O`. */
 export type OptionValues<O extends Options> = Simplify<
-  { [K in keyof O as O[K] extends Option<any, true> ? K : never]: O[K]["__value"] } & {
-    [K in keyof O as O[K] extends Option<any, true> ? never : K]?: O[K]["__value"]
+  { [K in keyof O as O[K] extends OptionBuilder<any, true> ? K : never]: O[K]["__value"] } & {
+    [K in keyof O as O[K] extends OptionBuilder<any, true> ? never : K]?: O[K]["__value"]
   }
 >
 
 const make = <T>(type: number, description: string, extra: Partial<OptionSpec> = {}) => {
   checkLength("Option description", description, 1, 100)
-  return new Option<T>({ type, description, required: true, ...extra })
+  return new OptionBuilder<T>({ type, description, required: true, ...extra })
 }
 
 /** Option builders: `option.string("Flavor")`, `option.integer("How many", { min: 1 }).optional()`, ... */

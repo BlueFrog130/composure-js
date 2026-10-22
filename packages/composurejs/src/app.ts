@@ -6,6 +6,7 @@ import { consoleLogger, type Logger, serializeError } from "./log.ts"
 import type { Middleware } from "./middleware.ts"
 import { handleInteraction } from "./pipeline.ts"
 import type { Output } from "./response.ts"
+import { fetchTransport, type Transport } from "./transport.ts"
 import type { BindingsOf, DataOf, Env, MaybePromise, Platform } from "./types.ts"
 
 export interface AppOptions<E extends Env> {
@@ -16,6 +17,8 @@ export interface AppOptions<E extends Env> {
   logger?: Logger
   /** Oldest accepted signature timestamp, in seconds. Default 300. */
   maxSignatureAge?: number
+  /** Sends REST requests (ADR 0006). Default `fetch`; tests inject a MockTransport. */
+  transport?: Transport
 }
 
 /** Renders what the user sees when a handler throws. At most one per App tree. */
@@ -39,6 +42,7 @@ export interface Built<E extends Env = Env> {
   onError: ErrorRenderer<E> | undefined
   logger: Logger
   maxSignatureAge: number
+  transport: Transport
 }
 
 interface Resolved<E extends Env> {
@@ -156,6 +160,7 @@ export class App<E extends Env = Env> {
       onError: undefined,
       logger,
       maxSignatureAge: this.#options.maxSignatureAge ?? 300,
+      transport: this.#options.transport ?? fetchTransport,
     }
     const seen = new Map<string, string>()
     let onErrorAt: string | undefined

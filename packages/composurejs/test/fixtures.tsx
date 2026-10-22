@@ -1,6 +1,6 @@
 // Signed regression fixtures: Interaction shapes as Discord sends them, each with the status
 // and JSON the regression App must answer with. Replayed against every Adapter over its entry.
-import { App, command, Container, group, messageCommand, option, Text, userCommand, UserError } from "composurejs"
+import { App, command, Container, File, group, Label, messageCommand, Modal, option, Text, TextInput, upload, userCommand, UserError } from "composurejs"
 import { TestKey } from "composurejs/testing"
 
 const SEED = new Uint8Array(32).fill(7)
@@ -12,7 +12,8 @@ const GUILD = "798662131062931547"
 const CHANNEL = "300000000000000001"
 const ALICE = { id: "100000000000000001", username: "alice", global_name: "Alice", discriminator: "0", avatar: null }
 
-export const regressionApp = new App()
+// Files go through the callback endpoint; a stand-in Discord accepts them.
+export const regressionApp = new App({ transport: async () => new Response(null, { status: 204 }) })
   .command(command({ name: "ping", description: "Pong", handler: () => "pong" }))
   .command(command({ name: "whoami", description: "Who am I", handler: (c) => `${c.user.global_name} in ${c.guildId ?? "DM"}` }))
   .command(
@@ -58,6 +59,20 @@ export const regressionApp = new App()
   )
   .command(userCommand({ name: "High five", handler: (_c, target) => `high five ${target.displayName}` }))
   .command(messageCommand({ name: "Quote", handler: (_c, message) => `> ${message.content}` }))
+  .command(command({ name: "export", description: "File", handler: () => <File src={upload("a.txt", "hi")} /> }))
+  .command(
+    command({
+      name: "report",
+      description: "Modal",
+      handler: () => (
+        <Modal title="Report" customId="report">
+          <Label text="What?">
+            <TextInput customId="what" />
+          </Label>
+        </Modal>
+      ),
+    }),
+  )
 
 const base = { application_id: APP, token: "fixture-token", version: 1, locale: "en-US", entitlements: [], app_permissions: "0", attachment_size_limit: 10485760 }
 const inGuild = {
@@ -116,6 +131,13 @@ export const cases: Case[] = [
     },
   },
   { name: "ephemeral", body: json(slash("secret")), status: 200, response: message("shh", EPHEMERAL) },
+  { name: "View with a file, via the callback endpoint", body: json(slash("export")), status: 202 },
+  {
+    name: "modal",
+    body: json(slash("report")),
+    status: 200,
+    response: { type: 9, data: { custom_id: "report", title: "Report", components: [{ type: 18, label: "What?", component: { type: 4, custom_id: "what", style: 1 } }] } },
+  },
   { name: "User Error", body: json(slash("oops")), status: 200, response: message("Not here", EPHEMERAL) },
   { name: "handler error", body: json(slash("crash")), status: 200, response: message("Something went wrong.", EPHEMERAL) },
   { name: "unknown command", body: json(slash("removed")), status: 200, response: message("Something went wrong.", EPHEMERAL) },
