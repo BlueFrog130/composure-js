@@ -6,7 +6,6 @@ import { MessageFlags } from "../discord.ts"
 import { withRoute } from "../codec.ts"
 import { uncompiledHandler } from "../handlers.ts"
 import { RenderError } from "../errors.ts"
-import { formLabels, isForm } from "../forms.ts"
 import type { Choices } from "../options.ts"
 import { INPUTS, SELECTS } from "../placement.ts"
 import { type Child, type ElementNode, isNode } from "./node.ts"
@@ -63,6 +62,9 @@ type Flat = ElementNode | string
 const UPLOAD_NAME = /^[\w.-]+$/
 
 const tag = (name: string) => `<${name}>`
+
+/** Where a Form (forms.ts) keeps its renderer: looked up, not imported, so bots without Forms do not bundle them. */
+const FORM = Symbol.for("composurejs.form")
 
 class Walk {
   components = 0
@@ -495,9 +497,9 @@ async function renderModal(node: ElementNode, route: string | undefined): Promis
   const walk = new Walk(true, route)
   const p = node.props as { title?: string; customId?: string; form?: unknown; values?: unknown }
   check(typeof p.title === "string", "<Modal> needs a title")
-  check(p.form === undefined || isForm(p.form), "<Modal> form must be made with form({ .. })")
+  const form = (p.form as Record<symbol, unknown> | undefined)?.[FORM] as ((values: Record<string, unknown>) => ElementNode[]) | undefined
+  check(p.form === undefined || typeof form === "function", "<Modal> form must be made with form({ .. })")
   check(p.values === undefined || p.form !== undefined, "<Modal> values prefill a form; there is no form")
-  const form = isForm(p.form) ? p.form : undefined
   checkText("Modal", "title", p.title, LIMITS.modalTitle, 1)
   const customId = walk.customId(handlerId(node, "onSubmit", walk), "Modal", false)
 
@@ -522,7 +524,7 @@ async function renderModal(node: ElementNode, route: string | undefined): Promis
   flush()
   if (form) {
     walk.inForm = true
-    for (const label of formLabels(form, (p.values ?? {}) as Record<string, unknown>)) components.push(await renderLabel(label, walk))
+    for (const label of form((p.values ?? {}) as Record<string, unknown>)) components.push(await renderLabel(label, walk))
   }
   check(components.length >= 1 && components.length <= LIMITS.modalComponents, `A <Modal> holds 1-${LIMITS.modalComponents} <Label>s and <Text>s, it has ${components.length}`)
   return { custom_id: customId, title: p.title!, components } as unknown as ModalData

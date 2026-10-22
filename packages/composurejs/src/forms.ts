@@ -48,11 +48,13 @@ export type FormValues<F extends Fields> = { -readonly [K in keyof F]: F[K]["__v
 /** What `values` on `<Modal form>` prefills, by Field. */
 export type FormPrefill<F extends Fields> = { -readonly [K in keyof F]?: F[K]["__prefill"] | undefined }
 
-const FORM = Symbol.for("composurejs.form")
+/** Holds the Form's renderer, so render reaches it without bundling Forms for bots that use none. */
+export const FORM = Symbol.for("composurejs.form")
 
 /** A typed definition of a modal's inputs, made with {@link form}. */
 export interface Form<V = Record<string, unknown>, P = Partial<V>> {
-  readonly [FORM]: true
+  /** Renders the Form's Labels, prefilled. */
+  readonly [FORM]: (values: Record<string, unknown>) => ElementNode[]
   readonly fields: Readonly<Record<string, FieldSpec>>
   /** Types only. */
   readonly __values?: V
@@ -61,7 +63,7 @@ export interface Form<V = Record<string, unknown>, P = Partial<V>> {
 }
 
 export function isForm(value: unknown): value is Form {
-  return typeof value === "object" && value !== null && FORM in value
+  return typeof value === "object" && value !== null && typeof (value as Partial<Form>)[FORM] === "function"
 }
 
 /** Field keys are input custom_ids: letters, digits, `_` and `-`. */
@@ -78,7 +80,8 @@ export function form<const F extends Fields>(fields: F): Form<FormValues<F>, For
     if (!(f instanceof Field)) throw new AppConfigError(`Form field "${key}" is not a Field; make it with field.text(..), field.radio(..), ...`)
     specs[key] = f.spec
   }
-  return { [FORM]: true, fields: specs }
+  const made: Form<FormValues<F>, FormPrefill<F>> = { [FORM]: (values) => formLabels(made, values), fields: specs }
+  return made
 }
 
 interface Labeled {
