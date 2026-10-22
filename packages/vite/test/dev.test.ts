@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, test } from "vitest"
 import { createLogger, createServer, type ViteDevServer } from "vite"
-import { command as invoke, TestKey, TestResponse } from "composurejs/testing"
+import { chatInput, TestKey, TestResponse } from "composurejs/testing"
 import composure, { type DevOptions, server as serverPlugin } from "../src/index.ts"
 
 const APP_ID = "1052322265397739523"
@@ -110,7 +110,7 @@ describe("vite dev", { timeout: 30_000 }, () => {
   test("serves the App with its handlers compiled, and picks up edits without a restart", async () => {
     project({})
     const port = await start({ tunnel: false, sync: false, transport: discord().transport })
-    const first = await ask(port, invoke("hello"))
+    const first = await ask(port, chatInput("hello"))
     expect((await ask(port, first.click("Go"))).text).toBe("v1")
     expect((await post(port, "{}")).status).toBe(401)
 
@@ -118,7 +118,7 @@ describe("vite dev", { timeout: 30_000 }, () => {
     // The watcher invalidates the module shortly after the write.
     let text: string | undefined
     for (let i = 0; i < 80 && text !== "v2"; i++) {
-      const again = await ask(port, invoke("hello"))
+      const again = await ask(port, chatInput("hello"))
       text = (await ask(port, again.click("Go"))).text
       if (text !== "v2") await new Promise((r) => setTimeout(r, 100))
     }

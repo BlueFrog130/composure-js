@@ -39,7 +39,7 @@ export function server(options: ServerOptions = {}): Plugin {
           ssr: options.entry ?? true,
           outDir: options.outDir ?? "dist",
           emptyOutDir: true,
-          target: "node20",
+          target: "node22",
           rolldownOptions: {
             ...(options.entry === undefined && { input: SERVER_ENTRY }),
             output: { entryFileNames: "index.js", format: "es" },

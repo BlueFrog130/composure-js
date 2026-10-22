@@ -10,7 +10,7 @@ import composure, { server as serverPlugin } from "@composurejs/vite"
 import { convertV4MiniflareOptions, Miniflare } from "miniflare"
 import { build } from "vite"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
-import { command, TestKey, TestResponse, type Buildable } from "composurejs/testing"
+import { chatInput, TestKey, TestResponse, type Buildable } from "composurejs/testing"
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 const key = await TestKey.generate()
@@ -31,7 +31,7 @@ async function clickThrough(send: (body: string) => Promise<{ status: number; js
     expect(res.status).toBe(200)
     return TestResponse.of(res.status, res.json as never, [], payload)
   }
-  const first = await ask(command("counter"))
+  const first = await ask(chatInput("counter"))
   expect(first.text).toBe("## Count: 0")
   // A generated handler id, then owner (a snowflake, base 36), count and step.
   expect(first.allComponents.find((c) => c.label === "+5")?.custom_id).toMatch(/^_[\w-]{7}:i[0-9a-z]+:n0:n5$/)

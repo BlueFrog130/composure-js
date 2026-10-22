@@ -355,7 +355,7 @@ export function ping(): Buildable<APIPingInteraction> {
 }
 
 /** A chat input Command invocation of `/name`. */
-export function command(name: string): ChatInputBuilder<ChatInputInteraction> {
+export function chatInput(name: string): ChatInputBuilder<ChatInputInteraction> {
   return new ChatInputBuilder(name)
 }
 

@@ -4,14 +4,14 @@
 
 ```tsx twoslash
 // @filename: app.tsx
-import { App, Button, command, option, Row } from "composurejs"
+import { App, Button, command, option, Row, Text } from "composurejs"
 export const app = new App()
   .command(command({ name: "greet", description: "Greet", options: { user: option.user("Who") }, handler: (c, { user }) => `hi ${user.displayName}` }))
-  .command(command({ name: "counter", description: "Counter", handler: () => <Row><Button onClick={() => <Row><Button customId="x">done</Button></Row>}>Go</Button></Row> }))
+  .command(command({ name: "counter", description: "Counter", handler: () => <Row><Button onClick={() => <Text>done</Text>}>Go</Button></Row> }))
 // @filename: app.test.ts
 // ---cut---
 import { expect, test } from "vitest"
-import { answer, command } from "composurejs/testing"
+import { answer, chatInput } from "composurejs/testing"
 import { app } from "./app.tsx"
 
 test("the App is valid", () => {
@@ -19,12 +19,12 @@ test("the App is valid", () => {
 })
 
 test("/greet greets", async () => {
-  const res = await answer(app, command("greet").user("user", { id: "2", username: "bob", global_name: "Bob" }))
+  const res = await answer(app, chatInput("greet").user("user", { id: "2", username: "bob", global_name: "Bob" }))
   expect(res.text).toBe("hi Bob")
 })
 
 test("buttons update the message", async () => {
-  const first = await answer(app, command("counter"))
+  const first = await answer(app, chatInput("counter"))
   const next = await answer(app, first.click("Go"))
   expect(next.type).toBe(7) // updated in place
 })
@@ -32,7 +32,7 @@ test("buttons update the message", async () => {
 
 ## Builders
 
-- `command("name")`, with `.option(name, value)`, `.user(..)`, `.role(..)`, `.channel(..)`, `.attachment(..)` and `.subcommand("group", "sub")`.
+- `chatInput("name")`, with `.option(name, value)`, `.user(..)`, `.role(..)`, `.channel(..)`, `.attachment(..)` and `.subcommand("group", "sub")`.
 - `autocomplete("name").focused("option", "partial input")`.
 - `userCommand("name").target(user)` and `messageCommand("name").target(message)`.
 - `component(customId).values([..])` and `modalSubmit(customId).field(name, value)`.
@@ -54,11 +54,11 @@ export const app = new App().command(command({ name: "report", description: "R",
 // @filename: app.test.ts
 // ---cut---
 import { expect, test } from "vitest"
-import { answer, command } from "composurejs/testing"
+import { answer, chatInput } from "composurejs/testing"
 import { app } from "./app.tsx"
 
 test("/report defers, then edits", async () => {
-  const res = await answer(app, command("report"))
+  const res = await answer(app, chatInput("report"))
   expect(res.body).toEqual({ type: 5 })
   const [edit] = await res.settle()
   expect(edit).toMatchObject({ method: "PATCH", json: { content: "done" } })

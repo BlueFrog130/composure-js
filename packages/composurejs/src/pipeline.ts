@@ -19,7 +19,8 @@ import { dispatchHandler } from "./handlers.ts"
 import { isNode } from "./jsx/node.ts"
 import { serializeError } from "./log.ts"
 import { runChain } from "./middleware.ts"
-import { OptionType, resolveOptions, resolveUser } from "./options.ts"
+import { type Choice, OptionType, resolveOptions, resolveUser } from "./options.ts"
+import { LIMITS } from "./jsx/render.ts"
 import { type Answer, type Deferred, Ephemeral, isDeferred, type Output, rerendered, toAnswer, unwrapEphemeral, unwrapReply } from "./response.ts"
 import type { RestOptions } from "./rest/client.ts"
 import { InteractionClient } from "./rest/interaction.ts"
@@ -217,7 +218,9 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
     }
     case InteractionType.ApplicationCommandAutocomplete: {
       const entry = built.commands.get(`${interaction.data.type}:${interaction.data.name}`)
-      return runChain(entry?.chain ?? built.middleware, c, () => (entry ? autocomplete(entry.command, c as Context<E, APIApplicationCommandAutocompleteInteraction>) : NO_CHOICES))
+      return runChain(entry?.chain ?? built.middleware, c, () =>
+        entry ? autocomplete(built, entry.command, c as Context<E, APIApplicationCommandAutocompleteInteraction>) : NO_CHOICES,
+      )
     }
     case InteractionType.MessageComponent:
     case InteractionType.ModalSubmit: {
@@ -296,7 +299,7 @@ function findLeaf<E extends Env>(command: Command<E> | Group<E>, options: APIApp
   return undefined
 }
 
-async function autocomplete<E extends Env>(command: AnyCommand<E>, c: Context<E, APIApplicationCommandAutocompleteInteraction>): Promise<Output> {
+async function autocomplete<E extends Env>(built: Built<E>, command: AnyCommand<E>, c: Context<E, APIApplicationCommandAutocompleteInteraction>): Promise<Output> {
   if (command.kind !== "command" && command.kind !== "group") return NO_CHOICES
   const found = findLeaf(command, c.interaction.data.options as APIApplicationCommandInteractionDataOption[])
   const focused = found?.options?.find((o) => "focused" in o && o.focused)
@@ -306,12 +309,26 @@ async function autocomplete<E extends Env>(command: AnyCommand<E>, c: Context<E,
   const others: Record<string, string | number | boolean> = {}
   for (const o of found.options ?? []) if (o !== focused && "value" in o) others[o.name] = o.value
   const results = await handler(c as never, String(focused.value), others)
-  return {
-    type: ResponseType.ApplicationCommandAutocompleteResult,
-    data: {
-      choices: results.slice(0, 25).map((r) => (typeof r === "object" ? { name: r.name, value: r.value } : { name: String(r), value: r })),
-    },
+  return { type: ResponseType.ApplicationCommandAutocompleteResult, data: { choices: suggestions(built, c, results) } }
+}
+
+/**
+ * Discord rejects the whole answer for one bad Choice, and the user would see no suggestions
+ * without knowing why: over-long names are cut, empty names and over-long values are dropped
+ * (logged), and the first 25 are kept.
+ */
+function suggestions<E extends Env>(built: Built<E>, c: Context<E>, results: readonly (Choice | string | number)[]): Choice[] {
+  const out: Choice[] = []
+  for (const r of results) {
+    if (out.length === LIMITS.selectOptions) break
+    const { name, value } = typeof r === "object" ? r : { name: String(r), value: r }
+    if (name === "" || (typeof value === "string" && (value === "" || value.length > LIMITS.optionText))) {
+      built.logger.warn({ msg: "Autocomplete Choice dropped: names and string values must be 1-100 characters", interactionId: c.interaction.id, name: name.slice(0, 40) })
+      continue
+    }
+    out.push({ name: name.length > LIMITS.optionText ? `${name.slice(0, LIMITS.optionText - 1)}…` : name, value })
   }
+  return out
 }
 
 /** The Error Renderer's output, ephemeral; logs every error except User Errors. */

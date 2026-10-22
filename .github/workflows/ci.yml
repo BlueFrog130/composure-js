@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Dev tooling (vitest 5, tsdown, wrangler) needs 22.18+; the library itself targets 20.19+.
+        # Dev tooling (vitest 5, tsdown, wrangler) needs 22.18+; bots need 22.12+.
         node: [22, 24, 26]
     steps:
       - uses: actions/checkout@v5

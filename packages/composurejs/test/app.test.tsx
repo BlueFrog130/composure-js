@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 import { App, AppConfigError, command, Ephemeral, type LogEntry, type Logger, Text, UserError } from "composurejs"
-import { answer, command as invoke, TestKey, TestPlatform } from "composurejs/testing"
+import { answer, chatInput, TestKey, TestPlatform } from "composurejs/testing"
 
 function recordingLogger() {
   const entries: (LogEntry & { level: string })[] = []
@@ -13,7 +13,7 @@ const ping = command({ name: "ping", description: "Pong", handler: () => "pong" 
 
 describe("answering", () => {
   test("a string answers as a message", async () => {
-    const res = await answer(new App().command(ping), invoke("ping"))
+    const res = await answer(new App().command(ping), chatInput("ping"))
     expect(res.status).toBe(200)
     expect(res.type).toBe(4)
     expect(res.text).toBe("pong")
@@ -22,7 +22,7 @@ describe("answering", () => {
 
   test("a View answers as a Components V2 message", async () => {
     const app = new App().command(command({ name: "hi", description: "Hi", handler: (c) => <Text>Hi {c.user.username}</Text> }))
-    const res = await answer(app, invoke("hi"))
+    const res = await answer(app, chatInput("hi"))
     expect(res.flags & (1 << 15)).not.toBe(0)
     expect(res.components).toEqual([{ type: 10, content: "Hi alice" }])
   })
@@ -31,15 +31,15 @@ describe("answering", () => {
     const app = new App()
       .command(command({ name: "a", description: "A", handler: () => Ephemeral("a") }))
       .command(command({ name: "b", description: "B", handler: (c) => c.ephemeral(<Text>b</Text>) }))
-    expect((await answer(app, invoke("a"))).isEphemeral).toBe(true)
-    const b = await answer(app, invoke("b"))
+    expect((await answer(app, chatInput("a"))).isEphemeral).toBe(true)
+    const b = await answer(app, chatInput("b"))
     expect(b.isEphemeral).toBe(true)
     expect(b.text).toBe("b")
   })
 
   test("async handlers and a raw InteractionResponse pass through", async () => {
     const app = new App().command(command({ name: "raw", description: "Raw", handler: async () => ({ type: 5 }) }))
-    expect((await answer(app, invoke("raw"))).body).toEqual({ type: 5 })
+    expect((await answer(app, chatInput("raw"))).body).toEqual({ type: 5 })
   })
 
   test("context exposes user, guild, channel, locale", async () => {
@@ -51,9 +51,9 @@ describe("answering", () => {
         handler: (c) => ((seen = { user: c.user.id, guild: c.guildId, channel: c.channelId, locale: c.locale, member: !!c.member }), "ok"),
       }),
     )
-    await answer(app, invoke("ctx").by({ id: "42" }).locale("fr"))
+    await answer(app, chatInput("ctx").by({ id: "42" }).locale("fr"))
     expect(seen).toEqual({ user: "42", guild: "798662131062931547", channel: "300000000000000001", locale: "fr", member: true })
-    await answer(app, invoke("ctx").inDm())
+    await answer(app, chatInput("ctx").inDm())
     expect(seen).toMatchObject({ guild: undefined, member: false })
   })
 
@@ -61,7 +61,7 @@ describe("answering", () => {
     const platform = new TestPlatform()
     let ran = false
     const app = new App().command(command({ name: "bg", description: "Bg", handler: (c) => (c.waitUntil(Promise.resolve().then(() => void (ran = true))), "ok") }))
-    await answer(app, invoke("bg"), { platform })
+    await answer(app, chatInput("bg"), { platform })
     expect(platform.pending).toBe(1)
     await platform.runBackground()
     expect(ran).toBe(true)
@@ -80,7 +80,7 @@ describe("errors", () => {
         },
       }),
     )
-    const res = await answer(app, invoke("x"))
+    const res = await answer(app, chatInput("x"))
     expect(res.text).toBe("Nope")
     expect(res.isEphemeral).toBe(true)
     expect(entries.map((e) => e.level)).toEqual(["debug"])
@@ -97,7 +97,7 @@ describe("errors", () => {
         },
       }),
     )
-    const res = await answer(app, invoke("x"))
+    const res = await answer(app, chatInput("x"))
     expect(res.text).toBe("Something went wrong.")
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ level: "error", command: "x", error: { message: "outer", cause: { message: "inner" } } })
@@ -115,7 +115,7 @@ describe("errors", () => {
       }),
     )
     inner.onError((error) => <Text>Oops: {(error as Error).message}</Text>)
-    const res = await answer(new App({ logger: recordingLogger().logger }).route(inner), invoke("x"))
+    const res = await answer(new App({ logger: recordingLogger().logger }).route(inner), chatInput("x"))
     expect(res.isEphemeral).toBe(true)
     expect(res.text).toBe("Oops: boom")
   })
@@ -134,19 +134,19 @@ describe("errors", () => {
       .onError(() => {
         throw new Error("renderer")
       })
-    expect((await answer(app, invoke("x"))).text).toBe("Nope")
+    expect((await answer(app, chatInput("x"))).text).toBe("Nope")
   })
 
   test("returning nothing is an error", async () => {
     const app = new App({ logger: recordingLogger().logger }).command(command({ name: "x", description: "X", handler: () => undefined as never }))
-    expect((await answer(app, invoke("x"))).text).toBe("Something went wrong.")
+    expect((await answer(app, chatInput("x"))).text).toBe("Something went wrong.")
   })
 })
 
 describe("App tree", () => {
   test("nested Apps dispatch their Commands", async () => {
     const app = new App().route(new App().route(new App().command(ping)))
-    expect((await answer(app, invoke("ping"))).text).toBe("pong")
+    expect((await answer(app, chatInput("ping"))).text).toBe("pong")
   })
 
   test("a Command listed twice is rejected with both paths", () => {
@@ -182,7 +182,7 @@ describe("credentials and Bot Data", () => {
     const app = new App<{ Bindings: { GREETING: string }; Data: { greeting: string } }>({ credentials, data, logger }).command(
       command({ name: "greet", description: "Greet", handler: (c) => c.data.greeting }),
     )
-    const body = JSON.stringify(invoke("greet").build())
+    const body = JSON.stringify(chatInput("greet").build())
     const env = { GREETING: "hello" }
 
     expect((await app.fetch(await key.request(body), env)).status).toBe(500)
@@ -198,14 +198,14 @@ describe("credentials and Bot Data", () => {
   test("by default Credentials come from DISCORD_* in the env", async () => {
     const key = await TestKey.generate()
     const app = new App().command(ping)
-    const res = await app.fetch(await key.request(JSON.stringify(invoke("ping").build())), { DISCORD_PUBLIC_KEY: key.publicKey })
+    const res = await app.fetch(await key.request(JSON.stringify(chatInput("ping").build())), { DISCORD_PUBLIC_KEY: key.publicKey })
     expect(res.status).toBe(200)
   })
 
   test("a missing or malformed public key answers 500", async () => {
     const key = await TestKey.generate()
     const { logger } = recordingLogger()
-    const request = async () => key.request(JSON.stringify(invoke("ping").build()))
+    const request = async () => key.request(JSON.stringify(chatInput("ping").build()))
     expect((await new App({ logger }).command(ping).fetch(await request(), {})).status).toBe(500)
     expect((await new App({ logger, credentials: { publicKey: "zz" } }).command(ping).fetch(await request())).status).toBe(500)
   })

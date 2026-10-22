@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import { App, AppConfigError, command, decodeEvent, type LogEntry, type Logger, type WebhookEvent } from "composurejs"
 import { createDM } from "composurejs/rest"
-import { answer, command as invoke, sendEvent, TestKey, webhookEvent, webhookPing } from "composurejs/testing"
+import { answer, chatInput, sendEvent, TestKey, webhookEvent, webhookPing } from "composurejs/testing"
 
 const ALICE = { id: "100000000000000001", username: "alice", discriminator: "0", global_name: "Alice", avatar: null }
 const ENTITLEMENT = { id: "1", sku_id: "2", application_id: "3", user_id: ALICE.id, type: 8, deleted: false, consumed: false }
@@ -47,7 +47,7 @@ describe("Webhook Events", () => {
   test("share the entrypoint and signature check; the path is configurable", async () => {
     const app = new App({ eventsPath: "/discord/events" }).command(command({ name: "ping", description: "P", handler: () => "pong" })).events(() => {})
     expect((await sendEvent(app, webhookPing(), { path: "/discord/events" })).status).toBe(204)
-    expect((await answer(app, invoke("ping"))).text).toBe("pong")
+    expect((await answer(app, chatInput("ping"))).text).toBe("pong")
     const key = await TestKey.generate()
     const unsigned = await app.fetch(new Request("https://bot.test/discord/events", { method: "POST", body: "{}" }), { DISCORD_PUBLIC_KEY: key.publicKey })
     expect(unsigned.status).toBe(401)

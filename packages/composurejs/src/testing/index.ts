@@ -4,7 +4,7 @@ export {
   type AutocompleteBuilder,
   type Buildable,
   type ChatInputBuilder,
-  command,
+  chatInput,
   component,
   type ComponentBuilder,
   type InteractionBuilder,

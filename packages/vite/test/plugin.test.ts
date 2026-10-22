@@ -12,7 +12,7 @@ const resolveWith = (plugin: Plugin, plugins: Plugin[]) =>
 describe("server()", () => {
   test("builds the Default Server, or your own entry, into a self-contained SSR bundle for Node and Bun", () => {
     expect(config(server(), {}, build)).toMatchObject({
-      build: { ssr: true, outDir: "dist", target: "node20", rolldownOptions: { input: SERVER_ENTRY, output: { entryFileNames: "index.js" }, external: [/^bun(:|$)/] } },
+      build: { ssr: true, outDir: "dist", target: "node22", rolldownOptions: { input: SERVER_ENTRY, output: { entryFileNames: "index.js" }, external: [/^bun(:|$)/] } },
       ssr: { noExternal: true, target: "node" },
     })
     const own = config(server({ entry: "server.ts", outDir: "out" }), {}, build)

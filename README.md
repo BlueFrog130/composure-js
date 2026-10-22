@@ -19,7 +19,7 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 >
 > - `pnpm create composurejs`: starter templates for Cloudflare Workers, Node and Bun
 >
-> - size budgets in CI (core 13.5 kB, the example Worker 16.2 kB, brotli) and a cold-start benchmark on workerd
+> - size budgets in CI (core 15 kB, the example Worker 18 kB, brotli; [ADR 0019](docs/adr/0019-budgets.md)) and a cold-start benchmark on workerd
 >
 > - the guide (`docs/`, VitePress): every snippet type-checked in CI
 > - releases with Changesets (per-package versions, npm provenance)
@@ -113,9 +113,9 @@ pnpm exec composure sync --guild 798662131062931547  # everything to one guild, 
 Tests run the App the way a platform does, with real signatures:
 
 ```ts
-import { answer, command } from "composurejs/testing"
+import { answer, chatInput } from "composurejs/testing"
 
-const res = await answer(app, command("hello").by({ id: "1", global_name: "Bob" }))
+const res = await answer(app, chatInput("hello").by({ id: "1", global_name: "Bob" }))
 expect(res.text).toBe("## Hello, Bob")
 ```
 
@@ -154,6 +154,6 @@ pnpm size        # bundle budgets (size-limit)
 pnpm -C examples/bot coldstart   # cold start on workerd vs. an empty Worker
 ```
 
-Bots run on Node 20.19+; developing this repo needs Node 22.18+ and pnpm.
+Bots run on Node 22.12+ (or Bun, or Workers); developing this repo needs Node 22.18+ and pnpm.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for checks and releases. Licensed under Apache-2.0.

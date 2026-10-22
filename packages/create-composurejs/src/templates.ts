@@ -161,7 +161,7 @@ export const Counter = ({ count, owner }: { count: number; owner: string }) => (
       <Button style="primary" onClick={(c) => (c.user.id === owner ? <Counter count={count + 1} owner={owner} /> : c.ephemeral("Not your counter"))}>
         +1
       </Button>
-      <Button onClick={() => <Counter count={0} owner={owner} />}>Reset</Button>
+      <Button onClick={(c) => (c.user.id === owner ? <Counter count={0} owner={owner} /> : c.ephemeral("Not your counter"))}>Reset</Button>
     </Row>
   </Container>
 )
@@ -174,7 +174,7 @@ export const counter = command({
 `
 
 const TEST = `import { expect, test } from "vitest"
-import { answer, command } from "composurejs/testing"
+import { answer, chatInput } from "composurejs/testing"
 import { app } from "../src/app.tsx"
 
 test("the App is valid", () => {
@@ -182,15 +182,15 @@ test("the App is valid", () => {
 })
 
 test("/ping answers", async () => {
-  expect((await answer(app, command("ping"))).text).toBe("Pong!")
+  expect((await answer(app, chatInput("ping"))).text).toBe("Pong!")
 })
 
 test("/greet greets the user it is given", async () => {
-  expect((await answer(app, command("greet").user("user", { id: "2", username: "bob", global_name: "Bob" }))).text).toBe("alice waves at Bob 👋")
+  expect((await answer(app, chatInput("greet").user("user", { id: "2", username: "bob", global_name: "Bob" }))).text).toBe("alice waves at Bob 👋")
 })
 
 test("/counter updates in place for its owner", async () => {
-  const first = await answer(app, command("counter"))
+  const first = await answer(app, chatInput("counter"))
   const second = await answer(app, first.click("+1"))
   expect([second.type, second.text]).toEqual([7, "## Count: 1"])
   const stranger = await answer(app, second.click("+1").by({ id: "2" }))

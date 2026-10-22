@@ -14,7 +14,7 @@ export const Counter = ({ count, owner }: { count: number; owner: string }) => (
           {`+${step}`}
         </Button>
       ))}
-      <Button style="danger" onClick={() => <Counter count={0} owner={owner} />}>
+      <Button style="danger" onClick={(c) => (c.user.id === owner ? <Counter count={0} owner={owner} /> : c.ephemeral("Not your counter"))}>
         Reset
       </Button>
     </Row>

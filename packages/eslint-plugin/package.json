@@ -37,6 +37,7 @@
     "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
   },
   "peerDependencies": {
+    "composurejs": "workspace:^",
     "eslint": "^9.0.0 || ^10.0.0"
   },
   "peerDependenciesMeta": {
@@ -44,16 +45,17 @@
       "optional": true
     }
   },
-  "dependencies": {
-    "composurejs": "workspace:^"
-  },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "composurejs": "workspace:^",
     "eslint": "^10.13.0",
     "oxlint": "^1.89.0",
     "tsdown": "^0.23.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   },
   "publishConfig": {
     "access": "public",

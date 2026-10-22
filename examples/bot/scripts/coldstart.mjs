@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { performance } from "node:perf_hooks"
 import { fileURLToPath } from "node:url"
-import { command, TestKey } from "composurejs/testing"
+import { chatInput, TestKey } from "composurejs/testing"
 import { convertV4MiniflareOptions, Log, LogLevel, Miniflare } from "miniflare"
 
 const runs = Number(process.argv[2] ?? 5)
@@ -44,9 +44,9 @@ async function measure(scriptPath) {
     return performance.now() - t
   }
   const first = await send({ id: "1", application_id: "1", type: 1, token: "t", version: 1 })
-  const firstCommand = await send(command("ping").build())
+  const firstCommand = await send(chatInput("ping").build())
   const warm = []
-  for (let i = 0; i < WARM; i++) warm.push(await send(command("ping").build()))
+  for (let i = 0; i < WARM; i++) warm.push(await send(chatInput("ping").build()))
   await mf.dispose()
   return { startup, first, firstCommand, warm: median(warm) }
 }

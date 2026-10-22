@@ -43,12 +43,12 @@ Returning `c.ephemeral(..)` from work deferred publicly is an error.
 From a click, `c.deferUpdate` acknowledges without changing anything, then edits the clicked message with the result:
 
 ```tsx twoslash
-import { Button, Row } from "composurejs"
+import { Button, Row, Text } from "composurejs"
 declare function refresh(): Promise<number>
 // ---cut---
 export const Refresh = () => (
   <Row>
-    <Button onClick={(c) => c.deferUpdate(async () => <Row><Button customId="done">{`Refreshed: ${await refresh()}`}</Button></Row>)}>Refresh</Button>
+    <Button onClick={(c) => c.deferUpdate(async () => <Text>Refreshed: {await refresh()}</Text>)}>Refresh</Button>
   </Row>
 )
 ```

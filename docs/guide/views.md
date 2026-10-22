@@ -73,6 +73,10 @@ export const RoleMenu = ({ role }: { role: string }) => (
 )
 ```
 
+### Code splitting
+
+A handler is registered when its module loads, so every module with handlers must be in the bundle when the first click arrives. A handler in a module loaded with `import()` is unknown until something loads it, and clicks before that answer "This message is outdated.". Import modules with handlers statically; on Workers and in the Default Server everything is one bundle anyway.
+
 ## Selects and modals
 
 Annotate a select's values to type them:

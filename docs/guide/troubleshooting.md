@@ -16,6 +16,8 @@
 
 **`<Local> is defined inside a function, but the onClick handler rendering it is hoisted to module scope`.** Move the component to module scope.
 
+**`'File' cannot be used as a JSX component`** (or `Text`, `Option`). The tag is missing from your imports, so TypeScript found the DOM global of the same name. Import it from `composurejs`.
+
 **`c.bot needs a bot token`.** Set `DISCORD_TOKEN`, or pass `credentials: { publicKey, token }` to the App.
 
 **Rate limited.** Short waits are handled. `RateLimitedError` means Discord asked for longer than 2 seconds: slow down, or do the work in deferred or background work.

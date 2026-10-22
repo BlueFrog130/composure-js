@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { App, command, Ephemeral, File, Label, type LogEntry, type Logger, Modal, Text, TextInput, Update, upload } from "composurejs"
-import { answer, command as invoke, component, MockTransport } from "composurejs/testing"
+import { answer, chatInput, component, MockTransport } from "composurejs/testing"
 
 function recordingLogger() {
   const entries: (LogEntry & { level: string })[] = []
@@ -20,7 +20,7 @@ const report = (
 describe("responses", () => {
   test("a <Modal> View opens a modal", async () => {
     const app = new App().command(command({ name: "report", description: "Report", handler: () => report }))
-    const res = await answer(app, invoke("report"))
+    const res = await answer(app, chatInput("report"))
     expect(res.type).toBe(9)
     expect(res.data).toMatchObject({ custom_id: "report", title: "Report" })
     expect(res.component("what")).toMatchObject({ type: 4, style: 1 })
@@ -35,7 +35,7 @@ describe("responses", () => {
     expect(res.text).toBe("updated")
 
     const wrong = new App({ logger }).command(command({ name: "x", description: "X", handler: () => Update("nope") }))
-    expect((await answer(wrong, invoke("x"))).text).toBe("Something went wrong.")
+    expect((await answer(wrong, chatInput("x"))).text).toBe("Something went wrong.")
   })
 
   test("wrapping rules: Ephemeral needs a new message, Update cannot be ephemeral", async () => {
@@ -43,7 +43,7 @@ describe("responses", () => {
     const app = new App({ logger })
       .command(command({ name: "a", description: "A", handler: () => Ephemeral(report) }))
       .use((c, next) => (c.interaction.type === 3 ? Update(Ephemeral("x")) : next()))
-    await answer(app, invoke("a"))
+    await answer(app, chatInput("a"))
     await answer(app, component("x"))
     expect(entries.map((e) => (e.error as Error).message)).toEqual([
       "Ephemeral only applies to new messages, not to Update, modals or deferrals",
@@ -54,7 +54,7 @@ describe("responses", () => {
   test("a raw Components V2 response with content is rejected", async () => {
     const { logger, entries } = recordingLogger()
     const app = new App({ logger }).command(command({ name: "raw", description: "Raw", handler: () => ({ type: 4, data: { flags: 1 << 15, content: "x" } }) }))
-    expect((await answer(app, invoke("raw"))).text).toBe("Something went wrong.")
+    expect((await answer(app, chatInput("raw"))).text).toBe("Something went wrong.")
     expect((entries[0]?.error as Error).message).toMatch(/cannot carry content or embeds/)
   })
 })
@@ -76,7 +76,7 @@ describe("files", () => {
 
   test("go multipart through the callback endpoint, answered with 202", async () => {
     const transport = new MockTransport().reply(204)
-    const res = await answer(app(), invoke("export"), { transport })
+    const res = await answer(app(), chatInput("export"), { transport })
     expect(res.status).toBe(202)
     expect(transport.requests).toHaveLength(1)
     const [request] = transport.requests
@@ -92,7 +92,7 @@ describe("files", () => {
   test("if Discord rejects the callback, the HTTP response carries the error; the token is never logged", async () => {
     const { logger, entries } = recordingLogger()
     const transport = new MockTransport().reply(400, { message: "Invalid Form Body" })
-    const res = await answer(app(logger), invoke("export"), { transport })
+    const res = await answer(app(logger), chatInput("export"), { transport })
     expect(res.status).toBe(200)
     expect([res.text, res.isEphemeral]).toEqual(["Something went wrong.", true])
     expect(entries.find((e) => e.level === "error")).toMatchObject({

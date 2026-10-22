@@ -49,6 +49,10 @@ What a handler returns to answer an Interaction: a string, a View, `Ephemeral(..
 A Response that only acknowledges the Interaction (type 5, or 6 for `deferUpdate`) and is completed later by Background Work editing the original response.
 _Avoid_: Async response, delayed reply
 
+**Auto Defer**:
+The Deferred Response composurejs sends by itself when a handler has not answered in time, so a slow handler still beats Discord's 3 seconds; the handler's eventual answer is edited in.
+_Avoid_: Timeout, auto-ack
+
 **Background Work**:
 Work run after the Interaction is answered: through the Platform's `waitUntil` when it has one (bounded by the platform, ~30s on Workers), tracked promises awaited on shutdown on Node/Bun, or the REST-callback fallback when neither exists.
 _Avoid_: Task, job, spawn
@@ -108,6 +112,14 @@ _Avoid_: Handler (alone), endpoint
 A function `(c, next)` wrapped around every Route its App lists (onion order, nested Apps' inside), seeing every Interaction kind but Ping; it short-circuits by returning a Response instead of calling `next`.
 _Avoid_: Hook, guard (a guard is one use of it)
 
+**Owning Route**:
+The Command whose answer first rendered an Inline Handler. A click runs the Owning Route's Middleware, and handlers rendered by that click keep the same Owning Route. Messages sent outside any Command have none and run the root App's Middleware.
+_Avoid_: Parent command, origin
+
+**Localizations**:
+Translations of a Command Definition's names, descriptions and Choice names, per Discord locale, published with it by Sync. Not the text of Responses.
+_Avoid_: i18n, translations (alone)
+
 **Command**:
 A user-invokable application command defined once in code (`command({..})`, `userCommand`, `messageCommand`), from which both its handler's argument types and its Command Definition derive.
 _Avoid_: Slash command (too narrow; user/message commands are Commands too)
@@ -155,6 +167,18 @@ _Avoid_: State (alone), props (a capture may be any local)
 **Handler Id**:
 The routing part of a `custom_id`: generated (`_` and a hash of file, owner, position and captures) or chosen with `named("id", fn)` for messages meant to last.
 _Avoid_: Prefix, key
+
+**Handler Lock**:
+The committed list of every Handler Id a bot's code ships, with what each captures, so a change that would turn messages already sent into the Fallback is seen in review and stopped in CI.
+_Avoid_: Manifest, snapshot
+
+**Form**:
+A typed definition of a modal's inputs, from which the modal is rendered and its submitted values are typed and parsed.
+_Avoid_: Schema, modal (the Form is what a modal shows)
+
+**Field**:
+One input of a Form: its kind, label, whether it is required, and how its submitted value is parsed.
+_Avoid_: Input (that is the rendered component), control
 
 **Custom ID State**:
 A Handler Id followed by its Captures: `id:field:field`, `:` separated with `\` escapes, at most 100 characters.

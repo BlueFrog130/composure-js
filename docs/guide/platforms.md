@@ -32,6 +32,8 @@ export default defineConfig({
 
 It listens on `PORT` (or 3000), passes `process.env` as the env, answers `GET /health` and caps bodies at 1 MiB. Background Work runs on tracked promises. On SIGTERM it stops accepting requests and waits up to 30 seconds for that work. It runs on Node and on Bun.
 
+The Default Server ships in `@composurejs/vite/server`, not in core: core uses no Node APIs, so it runs unchanged on Workers, and the server is built into your bundle by `server()` either way, so it adds no runtime dependency ([ADR 0024](/adr/0024-default-server)).
+
 ## Your own server
 
 To change any of that, write the entry yourself and point `server({ entry })` at it. `@composurejs/vite/server` exports the pieces of the Default Server: `serve` with options, and `toRequest`/`send` to mount the App in a `node:http` server you already have.

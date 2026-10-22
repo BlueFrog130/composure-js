@@ -20,7 +20,7 @@ import {
   TextInput,
 } from "composurejs"
 import { jsx } from "composurejs/jsx-runtime"
-import { answer, command as invoke, component as click } from "composurejs/testing"
+import { answer, chatInput, component as click } from "composurejs/testing"
 // By path, so the plugin leaves them alone: stand-ins for a build without it.
 import { Button as RawButton } from "../src/components.ts"
 import { __handler, named as rawNamed } from "../src/handlers.ts"
@@ -107,7 +107,7 @@ const app = new App().command(command({ name: "counter", description: "Counter",
 
 describe("Inline Handlers", () => {
   test("a click answers with markup that updates the message; no ids, no registration", async () => {
-    const first = await answer(app, invoke("counter"))
+    const first = await answer(app, chatInput("counter"))
     expect(first.text).toBe("## Count: 0")
     const second = await answer(app, first.click("+5"))
     expect([second.type, second.text]).toEqual([7, "## Count: 5"])
@@ -117,7 +117,7 @@ describe("Inline Handlers", () => {
   })
 
   test("custom_ids carry only the captured values, compactly: a snowflake in 13 characters", async () => {
-    const res = await answer(app, invoke("counter"))
+    const res = await answer(app, chatInput("counter"))
     const ids = res.allComponents.filter((c) => c.type === 2).map((c) => c.custom_id as string)
     // owner, count, step: in the order the handler reads them.
     expect(ids[0]).toMatch(new RegExp(`^_[\\w-]{7}:i${BigInt(ALICE).toString(36)}:n0:n1$`))
@@ -127,7 +127,7 @@ describe("Inline Handlers", () => {
   })
 
   test("handlers read the clicking user; other answers are new messages", async () => {
-    const res = await answer(app, (await answer(app, invoke("counter"))).click("+5").by({ id: "2" }))
+    const res = await answer(app, (await answer(app, chatInput("counter"))).click("+5").by({ id: "2" }))
     expect([res.type, res.text, res.isEphemeral]).toEqual([4, "Not yours", true])
   })
 
@@ -143,14 +143,14 @@ describe("Inline Handlers", () => {
         ),
       }),
     )
-    const res = await answer(greet, invoke("greet"))
+    const res = await answer(greet, chatInput("greet"))
     const waved = await answer(greet, res.click("Wave").by({ id: "2", username: "bob" }))
     expect([waved.type, waved.text]).toEqual([4, "bob waves back at alice in 798662131062931547"])
   })
 
   test("strings with : and \\ round-trip", async () => {
     const echo = new App().command(command({ name: "echo", description: "Echo", handler: () => <Echo text={"a:b\\c"} /> }))
-    const res = await answer(echo, invoke("echo"))
+    const res = await answer(echo, chatInput("echo"))
     expect(res.allComponents.find((c) => c.type === 2)?.custom_id).toMatch(/:sa\\:b\\\\c$/)
     expect((await answer(echo, res.click("a:b\\c"))).allComponents.find((c) => c.type === 2)?.label).toBe("a:b\\c!")
   })
@@ -171,13 +171,13 @@ describe("Inline Handlers", () => {
       </Row>
     )
     const confirm = new App().command(command({ name: "del", description: "Del", handler: () => <Confirm item="cookie" /> }))
-    const asked = await answer(confirm, (await answer(confirm, invoke("del"))).click("Delete"))
+    const asked = await answer(confirm, (await answer(confirm, chatInput("del"))).click("Delete"))
     expect((await answer(confirm, asked.click("Yes, delete cookie"))).text).toBe("deleted cookie")
   })
 
   test("async components load the rest from a small capture", async () => {
     const profiles = new App().command(command({ name: "p", description: "P", handler: () => <Profile id="42" /> }))
-    const res = await answer(profiles, invoke("p"))
+    const res = await answer(profiles, chatInput("p"))
     expect((await answer(profiles, res.click("Ada: 7"))).allComponents.find((c) => c.type === 2)).toMatchObject({ label: "Ada: 8" })
   })
 
@@ -196,13 +196,13 @@ describe("Inline Handlers", () => {
       </Row>
     )
     const picker = new App().command(command({ name: "pick", description: "Pick", handler: () => <Picker /> }))
-    const res = await answer(picker, invoke("pick"))
+    const res = await answer(picker, chatInput("pick"))
     const id = res.allComponents.find((c) => c.type === 3)!.custom_id as string
     expect((await answer(picker, res.select(id, ["salt", "nuts"]))).text).toBe("picked salt+nuts")
   })
 
   test("outdated or tampered ids get the Fallback", async () => {
-    const res = await answer(app, invoke("counter"))
+    const res = await answer(app, chatInput("counter"))
     const id = res.allComponents.find((c) => c.type === 2)!.custom_id as string
     for (const bad of ["_nothere", `${id}:extra`, id.replace(/:n0:/, ":q0:"), id.split(":").slice(0, 2).join(":"), `${id}\\`]) {
       const out = await answer(app, click(bad))
@@ -217,7 +217,7 @@ describe("Inline Handlers", () => {
         <Button onClick={() => JSON.stringify(user)}>x</Button>
       </Row>
     )
-    await answer(new App({ logger }).command(command({ name: "bad", description: "B", handler: (c) => <Bad user={{ id: c.user.id }} /> })), invoke("bad"))
+    await answer(new App({ logger }).command(command({ name: "bad", description: "B", handler: (c) => <Bad user={{ id: c.user.id }} /> })), chatInput("bad"))
     expect((entries[0]?.error as Error).message).toBe(
       "The handler in test/handlers.test.tsx: Bad captures `user`, which is an object; capture strings, numbers or booleans (like `user.id`), or load the rest from an id inside the handler",
     )
@@ -233,7 +233,7 @@ describe("Inline Handlers", () => {
         </Row>
       )
     }
-    await answer(new App({ logger }).command(command({ name: "h", description: "H", handler: () => <Helper /> })), invoke("h"))
+    await answer(new App({ logger }).command(command({ name: "h", description: "H", handler: () => <Helper /> })), chatInput("h"))
     expect((entries[0]?.error as Error).message).toMatch(/captures `shout`, which is a function; define it at module scope/)
   })
 
@@ -244,14 +244,14 @@ describe("Inline Handlers", () => {
         <Button onClick={() => text}>x</Button>
       </Row>
     )
-    await answer(new App({ logger }).command(command({ name: "long", description: "L", handler: () => <Long text={"x".repeat(100)} /> })), invoke("long"))
+    await answer(new App({ logger }).command(command({ name: "long", description: "L", handler: () => <Long text={"x".repeat(100)} /> })), chatInput("long"))
     expect((entries[0]?.error as Error).message).toMatch(/custom_id is \d+ characters; the limit is 100\. Carry an id and load the rest instead/)
   })
 
   test("clicks run through the root App's middleware", async () => {
     const seen: number[] = []
     const watched = new App().use((c, next) => (seen.push(c.interaction.type), next())).route(app)
-    await answer(watched, (await answer(watched, invoke("counter"))).click("+1"))
+    await answer(watched, (await answer(watched, chatInput("counter"))).click("+1"))
     expect(seen).toEqual([2, 3])
   })
 })
@@ -263,7 +263,7 @@ describe("modals", () => {
     .command(command({ name: "inline", description: "I", handler: () => <Inline page="post-2" /> }))
 
   test("a command opens a modal; the submit gets values by input name", async () => {
-    const opened = await answer(reports, invoke("report"))
+    const opened = await answer(reports, chatInput("report"))
     expect(opened.type).toBe(9)
     expect(opened.component("what")).toMatchObject({ type: 4, custom_id: "what", style: 2 })
     const submitted = await answer(reports, opened.submit({ what: "It broke", severity: "high", notify: true, extra: "" }))
@@ -271,14 +271,14 @@ describe("modals", () => {
   })
 
   test("a button opens a modal; markup from its submit updates the message the button was on", async () => {
-    const opened = await answer(reports, (await answer(reports, invoke("inline"))).click("Report"))
+    const opened = await answer(reports, (await answer(reports, chatInput("inline"))).click("Report"))
     expect(opened.type).toBe(9)
     const submitted = await answer(reports, opened.submit({ why: "spam" }))
     expect([submitted.type, submitted.text]).toEqual([7, "Thanks for reporting post-2 (spam)"])
   })
 
   test("c.reply from a modal opened by a button answers with a new message", async () => {
-    const opened = await answer(reports, (await answer(reports, invoke("post"))).click("Report"))
+    const opened = await answer(reports, (await answer(reports, chatInput("post"))).click("Report"))
     const submitted = await answer(reports, opened.submit({ what: "x", notify: false }))
     expect([submitted.type, submitted.text]).toEqual([4, "post-1: x (-, notify: false, extra: -)"])
   })
@@ -292,7 +292,7 @@ describe("modals", () => {
         </Label>
       </Modal>
     )
-    await answer(new App({ logger }).command(command({ name: "n", description: "N", handler: () => <Nameless /> })), invoke("n"))
+    await answer(new App({ logger }).command(command({ name: "n", description: "N", handler: () => <Nameless /> })), chatInput("n"))
     expect((entries[0]?.error as Error).message).toBe("<TextInput> in a <Modal> needs a name, its key in onSubmit's values")
   })
 })
@@ -305,7 +305,7 @@ describe("named()", () => {
       </Row>
     )
     const roles = new App().command(command({ name: "roles", description: "R", handler: () => <RoleMenu role="baker" /> }))
-    const res = await answer(roles, invoke("roles"))
+    const res = await answer(roles, chatInput("roles"))
     expect(res.allComponents.find((c) => c.type === 2)?.custom_id).toBe("toggle-role:sbaker")
     expect((await answer(roles, click("toggle-role:sbaker"))).text).toBe("toggled baker")
   })
@@ -323,7 +323,7 @@ describe("without @composurejs/vite", () => {
     const raw = new App({ logger }).command(
       command({ name: "raw", description: "R", handler: () => jsx(Row, { children: jsx(RawButton, { onClick: () => "hi", children: "x" }) }) }),
     )
-    await answer(raw, invoke("raw"))
+    await answer(raw, chatInput("raw"))
     expect((entries[0]?.error as Error).message).toBe(
       "<Button onClick> got a function: Inline Handlers are compiled by @composurejs/vite, which must be in the build (vite.config.ts: plugins: [composure()])",
     )

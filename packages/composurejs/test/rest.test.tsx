@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest"
 import { App, command, CredentialsError, DiscordApiError, File, type Logger, RateLimitedError, Text, upload } from "composurejs"
 import { addMemberRole, BotClient, createMessage, executeWebhook, getMessages, kickMember } from "composurejs/rest"
-import { answer, command as invoke, MockTransport, TestKey } from "composurejs/testing"
+import { answer, chatInput, MockTransport, TestKey } from "composurejs/testing"
 
 const quiet: Logger = { debug() {}, info() {}, warn() {}, error() {} }
 const bot = (transport: MockTransport, maxRateLimitWait?: number) =>
@@ -88,7 +88,7 @@ describe("BotClient", () => {
 describe("in handlers", () => {
   test("c.bot uses the App's Transport and the bot token", async () => {
     const app = new App().command(command({ name: "x", description: "X", handler: async (c) => (await createMessage(c.bot, c.channelId!, "logged"), "done") }))
-    const res = await answer(app, invoke("x"))
+    const res = await answer(app, chatInput("x"))
     expect(res.text).toBe("done")
     expect(res.transport.requests[0]).toMatchObject({ path: "/channels/300000000000000001/messages", json: { content: "logged" } })
     expect(res.transport.requests[0]!.headers.get("authorization")).toBe("Bot test-bot-token")
@@ -111,13 +111,13 @@ describe("in handlers", () => {
         },
       }),
     )
-    await app.fetch(await key.request(JSON.stringify(invoke("x").build())))
+    await app.fetch(await key.request(JSON.stringify(chatInput("x").build())))
     expect(thrown).toBeInstanceOf(CredentialsError)
   })
 
   test("c.client follows up with Ephemeral messages", async () => {
     const app = new App().command(command({ name: "x", description: "X", handler: async (c) => (c.waitUntil(c.client.followup(c.ephemeral("later"))), "now") }))
-    const res = await answer(app, invoke("x"))
+    const res = await answer(app, chatInput("x"))
     const [followup] = await res.settle()
     expect(followup).toMatchObject({
       method: "POST",

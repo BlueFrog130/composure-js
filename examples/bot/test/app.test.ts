@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest"
-import { answer, autocomplete, command, sendEvent, userCommand, webhookEvent } from "composurejs/testing"
+import { answer, autocomplete, chatInput, sendEvent, userCommand, webhookEvent } from "composurejs/testing"
 import { app } from "../src/app.tsx"
 
 test("the App tree is valid", () => {
@@ -7,19 +7,19 @@ test("the App tree is valid", () => {
 })
 
 test("/ping answers Pong!", async () => {
-  expect((await answer(app, command("ping"))).text).toBe("Pong!")
+  expect((await answer(app, chatInput("ping"))).text).toBe("Pong!")
 })
 
 test("/hello greets by display name in a View", async () => {
-  const res = await answer(app, command("hello").by({ id: "1", global_name: "Bob" }))
+  const res = await answer(app, chatInput("hello").by({ id: "1", global_name: "Bob" }))
   expect(res.text).toBe("## Hello, Bob\n-# answered by composurejs\n- Views are JSX\n- Limits are checked before Discord sees them")
   expect(res.allComponents.find((c) => c.type === 2)).toMatchObject({ style: 5, label: "Source" })
 })
 
 test("/cookie uses resolved users and optional Options", async () => {
   const bob = { id: "2", username: "bob", global_name: "Bob" }
-  expect((await answer(app, command("cookie").user("user", bob).option("flavor", "oat"))).text).toBe("Bob gets 1 oat cookie 🍪")
-  expect((await answer(app, command("cookie").user("user", bob, { nick: "B" }).option("flavor", "sugar").option("count", 3).option("topping", "icing"))).text).toBe(
+  expect((await answer(app, chatInput("cookie").user("user", bob).option("flavor", "oat"))).text).toBe("Bob gets 1 oat cookie 🍪")
+  expect((await answer(app, chatInput("cookie").user("user", bob, { nick: "B" }).option("flavor", "sugar").option("count", 3).option("topping", "icing"))).text).toBe(
     "B gets 3 sugar cookies with icing 🍪",
   )
 })
@@ -35,26 +35,26 @@ test("/cookie suggests toppings", async () => {
 })
 
 test("/server is guild-only through middleware", async () => {
-  const dm = await answer(app, command("server").subcommand("id").inDm())
+  const dm = await answer(app, chatInput("server").subcommand("id").inDm())
   expect([dm.text, dm.isEphemeral]).toEqual(["Run this in a server.", true])
-  expect((await answer(app, command("server").subcommand("id").inGuild("123"))).text).toBe("This is guild 123")
+  expect((await answer(app, chatInput("server").subcommand("id").inGuild("123"))).text).toBe("This is guild 123")
 })
 
 test("/server member explains a non-member as a User Error", async () => {
   vi.spyOn(console, "debug").mockImplementation(() => {})
-  const res = await answer(app, command("server").subcommand("member").inGuild().user("who", { id: "2", username: "bob" }))
+  const res = await answer(app, chatInput("server").subcommand("member").inGuild().user("who", { id: "2", username: "bob" }))
   expect(res.text).toMatch(/^bob joined <t:\d+:R>$/)
 })
 
 test("/poll buttons answer through named Inline Handlers", async () => {
-  const res = await answer(app, command("poll").option("question", "Cookies?"))
+  const res = await answer(app, chatInput("poll").option("question", "Cookies?"))
   expect(res.text).toBe("### Cookies?")
   const voted = await answer(app, res.click("No"))
   expect([voted.text, voted.isEphemeral]).toEqual(["alice voted 👎", true])
 })
 
 test("/feedback opens a modal; its submit gets values by input name", async () => {
-  const opened = await answer(app, command("feedback"))
+  const opened = await answer(app, chatInput("feedback"))
   expect(opened.type).toBe(9)
   const thanks = await answer(app, opened.submit({ mood: "great", notes: "Love it", followUp: true }))
   expect([thanks.text, thanks.isEphemeral]).toEqual(["### Thanks for your feedback!\nMood: great\nNotes: Love it\nWe'll be in touch!", true])
@@ -66,7 +66,7 @@ test("High five is a user context menu Command", async () => {
 })
 
 test("/report defers, then edits the original with the View", async () => {
-  const res = await answer(app, command("report"))
+  const res = await answer(app, chatInput("report"))
   expect(res.body).toEqual({ type: 5 })
   const [edit] = await res.settle()
   expect(edit).toMatchObject({
@@ -83,7 +83,7 @@ test("Webhook Events are ACKed and logged", async () => {
 })
 
 test("/counter updates in place for its owner only", async () => {
-  const first = await answer(app, command("counter"))
+  const first = await answer(app, chatInput("counter"))
   const plus5 = await answer(app, first.click("+5"))
   expect([plus5.type, plus5.text]).toEqual([7, "## Count: 5"])
   const stranger = await answer(app, plus5.click("+10").by({ id: "2" }))

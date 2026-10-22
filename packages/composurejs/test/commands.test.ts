@@ -75,7 +75,7 @@ describe("Options", () => {
     const res = await t.answer(
       app,
       t
-        .command("cookie")
+        .chatInput("cookie")
         .user("user", { id: "2", username: "bob", global_name: "Bob" }, { nick: "Bobby" })
         .option("flavor", "oat")
         .option("ratio", 0.5)
@@ -99,15 +99,15 @@ describe("Options", () => {
   test("a user's displayName falls back to global name, then username; no member in DMs", async () => {
     let seen: ResolvedUser | undefined
     const app = new App().command(command({ name: "u", description: "U", options: { u: option.user("U") }, handler: (_c, { u }) => ((seen = u), "ok") }))
-    await t.answer(app, t.command("u").inDm().user("u", { id: "2", username: "bob", global_name: "Bob" }))
+    await t.answer(app, t.chatInput("u").inDm().user("u", { id: "2", username: "bob", global_name: "Bob" }))
     expect(seen).toMatchObject({ displayName: "Bob", member: undefined })
   })
 
   test("Options that do not match the definition answer generically and warn", async () => {
     const { logger, entries } = recordingLogger()
     const app = new App({ logger }).command(command({ name: "x", description: "X", options: { n: option.integer("N") }, handler: () => "ok" }))
-    expect((await t.answer(app, t.command("x"))).text).toBe("Something went wrong.")
-    expect((await t.answer(app, t.command("x").option("n", "not a number"))).text).toBe("Something went wrong.")
+    expect((await t.answer(app, t.chatInput("x"))).text).toBe("Something went wrong.")
+    expect((await t.answer(app, t.chatInput("x").option("n", "not a number"))).text).toBe("Something went wrong.")
     expect(entries.map((e) => [e.level, e.msg])).toEqual([
       ["warn", "Invalid Options"],
       ["warn", "Invalid Options"],
@@ -206,13 +206,13 @@ describe("Groups", () => {
 
   test("dispatch to subcommands and nested Groups", async () => {
     const app = new App().command(admin)
-    expect((await t.answer(app, t.command("admin").subcommand("ban").user("user", { id: "2", username: "bob" }))).text).toBe("banned bob")
-    expect((await t.answer(app, t.command("admin").subcommand("role", "add").role("role", { id: "8", name: "mods" }))).text).toBe("added mods")
+    expect((await t.answer(app, t.chatInput("admin").subcommand("ban").user("user", { id: "2", username: "bob" }))).text).toBe("banned bob")
+    expect((await t.answer(app, t.chatInput("admin").subcommand("role", "add").role("role", { id: "8", name: "mods" }))).text).toBe("added mods")
   })
 
   test("an unknown subcommand answers generically", async () => {
     const app = new App({ logger: recordingLogger().logger }).command(admin)
-    expect((await t.answer(app, t.command("admin").subcommand("kick"))).text).toBe("Something went wrong.")
+    expect((await t.answer(app, t.chatInput("admin").subcommand("kick"))).text).toBe("Something went wrong.")
   })
 
   test("the definition nests subcommands and groups", () => {
@@ -294,6 +294,24 @@ describe("autocomplete", () => {
     expect((res.data!.choices as unknown[]).length).toBe(25)
   })
 
+  test("over-long names are cut; empty names and over-long values are dropped and logged", async () => {
+    const { logger, entries } = recordingLogger()
+    const long = command({
+      name: "long",
+      description: "Long",
+      options: {
+        q: option.string("Q").autocomplete(() => [{ name: "n".repeat(120), value: "ok" }, { name: "", value: "empty" }, { name: "v", value: "v".repeat(101) }, "fine"]),
+      },
+      handler: () => "ok",
+    })
+    const res = await t.answer(new App({ logger }).command(long), t.autocomplete("long").focused("q", ""))
+    expect(res.data!.choices).toEqual([
+      { name: `${"n".repeat(99)}…`, value: "ok" },
+      { name: "fine", value: "fine" },
+    ])
+    expect(entries.filter((e) => e.level === "warn")).toHaveLength(2)
+  })
+
   test("works inside Groups", async () => {
     const app = new App().command(group({ name: "bake", description: "Bake", subcommands: [cookie] }))
     const res = await t.answer(app, t.autocomplete("bake").subcommand("cookie").focused("flavor", "su"))
@@ -333,7 +351,7 @@ describe("createFactory", () => {
       },
     })
     const app = f.app({ data: () => ({ emoji: "👋" }) }).command(hi)
-    expect((await t.answer(app, t.command("hi").option("name", "Bob"), { env: { PREFIX: "> " } })).text).toBe("> Bob👋")
+    expect((await t.answer(app, t.chatInput("hi").option("name", "Bob"), { env: { PREFIX: "> " } })).text).toBe("> Bob👋")
   })
 
   test("Commands written without an Env fit any App", () => {
