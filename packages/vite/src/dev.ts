@@ -1,4 +1,4 @@
-// The Dev Loop (ADR 0017): `vite dev` serves the App (node/bun; Workers via @cloudflare/vite-plugin),
+// The Dev Loop (ADR 0017): `vite dev` serves the App (`server()`; Workers via @cloudflare/vite-plugin),
 // opens a tunnel, points the *dev* application's interactions endpoint at it, and syncs Commands to a
 // dev guild on start and whenever the code changes.
 import type { AddressInfo } from "node:net"
@@ -31,38 +31,47 @@ export interface DevOptions {
 export const DEV_APPLICATION_VAR = "COMPOSURE_DEV_APPLICATION_ID"
 export const DEV_GUILD_VAR = "COMPOSURE_DEV_GUILD"
 
+const TAG = "\x1b[36m[composure]\x1b[0m"
+
+/** `.env` files for the mode, then the process environment. */
+function devEnv(server: ViteDevServer): Record<string, string | undefined> {
+  const { root, mode, envDir } = server.config
+  return { ...loadEnv(mode, envDir === false ? root : (envDir ?? root), ""), ...process.env }
+}
+
+/** `server()` in `vite dev`: answers requests with the App in `appFile`, reloaded through Vite. */
+export function serveInDev(server: ViteDevServer, appFile: string): void {
+  const env = devEnv(server)
+  const platform = createTracker()
+  server.middlewares.use((req, res, next) => {
+    if (req.method !== "POST" && req.url !== "/health") return next()
+    if (req.url === "/health") return void res.writeHead(200, { "content-type": "text/plain" }).end("ok")
+    void (async () => {
+      const ssr = server.environments.ssr
+      if (!isRunnableDevEnvironment(ssr)) throw new Error("The ssr environment is not runnable in this process")
+      const app = appOf<LoadedApp>(await ssr.runner.import(appFile), appFile)
+      const request = await toRequest(req)
+      await send(res, request ? await app.fetch(request, env, platform) : new Response("Payload Too Large", { status: 413 }))
+    })().catch((error: unknown) => {
+      server.ssrFixStacktrace(error as Error)
+      server.config.logger.error(`${TAG} ${(error as Error).stack ?? String(error)}`)
+      if (!res.headersSent) res.writeHead(500).end("Internal Server Error")
+    })
+  })
+}
+
 /**
- * Sets the Dev Loop up on a dev server. `appFile`: the module exporting the App. `serveApp`: this
- * plugin serves the App (node, bun), not another one (Workers). `hoist` makes the plugin dev Sync
- * loads the App with.
+ * Sets the tunnel and dev Sync up on a dev server; whatever serves the App (`server()`,
+ * `@cloudflare/vite-plugin`) is another plugin. `appFile`: the module exporting the App. `hoist`
+ * makes the plugin dev Sync loads the App with.
  */
-export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile: string, serveApp: boolean, hoist: () => Plugin): void {
+export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile: string, hoist: () => Plugin): void {
   const root = server.config.root
   const logger = server.config.logger
-  const tag = "\x1b[36m[composure]\x1b[0m"
-  const info = (msg: string) => logger.info(`${tag} ${msg}`, { timestamp: true })
-  const warn = (msg: string) => logger.warn(`${tag} ${msg}`, { timestamp: true })
-  const env: Record<string, string | undefined> = { ...loadEnv(server.config.mode, server.config.envDir === false ? root : (server.config.envDir ?? root), ""), ...process.env }
+  const info = (msg: string) => logger.info(`${TAG} ${msg}`, { timestamp: true })
+  const warn = (msg: string) => logger.warn(`${TAG} ${msg}`, { timestamp: true })
+  const env = devEnv(server)
   const rest = options.transport ? { transport: options.transport } : {}
-
-  if (serveApp) {
-    const platform = createTracker()
-    server.middlewares.use((req, res, next) => {
-      if (req.method !== "POST" && req.url !== "/health") return next()
-      if (req.url === "/health") return void res.writeHead(200, { "content-type": "text/plain" }).end("ok")
-      void (async () => {
-        const ssr = server.environments.ssr
-        if (!isRunnableDevEnvironment(ssr)) throw new Error("The ssr environment is not runnable in this process")
-        const app = appOf<LoadedApp>(await ssr.runner.import(appFile), appFile)
-        const request = await toRequest(req)
-        await send(res, request ? await app.fetch(request, env, platform) : new Response("Payload Too Large", { status: 413 }))
-      })().catch((error: unknown) => {
-        server.ssrFixStacktrace(error as Error)
-        logger.error(`${tag} ${(error as Error).stack ?? String(error)}`)
-        if (!res.headersSent) res.writeHead(500).end("Internal Server Error")
-      })
-    })
-  }
 
   let config: SyncConfig | undefined | null
   const discord = () => {

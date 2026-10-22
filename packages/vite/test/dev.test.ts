@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, test } from "vitest"
 import { createLogger, createServer, type ViteDevServer } from "vite"
 import { command as invoke, TestKey, TestResponse } from "composurejs/testing"
-import composure, { type DevOptions } from "../src/index.ts"
+import composure, { type DevOptions, server as serverPlugin } from "../src/index.ts"
 
 const APP_ID = "1052322265397739523"
 const GUILD = "798662131062931547"
@@ -57,7 +57,7 @@ async function start(dev: DevOptions, logs: string[] = []) {
     root: dir,
     configFile: false,
     customLogger: logger,
-    plugins: [composure({ target: "node", dev })],
+    plugins: [composure({ dev }), serverPlugin()],
     server: { port: 0, host: "127.0.0.1", hmr: false },
   })
   await server.listen()
@@ -99,9 +99,12 @@ afterEach(async () => {
 describe("vite dev", { timeout: 30_000 }, () => {
   test("under Vitest without an injected transport, the Dev Loop stays off", async () => {
     project({ DISCORD_TOKEN: "t", COMPOSURE_DEV_GUILD: GUILD })
-    const port = await start({})
-    // Not served (no Dev Loop): Vite answers the POST itself.
-    expect((await post(port, "{}")).status).toBe(404)
+    const logs: string[] = []
+    const port = await start({}, logs)
+    // server() still serves the App locally; nothing reaches Discord.
+    expect((await post(port, "{}")).status).toBe(401)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(logs.join("\n")).not.toMatch(/dev Sync|tunnel/)
   })
 
   test("serves the App with its handlers compiled, and picks up edits without a restart", async () => {

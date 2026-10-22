@@ -2,13 +2,12 @@
 
 ## Build
 
-`vite build`, with the plugin's `target`:
+`vite build`. `composure()` compiles Inline Handlers; the plugin next to it decides the output:
 
-| Target | Output | Run |
+| Plugins | Output | Run |
 |---|---|---|
-| `cloudflare` (with `cloudflare()` from `@cloudflare/vite-plugin`) | a minified Worker and its `wrangler.json` in `dist/` | `wrangler deploy` |
-| `node` | `dist/index.js`, the [Default Server](./platforms#node-and-bun) or your `entry`, self-contained: dependencies bundled | `node dist/index.js` |
-| `bun` | `dist/index.js`, likewise | `bun dist/index.js` |
+| `composure(), cloudflare()` (from `@cloudflare/vite-plugin`) | a Worker and its `wrangler.json` in `dist/` | `wrangler deploy` |
+| `composure(), server()` | `dist/index.js`, the [Default Server](./platforms#node-and-bun) or your `entry`, self-contained: dependencies bundled | `node dist/index.js` or `bun dist/index.js` |
 
 ```ts
 // vite.config.ts for Workers
@@ -16,7 +15,10 @@ import { cloudflare } from "@cloudflare/vite-plugin"
 import composure from "@composurejs/vite"
 import { defineConfig } from "vite"
 
-export default defineConfig({ plugins: [composure({ target: "cloudflare" }), cloudflare()] })
+export default defineConfig({
+  plugins: [composure(), cloudflare()],
+  build: { minify: true }, // bundle size is cold-start time on Workers
+})
 ```
 
 Set the production secrets on the platform (`wrangler secret put DISCORD_PUBLIC_KEY`, ...) and the application's Interactions Endpoint URL in the Developer Portal.

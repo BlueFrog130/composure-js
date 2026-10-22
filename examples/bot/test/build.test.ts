@@ -1,11 +1,14 @@
-// The real `vite build` output for each target, run the way it is deployed and driven with
-// signed requests: proves Inline Handlers are hoisted in the bundle, not just under Vitest.
+// The real `vite build` output, run the way it is deployed and driven with signed requests: the
+// Worker from vite.config.ts on workerd, and the Default Server (`server()`) on Node and Bun.
+// Proves Inline Handlers are hoisted in the bundle, not just under Vitest.
 import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
 import { createServer, request as httpRequest } from "node:http"
 import type { AddressInfo } from "node:net"
 import { fileURLToPath } from "node:url"
+import composure, { server as serverPlugin } from "@composurejs/vite"
 import { convertV4MiniflareOptions, Miniflare } from "miniflare"
+import { build } from "vite"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { command, TestKey, TestResponse, type Buildable } from "composurejs/testing"
 
@@ -15,6 +18,10 @@ const key = await TestKey.generate()
 function viteBuild(...args: string[]) {
   execFileSync("pnpm", ["exec", "vite", "build", "--logLevel", "error", ...args], { cwd: root, stdio: "pipe", shell: process.platform === "win32" })
 }
+
+// The Node/Bun config a bot would have, `plugins: [composure(), server()]`; built once for both.
+let serverBuilt: Promise<unknown> | undefined
+const buildServer = () => (serverBuilt ??= build({ root, configFile: false, logLevel: "error", plugins: [composure(), serverPlugin({ outDir: "dist/server" })] }))
 
 /** /counter, then press +5 on the message it answered with, against `send`. */
 async function clickThrough(send: (body: string) => Promise<{ status: number; json: unknown }>) {
@@ -84,8 +91,8 @@ describe("vite build", { timeout: 60_000 }, () => {
   describe("node", () => {
     let server: { child: ChildProcess; port: number }
     beforeAll(async () => {
-      viteBuild("-c", "vite.node.config.ts")
-      server = await startServer(process.execPath, ["dist/node/index.js"])
+      await buildServer()
+      server = await startServer(process.execPath, ["dist/server/index.js"])
     }, 60_000)
     afterAll(() => void server?.child.kill())
 
@@ -98,8 +105,8 @@ describe("vite build", { timeout: 60_000 }, () => {
   describe.skipIf(!hasBun)("bun", () => {
     let server: { child: ChildProcess; port: number }
     beforeAll(async () => {
-      viteBuild("-c", "vite.bun.config.ts")
-      server = await startServer("bun", ["dist/bun/index.js"])
+      await buildServer()
+      server = await startServer("bun", ["dist/server/index.js"])
     }, 60_000)
     afterAll(() => void server?.child.kill())
 

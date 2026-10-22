@@ -11,11 +11,11 @@ One inbound request from Discord (ping, command invocation, component click, aut
 _Avoid_: Event, request (when meaning the Discord payload)
 
 **Entry**:
-The module a platform runs, which turns its call into `app.fetch(request, env, platform)`: it supplies the env, a way to run Background Work, and the export the platform expects. On Workers it is `export default app`; on Node and Bun it is the Default Server unless the plugin's `entry` names your own. It maps nothing itself; the pipeline is core's.
+The module a platform runs, which turns its call into `app.fetch(request, env, platform)`: it supplies the env, a way to run Background Work, and the export the platform expects. On Workers it is `export default app`; on Node and Bun it is the Default Server unless `server({ entry })` names your own. It maps nothing itself; the pipeline is core's.
 _Avoid_: Adapter (there are no adapter packages; ADR 0024), driver
 
 **Default Server**:
-The `node:http` server `@composurejs/vite` builds around the App for the `node` and `bun` targets (`serve` from `@composurejs/vite/server`): `PORT`, `process.env` as the env, tracked Background Work, graceful shutdown, `GET /health`.
+The `node:http` server that `server()` from `@composurejs/vite` builds around the App for Node and Bun (`serve` from `@composurejs/vite/server`): `PORT`, `process.env` as the env, tracked Background Work, graceful shutdown, `GET /health`.
 _Avoid_: Adapter, Node Adapter
 
 **Platform**:

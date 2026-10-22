@@ -95,17 +95,19 @@ import composure from "@composurejs/vite"
 import { defineConfig } from "vite"
 
 export default defineConfig({
-  plugins: [composure({ target: "cloudflare" }), cloudflare()],
+  plugins: [composure(), cloudflare()],
+  // Bundle size is cold-start time on Workers.
+  build: { minify: true },
 })
 `
   }
   return `// vite dev: the bot with the Dev Loop (tunnel, dev Sync). vite build: one self-contained dist/index.js
-// serving src/app.tsx. For a server of your own, write it and pass \`entry: "src/server.ts"\`.
-import composure from "@composurejs/vite"
+// serving src/app.tsx. For a server of your own, write it and pass server({ entry: "src/server.ts" }).
+import composure, { server } from "@composurejs/vite"
 import { defineConfig } from "vite"
 
 export default defineConfig({
-  plugins: [composure({ target: "${template}" })],
+  plugins: [composure(), server()],
 })
 `
 }

@@ -19,14 +19,14 @@ Secrets and bindings are `c.env`. Background Work uses `ctx.waitUntil`. Build wi
 
 ## Node and Bun
 
-`composure({ target: "node" })` (or `"bun"`) builds the **Default Server** around your App (`src/app.tsx`, exported as `app`): no entry file to write.
+`server()` next to `composure()` builds the **Default Server** around your App (`src/app.tsx`, exported as `app`, or `composure({ app })`): no entry file to write.
 
 ```ts twoslash
-import composure from "@composurejs/vite"
+import composure, { server } from "@composurejs/vite"
 import { defineConfig } from "vite"
 // ---cut---
 export default defineConfig({
-  plugins: [composure({ target: "node" })], // vite build → dist/index.js: node dist/index.js
+  plugins: [composure(), server()], // vite build → dist/index.js: node (or bun) dist/index.js
 })
 ```
 
@@ -34,7 +34,7 @@ It listens on `PORT` (or 3000), passes `process.env` as the env, answers `GET /h
 
 ## Your own server
 
-To change any of that, write the entry yourself and point `entry` at it. `@composurejs/vite/server` exports the pieces of the Default Server: `serve` with options, and `toRequest`/`send` to mount the App in a `node:http` server you already have.
+To change any of that, write the entry yourself and point `server({ entry })` at it. `@composurejs/vite/server` exports the pieces of the Default Server: `serve` with options, and `toRequest`/`send` to mount the App in a `node:http` server you already have.
 
 ```ts twoslash
 // @filename: app.ts
@@ -50,11 +50,11 @@ console.info({ msg: "Listening", url: server.url })
 ```
 
 ```ts twoslash
-import composure from "@composurejs/vite"
+import composure, { server } from "@composurejs/vite"
 import { defineConfig } from "vite"
 // ---cut---
 export default defineConfig({
-  plugins: [composure({ target: "node", entry: "src/server.ts" })],
+  plugins: [composure(), server({ entry: "src/server.ts" })],
 })
 ```
 
@@ -74,7 +74,7 @@ const platform = createTracker() // waitUntil; platform.settle() on shutdown
 Bun.serve({ port: 3000, fetch: (request) => app.fetch(request, process.env, platform) })
 ```
 
-`vite dev` serves the App itself for the Node and Bun targets, so a custom entry applies to the build only.
+In `vite dev`, `server()` serves the App itself, so a custom entry applies to the build only. Drop `server()` altogether to build with another plugin.
 
 ## Credentials and Bot Data
 

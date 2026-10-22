@@ -4,11 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "dev:node": "vite -c vite.node.config.ts",
     "build": "vite build",
-    "build:node": "vite build -c vite.node.config.ts",
-    "build:bun": "vite build -c vite.bun.config.ts",
-    "start:node": "node --env-file-if-exists=.env dist/node/index.js",
     "deploy": "vite build && wrangler deploy",
     "typecheck": "tsc -p tsconfig.json",
     "sync": "composure sync",

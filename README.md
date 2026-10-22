@@ -85,7 +85,7 @@ const app = new App().command(cookie).command(hello)
 export default app // Workers: reads DISCORD_PUBLIC_KEY from env
 ```
 
-Build with Vite (required); the plugin compiles Inline Handlers and sets up the target:
+Build with Vite (required): `composure()` compiles Inline Handlers; the other plugins decide what is built:
 
 ```ts
 // vite.config.ts: Cloudflare Workers (`vite dev` runs on workerd; `vite build && wrangler deploy`)
@@ -93,11 +93,12 @@ import { cloudflare } from "@cloudflare/vite-plugin"
 import composure from "@composurejs/vite"
 import { defineConfig } from "vite"
 
-export default defineConfig({ plugins: [composure({ target: "cloudflare" }), cloudflare()] })
+export default defineConfig({ plugins: [composure(), cloudflare()], build: { minify: true } })
 
 // Node or Bun: the Default Server around src/app.tsx, one self-contained dist/index.js
-// (`entry: "src/server.ts"` builds your own server instead)
-// export default defineConfig({ plugins: [composure({ target: "node" })] })
+// (`server({ entry: "src/server.ts" })` builds your own server instead)
+// import composure, { server } from "@composurejs/vite"
+// export default defineConfig({ plugins: [composure(), server()] })
 ```
 
 Develop against Discord with one command. Put `DISCORD_PUBLIC_KEY`, `DISCORD_TOKEN`, `COMPOSURE_DEV_APPLICATION_ID` (your *dev* application, the only one it will repoint) and `COMPOSURE_DEV_GUILD` in `.env`, then `vite dev`: it opens a tunnel, sets the dev application's Interactions Endpoint URL, syncs Commands to the dev guild, and re-syncs on save.
@@ -137,16 +138,16 @@ expect(res.text).toBe("## Hello, Bob")
 | `packages/composurejs` | Core and subpaths: `/jsx-runtime`, `/components`, `/testing`, `/rest`, `/sync`, `/placement` |
 | `packages/create-composurejs` | `pnpm create composurejs`: one template generator for every target; `scripts/check-templates.mjs` installs, tests and builds each |
 | `packages/cli` | `@composurejs/cli`: `composure sync`, the Sync Plan and applying it (also a library) |
-| `packages/vite` | `@composurejs/vite`: compiles Inline Handlers, sets up `vite build` per target, the Default Server (`/server`) and the Dev Loop |
+| `packages/vite` | `@composurejs/vite`: `composure()` (Inline Handlers, the Dev Loop), `server()` (builds the Default Server, `/server`) |
 | `packages/eslint-plugin` | `@composurejs/eslint-plugin`: flags tags placed where Discord does not allow them, in ESLint or oxlint |
-| `examples/bot` | One App built for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`), Node (`pnpm build:node && pnpm start:node`) and Bun (`pnpm build:bun && bun dist/bun/index.js`) |
+| `examples/bot` | One App for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`); its build test also builds it with `server()` and runs it on Node and Bun |
 | `docs` | The guide (`pnpm -C docs dev`) and the ADRs, as a VitePress site |
 | `CONTEXT.md` | Glossary. Use these words. |
 | `docs/adr/` | Decisions and why |
 
 ```sh
 pnpm install
-pnpm test        # builds the packages, then all workspace tests (incl. building and running the example per target)
+pnpm test        # builds the packages, then all workspace tests (incl. building and running the example on workerd, Node and Bun)
 pnpm typecheck   # includes a Node-free check of core
 pnpm build       # tsdown → packages/*/dist
 pnpm size        # bundle budgets (size-limit)

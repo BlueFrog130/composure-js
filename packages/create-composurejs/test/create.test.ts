@@ -48,7 +48,7 @@ describe("generate", () => {
     const pkg = JSON.parse(files["package.json"]!)
     expect(pkg).toMatchObject({ name: "my-bot", type: "module", dependencies: { composurejs: "^1.2.3" } })
     expect(pkg.devDependencies).toMatchObject({ "@composurejs/vite": "^1.1.0", "@composurejs/cli": "^1.0.0", vite: "^8.3.5" })
-    expect(files["vite.config.ts"]).toContain(`composure({ target: "${template}"`)
+    expect(files["vite.config.ts"]).toContain(template === "cloudflare" ? "plugins: [composure(), cloudflare()]" : "plugins: [composure(), server()]")
     expect(files["vitest.config.ts"]).toContain("plugins: [composure()]")
   })
 
@@ -62,7 +62,7 @@ describe("generate", () => {
       const files = generate(template, "s", VERSIONS)
       // The plugin builds the Default Server around src/app.tsx: no entry file, no extra dependency.
       expect(Object.keys(files).filter((f) => f.startsWith("src/"))).toEqual(["src/app.tsx", "src/counter.tsx"])
-      expect(files["vite.config.ts"]).toContain(`composure({ target: "${template}" })`)
+      expect(files["vite.config.ts"]).toContain("plugins: [composure(), server()]")
       expect(JSON.parse(files["package.json"]!).dependencies).toEqual({ composurejs: "^1.2.3" })
     }
     expect(JSON.parse(cf["package.json"]!).dependencies).toEqual({ composurejs: "^1.2.3" })
