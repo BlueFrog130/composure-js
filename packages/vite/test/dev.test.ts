@@ -92,9 +92,16 @@ afterEach(async () => {
 })
 
 describe("vite dev", { timeout: 30_000 }, () => {
+  test("under Vitest without an injected transport, the Dev Loop stays off", async () => {
+    project({ DISCORD_TOKEN: "t", COMPOSURE_DEV_GUILD: GUILD })
+    const port = await start({})
+    // Not served (no Dev Loop): Vite answers the POST itself.
+    expect((await post(port, "{}")).status).toBe(404)
+  })
+
   test("serves the App with its handlers compiled, and picks up edits without a restart", async () => {
     project({})
-    const port = await start({ tunnel: false, sync: false })
+    const port = await start({ tunnel: false, sync: false, transport: discord().transport })
     const first = await ask(port, invoke("hello"))
     expect((await ask(port, first.click("Go"))).text).toBe("v1")
     expect((await post(port, "{}")).status).toBe(401)

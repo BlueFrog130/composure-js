@@ -72,8 +72,9 @@ export default function composure(options: ComposureOptions = {}): Plugin {
     },
 
     configureServer(server) {
-      // Only with a target: Vitest serves the plugin too, and must never reach Discord.
-      if (!target) return
+      // Only with a target; and under Vitest only with an injected transport: a test run must never
+      // reach Discord with the developer's real token, whichever Vite config it loaded.
+      if (!target || (process.env.VITEST && !options.dev?.transport)) return
       setupDevLoop(server, options.dev ?? {}, target === "node" || target === "bun", () => composure({ include }))
     },
 
