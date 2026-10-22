@@ -17,7 +17,13 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 > - Sync: `composure sync` from `@composurejs/cli`
 > - the Dev Loop: `vite dev` serves the bot, tunnels to it, points your dev application at it, and syncs to a dev guild on every change
 >
-> Next: `create-composurejs` templates, size and cold-start budgets, the docs site, releases.
+> - `pnpm create composurejs`: starter templates for Cloudflare Workers, Node and Bun
+>
+> Next: size and cold-start budgets, the docs site, releases.
+
+```sh
+pnpm create composurejs my-bot   # Cloudflare Workers, Node or Bun; then: cp .env.example .env && pnpm dev
+```
 
 ```tsx
 import { App, Button, command, Container, Row, Text } from "composurejs"
@@ -135,6 +141,7 @@ expect(res.text).toBe("## Hello, Bob")
 | Path | What |
 |---|---|
 | `packages/composurejs` | Core and subpaths: `/jsx-runtime`, `/components`, `/testing`, `/cloudflare`, `/node`, `/bun` |
+| `packages/create-composurejs` | `pnpm create composurejs`: one template generator for every target; `scripts/check-templates.mjs` installs, tests and builds each |
 | `packages/cli` | `@composurejs/cli`: `composure sync`, the Sync Plan and applying it (also a library) |
 | `packages/vite` | `@composurejs/vite`: compiles Inline Handlers and sets up `vite build` per target (the dev loop comes later) |
 | `examples/bot` | One App built for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`), Node (`pnpm build:node && pnpm start:node`) and Bun (`pnpm build:bun && bun dist/bun/index.js`) |

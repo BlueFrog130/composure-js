@@ -26,3 +26,5 @@ jobs:
       # Builds the packages first: the example's vite configs import the built @composurejs/vite,
       # and test/build.test.ts builds and runs the example for every target.
       - run: pnpm test
+      # Every create-composurejs template, generated, installed, typechecked, tested and built.
+      - run: node scripts/check-templates.mjs
