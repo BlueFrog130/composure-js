@@ -21,7 +21,9 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 >
 > - size budgets in CI (core 13.5 kB, the example Worker 16.2 kB, brotli) and a cold-start benchmark on workerd
 >
-> Next: the docs site, releases.
+> - the guide (`docs/`, VitePress): every snippet type-checked in CI
+>
+> Next: releases.
 
 ```sh
 pnpm create composurejs my-bot   # Cloudflare Workers, Node or Bun; then: cp .env.example .env && pnpm dev
@@ -147,6 +149,7 @@ expect(res.text).toBe("## Hello, Bob")
 | `packages/cli` | `@composurejs/cli`: `composure sync`, the Sync Plan and applying it (also a library) |
 | `packages/vite` | `@composurejs/vite`: compiles Inline Handlers and sets up `vite build` per target (the dev loop comes later) |
 | `examples/bot` | One App built for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`), Node (`pnpm build:node && pnpm start:node`) and Bun (`pnpm build:bun && bun dist/bun/index.js`) |
+| `docs` | The guide (`pnpm -C docs dev`) and the ADRs, as a VitePress site |
 | `CONTEXT.md` | Glossary. Use these words. |
 | `docs/adr/` | Decisions and why |
 

@@ -13,6 +13,7 @@ pnpm build                     # tsdown (declarations from tsconfig.build.json: 
 pnpm -C examples/bot build     # vite build → Worker in dist/ (minified); build:node / build:bun → dist/node, dist/bun
 pnpm size                      # builds examples/bot, then size-limit (.size-limit.json): CI fails past a limit
 pnpm -C examples/bot coldstart # workerd cold start vs. an empty Worker (report only)
+pnpm -C docs dev               # the guide; `pnpm -C docs build` type-checks every ```ts twoslash snippet (after pnpm build)
 pnpm -C examples/bot dev       # vite dev on workerd; needs DISCORD_PUBLIC_KEY in examples/bot/.dev.vars
 ```
 
@@ -34,6 +35,8 @@ Use pnpm only. pnpm 12 blocks dependency build scripts unless they're listed in 
 - `test/fixtures.tsx`: signed regression fixtures (fixed seed), replayed against every Adapter in `test/regression.test.ts`. Add a case for every new Interaction shape.
 
 ## Rules
+
+- Docs: `docs/guide/*.md`, one chapter per topic; code blocks that show API use ```ts twoslash / ```tsx twoslash so a type error fails the docs build (`// ---cut---` hides setup, `// @filename:` splits files). docs pins TypeScript 5.9 because twoslash needs the TypeScript 5 compiler API. Update the chapter when an API changes.
 
 - Core (everything except `adapters/node.ts`, `adapters/bun.ts`, `adapters/shutdown.ts`) must not use Node APIs or types. `tsconfig.core.json` enforces it.
 - Zero runtime dependencies. `discord-api-types` is imported with `import type` only, so its enums are restated in `src/discord.ts`.
