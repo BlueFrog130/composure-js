@@ -4,6 +4,7 @@ import type {
   APIMessage,
   APIMessageApplicationCommandInteraction,
   APIMessageComponentInteraction,
+  APIModalSubmitInteraction,
   APIPingInteraction,
   APIUserApplicationCommandInteraction,
 } from "discord-api-types/v10"
@@ -273,23 +274,78 @@ class MessageCommandBuilder extends ResolvingBuilder<APIMessageApplicationComman
 class ComponentBuilder extends InteractionBuilder<APIMessageComponentInteraction> {
   protected readonly type = 3
   #values: string[] | undefined
+  #componentType: number | undefined
+  #message: Data = { components: [], flags: 0 }
 
   constructor(readonly customId: string) {
     super()
   }
 
-  /** Selected values, making this a string select. */
-  values(values: string[]): this {
+  /** Selected values, making this a select (string select unless `componentType` says otherwise). */
+  values(values: string[], componentType = 3): this {
     this.#values = values
+    this.#componentType = componentType
+    return this
+  }
+
+  /** The message the component is on (its `components` and `flags`). */
+  onMessage(message: Data): this {
+    this.#message = message
     return this
   }
 
   protected data(): Data {
-    return this.#values ? { custom_id: this.customId, component_type: 3, values: this.#values } : { custom_id: this.customId, component_type: 2 }
+    return this.#values ? { custom_id: this.customId, component_type: this.#componentType, values: this.#values } : { custom_id: this.customId, component_type: 2 }
   }
 
   protected override extra(): Data {
-    return { message: { id: snowflake(), channel_id: TEST_CHANNEL_ID, type: 0, content: "", components: [], flags: 0 } }
+    return { message: { id: snowflake(), channel_id: TEST_CHANNEL_ID, type: 0, content: "", ...this.#message } }
+  }
+}
+
+/** A value submitted for one modal input. */
+export type SubmittedValue = string | boolean | string[] | null
+
+class ModalSubmitBuilder extends ResolvingBuilder<APIModalSubmitInteraction> {
+  protected readonly type = 5
+  readonly #inputs: Data[] = []
+  #message: Data | undefined
+
+  constructor(readonly customId: string) {
+    super()
+  }
+
+  /** An input's value: a string for a text input or radio group, a boolean for a checkbox, a list for selects and checkbox groups. */
+  field(customId: string, value: SubmittedValue): this {
+    const component =
+      typeof value === "boolean" ? { type: 23, custom_id: customId, value }
+      : Array.isArray(value) ? { type: 3, custom_id: customId, values: value }
+      : value === null ? { type: 21, custom_id: customId, value: null }
+      : { type: 4, custom_id: customId, value }
+    this.#inputs.push({ type: 18, component })
+    return this
+  }
+
+  /** Files uploaded to a `<FileUpload>`. */
+  files(customId: string, attachments: WithId<Attachment>[]): this {
+    for (const a of attachments) this.resolved.attachments[a.id] = { filename: "file.txt", size: 1, url: `https://cdn.test/${a.id}`, proxy_url: `https://cdn.test/${a.id}`, ...a }
+    this.#inputs.push({ type: 18, component: { type: 19, custom_id: customId, values: attachments.map((a) => a.id) } })
+    return this
+  }
+
+  /** Opened from a component on this message, so the submit can Update it. */
+  onMessage(message: Data): this {
+    this.#message = message
+    return this
+  }
+
+  protected data(): Data {
+    const resolved = this.resolvedData()
+    return { custom_id: this.customId, components: this.#inputs, ...(resolved && { resolved }) }
+  }
+
+  protected override extra(): Data {
+    return this.#message ? { message: { id: snowflake(), channel_id: TEST_CHANNEL_ID, type: 0, content: "", ...this.#message } } : {}
   }
 }
 
@@ -322,4 +378,9 @@ export function component(customId: string): ComponentBuilder {
   return new ComponentBuilder(customId)
 }
 
-export type { AutocompleteBuilder, ChatInputBuilder, ComponentBuilder, InteractionBuilder, MessageCommandBuilder, UserCommandBuilder }
+/** A modal submit of the modal with `customId`; add inputs with `.field(id, value)`. */
+export function modalSubmit(customId: string): ModalSubmitBuilder {
+  return new ModalSubmitBuilder(customId)
+}
+
+export type { AutocompleteBuilder, ChatInputBuilder, ComponentBuilder, InteractionBuilder, MessageCommandBuilder, ModalSubmitBuilder, UserCommandBuilder }

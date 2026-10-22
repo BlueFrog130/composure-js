@@ -149,7 +149,11 @@ Code defined outside any View (`component("vote", {..})`) answering clicks and s
 _Avoid_: Button handler, listener
 
 **Modal Handler**:
-Code answering a modal submit routed by `custom_id` prefix, receiving the submitted fields typed by a field schema (`f.*`).
+A modal and its submit handler defined together (`modal(prefix, { fields, render, handler })`), opened by answering with `.open(state)`; the handler receives the submitted values typed by its Fields.
+
+**Field**:
+One entry of a modal's schema (`f.text()`, `f.choice(..)`, `f.checkbox()`, ...): types the submitted value and is bound to exactly one input in markup with `field={fields.x}`.
+_Avoid_: Input (that is the markup element), form field
 
 **Upload**:
 A file sent with a message, created with `upload(name, data)` and placed as a `src`; render attaches it and refers to it as `attachment://<name>`.

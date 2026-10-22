@@ -3,7 +3,7 @@ import { type Interaction, type InteractionResponse, MessageFlags } from "../dis
 import { handleInteraction } from "../pipeline.ts"
 import type { Transport } from "../transport.ts"
 import type { BindingsOf, DataOf, Env, Platform } from "../types.ts"
-import type { Buildable } from "./builders.ts"
+import { type Buildable, component, type ComponentBuilder, modalSubmit, type ModalSubmitBuilder, type SubmittedValue } from "./builders.ts"
 import { TestKey } from "./key.ts"
 import { MockTransport, type RecordedFile } from "./transport.ts"
 
@@ -57,7 +57,7 @@ export async function answer<E extends Env>(
   })
   // A 202 means the answer went through the callback endpoint (it carried files).
   const callback = response.status === 202 ? mock?.requests.findLast((r) => r.path.endsWith("/callback")) : undefined
-  return callback ? TestResponse.of(202, callback.json as InteractionResponse, callback.files) : TestResponse.from(response)
+  return callback ? TestResponse.of(202, callback.json as InteractionResponse, callback.files, payload) : TestResponse.from(response, payload)
 }
 
 type Json = Record<string, unknown>
@@ -70,16 +70,18 @@ export class TestResponse {
     readonly body: InteractionResponse | undefined,
     /** Files sent with the answer. */
     readonly files: RecordedFile[],
+    /** The Interaction this answers. */
+    readonly interaction: Interaction | undefined,
   ) {}
 
-  static async from(response: Response): Promise<TestResponse> {
+  static async from(response: Response, interaction?: Interaction): Promise<TestResponse> {
     const text = await response.text()
     const isJson = response.headers.get("content-type")?.includes("application/json")
-    return new TestResponse(response.status, isJson && text ? (JSON.parse(text) as InteractionResponse) : undefined, [])
+    return new TestResponse(response.status, isJson && text ? (JSON.parse(text) as InteractionResponse) : undefined, [], interaction)
   }
 
-  static of(status: number, body: InteractionResponse | undefined, files: RecordedFile[] = []): TestResponse {
-    return new TestResponse(status, body, files)
+  static of(status: number, body: InteractionResponse | undefined, files: RecordedFile[] = [], interaction?: Interaction): TestResponse {
+    return new TestResponse(status, body, files, interaction)
   }
 
   /** The interaction response type (4 message, 5 deferred, 7 update, 9 modal, ...). */
@@ -122,6 +124,42 @@ export class TestResponse {
     if (typeof content === "string") return content
     const texts = this.allComponents.filter((c) => c.type === 10).map((c) => c.content as string)
     return texts.length > 0 ? texts.join("\n") : undefined
+  }
+
+  /** A click on the button with this label or `custom_id`, on the message this response shows. */
+  click(labelOrId: string): ComponentBuilder {
+    const buttons = this.allComponents.filter((c) => c.type === 2)
+    const button = buttons.find((c) => c.custom_id === labelOrId) ?? buttons.find((c) => c.label === labelOrId)
+    if (!button || typeof button.custom_id !== "string") {
+      throw new Error(`No clickable button "${labelOrId}"; buttons: ${buttons.map((b) => String(b.label ?? b.custom_id ?? b.url)).join(", ") || "none"}`)
+    }
+    if (button.disabled) throw new Error(`Button "${labelOrId}" is disabled`)
+    return component(button.custom_id).onMessage(this.#message())
+  }
+
+  /** Choosing `values` in the select with this `custom_id` or placeholder. */
+  select(idOrPlaceholder: string, values: string[]): ComponentBuilder {
+    const selects = this.allComponents.filter((c) => [3, 5, 6, 7, 8].includes(c.type as number))
+    const select = selects.find((c) => c.custom_id === idOrPlaceholder) ?? selects.find((c) => c.placeholder === idOrPlaceholder)
+    if (!select) throw new Error(`No select "${idOrPlaceholder}"; selects: ${selects.map((s) => String(s.custom_id)).join(", ") || "none"}`)
+    return component(select.custom_id as string).values(values, select.type as number).onMessage(this.#message())
+  }
+
+  /** Submitting the modal this response opens, with values by input `custom_id`. */
+  submit(values: Record<string, SubmittedValue> = {}): ModalSubmitBuilder {
+    if (this.type !== 9) throw new Error(`submit() needs a modal response (type 9), this is type ${String(this.type)}`)
+    const inputs = new Set(this.allComponents.map((c) => c.custom_id).filter((id) => typeof id === "string"))
+    const builder = modalSubmit(this.data!.custom_id as string)
+    for (const [id, value] of Object.entries(values)) {
+      if (!inputs.has(id)) throw new Error(`The modal has no input "${id}"; inputs: ${[...inputs].join(", ")}`)
+      builder.field(id, value)
+    }
+    const message = (this.interaction as { message?: Json } | undefined)?.message
+    return message ? builder.onMessage(message) : builder
+  }
+
+  #message(): Json {
+    return { components: this.components, flags: this.flags }
   }
 
   /** The component with this `custom_id`, if any. */

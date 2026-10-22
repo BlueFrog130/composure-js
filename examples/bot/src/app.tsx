@@ -2,17 +2,27 @@
 import {
   App,
   Button,
+  Checkbox,
   command,
+  component,
   Container,
   defineChoices,
   Ephemeral,
+  f,
   group,
+  Label,
   md,
   middleware,
+  Modal,
+  modal,
   option,
+  p,
+  RadioGroup,
+  Row,
   Section,
   Separator,
   Text,
+  TextInput,
   userCommand,
   UserError,
 } from "composurejs"
@@ -87,6 +97,52 @@ export const server = new App().use(guildOnly).command(
 
 export const highFive = userCommand({ name: "High five", handler: (c, target) => `${c.user.username} high-fives ${target.displayName} 🙏` })
 
-const basics = new App().command(ping).command(hello).command(cookie).command(highFive)
+// Handlers defined outside render work on every build. (Views with Inline Handlers need
+// @composurejs/vite in the build; this example's Node and Worker entries get it with the
+// Vite build targets.)
+export const vote = component("vote", {
+  state: { up: p.bool() },
+  handler: (c, { up }) => Ephemeral(`${c.user.username} voted ${up ? "👍" : "👎"}`),
+})
 
-export const app = new App().route(basics).route(server)
+export const poll = command({
+  name: "poll",
+  description: "Ask a yes/no question",
+  options: { question: option.string("The question", { maxLength: 200 }) },
+  handler: (_c, { question }) => (
+    <Container accentColor={BRAND}>
+      <Text>### {question}</Text>
+      <Row>
+        <Button style="success" emoji="👍" onClick={vote.id({ up: true })}>Yes</Button>
+        <Button style="danger" emoji="👎" onClick={vote.id({ up: false })}>No</Button>
+      </Row>
+    </Container>
+  ),
+})
+
+const Mood = defineChoices({ great: "Great", fine: "Fine", meh: "Meh" })
+
+export const feedback = modal("feedback", {
+  fields: { mood: f.choice(Mood), notes: f.text({ paragraph: true, maxLength: 1000 }).optional(), followUp: f.checkbox() },
+  render: (_, fields) => (
+    <Modal title="Feedback">
+      <Label text="How is it going?">
+        <RadioGroup field={fields.mood} />
+      </Label>
+      <Label text="Anything to add?">
+        <TextInput field={fields.notes} placeholder="Optional" />
+      </Label>
+      <Label text="Contact me about this">
+        <Checkbox field={fields.followUp} />
+      </Label>
+    </Modal>
+  ),
+  handler: (_c, { mood, notes, followUp }) => Ephemeral(`Thanks! Mood: ${mood}${notes ? `, notes: ${notes}` : ""}${followUp ? " (we'll be in touch)" : ""}`),
+})
+
+export const feedbackCommand = command({ name: "feedback", description: "Tell us how it's going", handler: () => feedback.open() })
+
+const basics = new App().command(ping).command(hello).command(cookie).command(highFive)
+const interactive = new App().command(poll).component(vote).command(feedbackCommand).modal(feedback)
+
+export const app = new App().route(basics).route(server).route(interactive)

@@ -12,11 +12,13 @@ import type { AnyCommand, Command, Group } from "./command.ts"
 import { Context } from "./context.ts"
 import type { Credentials } from "./credentials.ts"
 import { type Interaction, type InteractionResponse, InteractionType, ResponseType } from "./discord.ts"
-import { InvalidOptionsError, UnknownCommandError, UserError } from "./errors.ts"
+import { FAIL, prefixOf } from "./codec.ts"
+import { InvalidOptionsError, RenderError, UnknownCommandError, UserError } from "./errors.ts"
+import { dispatchComponent, isViewNode } from "./handlers.ts"
 import { serializeError } from "./log.ts"
 import { runChain } from "./middleware.ts"
 import { OptionType, resolveOptions, resolveUser } from "./options.ts"
-import { type Answer, Ephemeral, type Output, toAnswer } from "./response.ts"
+import { type Answer, Ephemeral, type Output, rerendered, toAnswer } from "./response.ts"
 import { DISCORD_API, multipart, type Transport } from "./transport.ts"
 import type { BindingsOf, DataOf, Env, Platform } from "./types.ts"
 import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verifySignature } from "./verify.ts"
@@ -102,7 +104,11 @@ async function answerInteraction<E extends Env>(built: Built<E>, interaction: In
     logger: built.logger,
   })
   try {
-    return await toAnswer(await dispatch(built, c), interaction.type)
+    const answer = await toAnswer(await dispatch(built, c), interaction.type)
+    for (const prefix of answer.handlerPrefixes ?? []) {
+      if (!built.handlers.has(prefix)) throw new RenderError(`View "${prefix}" places Inline Handlers but is not listed in the App; add app.view(..) for it`)
+    }
+    return answer
   } catch (error) {
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
       // A message is no answer to autocomplete; the user sees no suggestions.
@@ -132,9 +138,19 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
       )
     }
     case InteractionType.MessageComponent:
-    case InteractionType.ModalSubmit:
-      // No Component or Modal Handler answers this custom_id: the Fallback.
-      return runChain(built.middleware, c, () => Ephemeral(OUTDATED_MESSAGE))
+    case InteractionType.ModalSubmit: {
+      const [prefix, rest] = prefixOf(interaction.data.custom_id)
+      const entry = built.handlers.get(prefix)
+      return runChain(entry?.chain ?? built.middleware, c, async () => {
+        const output = entry ? await dispatchComponent(entry.route, c, rest) : FAIL
+        if (output === FAIL) {
+          // Unknown prefix or handler name, or state that no longer decodes: the Fallback (ADR 0005).
+          built.logger.debug({ msg: "Fallback", prefix, interactionId: interaction.id })
+          return Ephemeral(OUTDATED_MESSAGE)
+        }
+        return rerender(output, interaction)
+      })
+    }
     default:
       // A kind this version does not know (ADR 0003): answer, never crash.
       built.logger.warn({ msg: "Unknown interaction type", type: (interaction as { type: unknown }).type, interactionId: (interaction as { id?: unknown }).id })
@@ -147,6 +163,12 @@ interface CommandData {
   options?: APIApplicationCommandInteractionDataOption[]
   resolved?: APIInteractionDataResolved & { messages?: Record<string, APIMessage> }
   target_id?: string
+}
+
+/** A View returned from a component (or a modal opened from one) re-renders that message. */
+function rerender(output: Output, interaction: Interaction): Output {
+  const fromMessage = interaction.type === InteractionType.MessageComponent || (interaction.type === InteractionType.ModalSubmit && "message" in interaction && interaction.message !== undefined)
+  return fromMessage && isViewNode(output) ? rerendered(output) : output
 }
 
 function invokeCommand<E extends Env>(command: AnyCommand<E>, c: Context<E, APIApplicationCommandInteraction>) {

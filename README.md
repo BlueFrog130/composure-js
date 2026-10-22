@@ -2,7 +2,36 @@
 
 Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhere `fetch(Request) => Response` runs: Cloudflare Workers, Bun, Node (Deno, Vercel, Netlify and Lambda later). Hono for Discord bots: a small core built on Web Standards, one `app.fetch`, a thin Adapter per platform, a typed context, and JSX Views for responses.
 
-> Status: milestone 3. Commands with typed Options, Groups, context menu Commands, inline autocomplete and middleware work, along with every Components V2 and modal tag (validated against Discord's limits before sending), file uploads, nested Apps, and the Cloudflare, Node and Bun Adapters. Views with handlers, defer, REST, Sync and the Vite plugin are next.
+> Status: milestone 4. Working so far:
+>
+> - Commands: typed Options, Groups, context menu Commands, inline autocomplete
+> - middleware
+> - every Components V2 and modal tag, checked against Discord's limits before sending
+> - file uploads
+> - Views with Inline Handlers, hoisted by `@composurejs/vite`
+> - Component and Modal Handlers, with modal values typed by Fields
+> - nested Apps
+> - the Cloudflare, Node and Bun Adapters
+>
+> Next: defer, REST, Webhook Events, Sync, and the Vite dev loop and build targets.
+
+```tsx
+import { App, Button, command, Container, p, Row, Text, view } from "composurejs"
+
+export const Card = view("card", {
+  props: { title: p.string(), likes: p.int() },
+  render: ({ title, likes }, on) => (
+    <Container>
+      <Text>## {title}</Text>
+      <Row>
+        <Button onClick={on("like", () => Card({ title, likes: likes + 1 }))}>👍 {likes}</Button>
+      </Row>
+    </Container>
+  ),
+})
+// The click re-renders the message from new Props; its custom_id is "card:like:<title>:<likes>".
+const app = new App().command(command({ name: "card", description: "A card", handler: () => <Card title="Hi" likes={0} /> })).view(Card)
+```
 
 ```tsx
 import { App, command, Container, option, Text } from "composurejs"
@@ -69,6 +98,7 @@ expect(res.text).toBe("## Hello, Bob")
 | Path | What |
 |---|---|
 | `packages/composurejs` | Core and subpaths: `/jsx-runtime`, `/components`, `/testing`, `/cloudflare`, `/node`, `/bun` |
+| `packages/vite` | `@composurejs/vite`: hoists Views' Inline Handlers (the dev loop and build targets come later) |
 | `examples/bot` | One App served by Node (`pnpm dev:node`), Workers (`pnpm dev:worker`) and Bun (`bun src/bun.ts`) |
 | `CONTEXT.md` | Glossary. Use these words. |
 | `docs/adr/` | Decisions and why |

@@ -66,3 +66,20 @@ export type { BindingsOf, DataOf, Env, Platform, VariablesOf } from "./types.ts"
 export { verifySignature } from "./verify.ts"
 export * from "./components.ts"
 export type { JSX } from "./jsx-runtime.ts"
+export { Codec, type Codecs, type CodecValues, p } from "./codec.ts"
+export { f, Field, type FieldRef, type FieldRefs, type Fields, type FieldValues } from "./fields.ts"
+export {
+  component,
+  type ComponentConfig,
+  type ComponentContext,
+  type ComponentHandler,
+  type HoistedHandler,
+  modal,
+  type ModalConfig,
+  type ModalContext,
+  type ModalHandler,
+  type On,
+  view,
+  type View,
+  type ViewConfig,
+} from "./handlers.ts"

@@ -1,6 +1,28 @@
 // Signed regression fixtures: Interaction shapes as Discord sends them, each with the status
 // and JSON the regression App must answer with. Replayed against every Adapter over its entry.
-import { App, command, Container, File, group, Label, messageCommand, Modal, option, Text, TextInput, upload, userCommand, UserError } from "composurejs"
+import {
+  App,
+  Button,
+  command,
+  component,
+  Container,
+  f,
+  File,
+  group,
+  Label,
+  messageCommand,
+  Modal,
+  modal,
+  option,
+  p,
+  Row,
+  Text,
+  TextInput,
+  upload,
+  userCommand,
+  UserError,
+  view,
+} from "composurejs"
 import { TestKey } from "composurejs/testing"
 
 const SEED = new Uint8Array(32).fill(7)
@@ -11,6 +33,27 @@ const APP = "1052322265397739523"
 const GUILD = "798662131062931547"
 const CHANNEL = "300000000000000001"
 const ALICE = { id: "100000000000000001", username: "alice", global_name: "Alice", discriminator: "0", avatar: null }
+
+const vote = component("vote", { state: { poll: p.snowflake(), up: p.bool() }, handler: (_c, { poll, up }) => `vote ${up ? "up" : "down"} on ${poll}` })
+export const Counter = view("counter", {
+  props: { n: p.int() },
+  render: ({ n }, on) => (
+    <Row>
+      <Button onClick={on("inc", () => Counter({ n: n + 1 }))}>{`Count ${n}`}</Button>
+    </Row>
+  ),
+})
+const feedback = modal("fb", {
+  fields: { what: f.text() },
+  render: (_, fields) => (
+    <Modal title="Feedback">
+      <Label text="What?">
+        <TextInput field={fields.what} />
+      </Label>
+    </Modal>
+  ),
+  handler: (_c, { what }) => `thanks for: ${what}`,
+})
 
 // Files go through the callback endpoint; a stand-in Discord accepts them.
 export const regressionApp = new App({ transport: async () => new Response(null, { status: 204 }) })
@@ -57,6 +100,9 @@ export const regressionApp = new App({ transport: async () => new Response(null,
       ],
     }),
   )
+  .component(vote)
+  .view(Counter)
+  .modal(feedback)
   .command(userCommand({ name: "High five", handler: (_c, target) => `high five ${target.displayName}` }))
   .command(messageCommand({ name: "Quote", handler: (_c, message) => `> ${message.content}` }))
   .command(command({ name: "export", description: "File", handler: () => <File src={upload("a.txt", "hi")} /> }))
@@ -253,6 +299,30 @@ export const cases: Case[] = [
   {
     name: "component without handler",
     body: json({ ...base, ...inGuild, id: "900000000000000003", type: 3, data: { custom_id: "gone:click", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 } }),
+    status: 200,
+    response: message("This message is outdated.", EPHEMERAL),
+  },
+  {
+    name: "Component Handler with state",
+    body: json({ ...base, ...inGuild, id: "900000000000000010", type: 3, data: { custom_id: "vote:123:1", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 } }),
+    status: 200,
+    response: message("vote up on 123"),
+  },
+  {
+    name: "View Inline Handler re-renders with Update",
+    body: json({ ...base, ...inGuild, id: "900000000000000011", type: 3, data: { custom_id: "counter:inc:1", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: V2 } }),
+    status: 200,
+    response: { type: 7, data: { flags: V2, components: [{ type: 1, components: [{ type: 2, style: 2, custom_id: "counter:inc:2", label: "Count 2" }] }] } },
+  },
+  {
+    name: "Modal Handler submit with fields",
+    body: json({ ...base, ...inGuild, id: "900000000000000012", type: 5, data: { custom_id: "fb", components: [{ type: 18, id: 1, component: { type: 4, id: 2, custom_id: "what", value: "cookies" } }] } }),
+    status: 200,
+    response: message("thanks for: cookies"),
+  },
+  {
+    name: "outdated state goes to the Fallback",
+    body: json({ ...base, ...inGuild, id: "900000000000000013", type: 3, data: { custom_id: "counter:inc:x", component_type: 2 }, message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: 0 } }),
     status: 200,
     response: message("This message is outdated.", EPHEMERAL),
   },

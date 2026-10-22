@@ -7,6 +7,7 @@ import { render } from "./jsx/render.ts"
 
 const EPHEMERAL = Symbol.for("composurejs.ephemeral")
 const UPDATE = Symbol.for("composurejs.update")
+const RERENDER = Symbol("composurejs.rerender")
 
 /** An Output only the invoking user sees. */
 export interface EphemeralOutput {
@@ -31,12 +32,19 @@ export function Update(output: Output): UpdateOutput {
   return { [UPDATE]: output }
 }
 
+/** @internal A View re-rendered by its own handler: replaces the message, or opens a modal View. */
+export function rerendered(output: Output): Output {
+  return { [RERENDER]: output } as unknown as Output
+}
+
 const has = <K extends symbol>(value: unknown, key: K): value is Record<K, Output> => typeof value === "object" && value !== null && key in value
 
 /** An InteractionResponse plus the files that must go with it. */
 export interface Answer {
   response: InteractionResponse
   files: Upload[]
+  /** Views whose Inline Handlers the answer places. */
+  handlerPrefixes?: string[]
 }
 
 /** Turns an Output into the JSON Discord expects for an Interaction of `interactionType`, rendering and validating Views. */
@@ -53,6 +61,11 @@ export async function toAnswer(output: Output | undefined | void, interactionTyp
     const data = response.data ?? {}
     return { ...answer, response: { ...response, data: { ...data, flags: (data.flags ?? 0) | MessageFlags.Ephemeral } } }
   }
+  if (has(output, RERENDER)) {
+    const answer = await toAnswer(output[RERENDER], interactionType)
+    if (answer.response.type !== ResponseType.ChannelMessageWithSource) return answer
+    return toAnswer(Update(answer.response), interactionType).then((a) => ({ ...answer, response: a.response }))
+  }
   if (has(output, UPDATE)) {
     if (interactionType !== InteractionType.MessageComponent && interactionType !== InteractionType.ModalSubmit) {
       throw new ResponseError("Update only answers component clicks and modal submits")
@@ -67,9 +80,9 @@ export async function toAnswer(output: Output | undefined | void, interactionTyp
     const rendered = await render(output)
     if (rendered.kind === "modal") {
       if (interactionType === InteractionType.ModalSubmit) throw new ResponseError("A modal submit cannot be answered with another <Modal>")
-      return { response: { type: ResponseType.Modal, data: rendered.data }, files: [] }
+      return { response: { type: ResponseType.Modal, data: rendered.data }, files: [], handlerPrefixes: rendered.handlerPrefixes }
     }
-    return { response: { type: ResponseType.ChannelMessageWithSource, data: rendered.data as never }, files: rendered.files }
+    return { response: { type: ResponseType.ChannelMessageWithSource, data: rendered.data as never }, files: rendered.files, handlerPrefixes: rendered.handlerPrefixes }
   }
   if (typeof output === "object" && output !== null && typeof (output as { type?: unknown }).type === "number") {
     const data = (output as { data?: { flags?: number; content?: string; embeds?: unknown[] } }).data

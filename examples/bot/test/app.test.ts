@@ -41,6 +41,21 @@ test("/server member explains a non-member as a User Error", async () => {
   expect(res.text).toMatch(/^bob joined <t:\d+:R>$/)
 })
 
+test("/poll buttons route to the vote Component Handler", async () => {
+  const res = await answer(app, command("poll").option("question", "Cookies?"))
+  expect(res.text).toBe("### Cookies?")
+  const voted = await answer(app, res.click("No"))
+  expect([voted.text, voted.isEphemeral]).toEqual(["alice voted 👎", true])
+})
+
+test("/feedback opens a modal whose submit is typed by its fields", async () => {
+  const opened = await answer(app, command("feedback"))
+  expect(opened.type).toBe(9)
+  const thanks = await answer(app, opened.submit({ mood: "great", notes: "Love it", followUp: true }))
+  expect(thanks.text).toBe("Thanks! Mood: great, notes: Love it (we'll be in touch)")
+  expect((await answer(app, opened.submit({ mood: "meh" }))).text).toBe("Thanks! Mood: meh")
+})
+
 test("High five is a user context menu Command", async () => {
   expect((await answer(app, userCommand("High five").target({ id: "2", username: "bob", global_name: "Bob" }))).text).toBe("alice high-fives Bob 🙏")
 })

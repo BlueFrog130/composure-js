@@ -290,6 +290,7 @@ describe("component JSON", () => {
     )
     expect(ok).toEqual({
       kind: "modal",
+      handlerPrefixes: [],
       data: {
         custom_id: "report",
         title: "Report",
