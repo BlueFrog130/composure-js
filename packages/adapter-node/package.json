@@ -1,0 +1,54 @@
+{
+  "name": "@composurejs/adapter-node",
+  "version": "0.0.0",
+  "description": "Node Adapter for composurejs: node:http, tracked Background Work, graceful shutdown",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlueFrog130/composure-js.git",
+    "directory": "packages/adapter-node"
+  },
+  "homepage": "https://bluefrog130.github.io/composure-js/",
+  "bugs": "https://github.com/BlueFrog130/composure-js/issues",
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "interactions",
+    "node"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "@composurejs/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+  },
+  "dependencies": {
+    "composurejs": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

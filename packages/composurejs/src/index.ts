@@ -63,6 +63,7 @@ export { Ephemeral, type EphemeralOutput, type Output, Reply, Update, type Updat
 export { LIMITS, render, type Rendered, type RenderedMessage, type RenderedModal } from "./jsx/render.ts"
 export { DISCORD_API, fetchTransport, type Transport } from "./transport.ts"
 export type { BindingsOf, DataOf, Env, Platform, VariablesOf } from "./types.ts"
+export { createTracker, type Tracker } from "./tracker.ts"
 export { verifySignature } from "./verify.ts"
 export * from "./components.ts"
 export type { JSX } from "./jsx-runtime.ts"

@@ -1,4 +1,4 @@
-import type { Platform } from "../types.ts"
+import type { Platform } from "./types.ts"
 
 /** A Platform for long-running servers: Background Work is tracked so shutdown can await it. */
 export interface Tracker extends Required<Platform> {

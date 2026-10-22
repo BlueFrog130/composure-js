@@ -1,6 +1,6 @@
 # Platforms
 
-An App answers `fetch(request, env, platform)`. An Adapter is the few lines connecting that to a platform. The App is the same on every one.
+An App answers `fetch(request, env, platform)`. An Adapter is the few lines connecting that to a platform, each its own package: `@composurejs/adapter-cloudflare`, `@composurejs/adapter-node`, `@composurejs/adapter-bun`. The App is the same on every one.
 
 ## Cloudflare Workers
 
@@ -19,13 +19,15 @@ Secrets and bindings are `c.env`. Background Work uses `ctx.waitUntil`. Build wi
 
 ## Node
 
+`pnpm add @composurejs/adapter-node`
+
 ```ts twoslash
 // @filename: app.ts
 import { App } from "composurejs"
 export const app = new App()
 // @filename: node.ts
 // ---cut---
-import { serve } from "composurejs/node"
+import { serve } from "@composurejs/adapter-node"
 import { app } from "./app.ts"
 
 const server = await serve(app) // PORT, or 3000
@@ -36,13 +38,15 @@ console.info({ msg: "Listening", url: server.url })
 
 ## Bun
 
+`pnpm add @composurejs/adapter-bun`
+
 ```ts twoslash
 // @filename: app.ts
 import { App } from "composurejs"
 export const app = new App()
 // @filename: bun.ts
 // ---cut---
-import { handle } from "composurejs/bun"
+import { handle } from "@composurejs/adapter-bun"
 import { app } from "./app.ts"
 
 export default handle(app) // Bun serves the default export

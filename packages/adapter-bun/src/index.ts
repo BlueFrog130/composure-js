@@ -1,9 +1,7 @@
 // Bun Adapter (ADR 0007). Bun calls a default export's `fetch(request, server)`, so the App is
 // wrapped to pass `process.env` and a Tracker instead of the server.
-import type { App } from "../app.ts"
-import type { BindingsOf, Env } from "../types.ts"
+import { type App, type BindingsOf, createTracker, type Env, type Tracker } from "composurejs"
 import { onShutdown, SHUTDOWN_GRACE_MS } from "./shutdown.ts"
-import { createTracker, type Tracker } from "./tracker.ts"
 
 export interface HandleOptions<E extends Env> {
   port?: number

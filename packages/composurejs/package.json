@@ -59,21 +59,6 @@
       "@composurejs/source": "./src/testing/index.ts",
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
-    },
-    "./cloudflare": {
-      "@composurejs/source": "./src/adapters/cloudflare.ts",
-      "types": "./dist/adapters/cloudflare.d.ts",
-      "default": "./dist/adapters/cloudflare.js"
-    },
-    "./node": {
-      "@composurejs/source": "./src/adapters/node.ts",
-      "types": "./dist/adapters/node.d.ts",
-      "default": "./dist/adapters/node.js"
-    },
-    "./bun": {
-      "@composurejs/source": "./src/adapters/bun.ts",
-      "types": "./dist/adapters/bun.d.ts",
-      "default": "./dist/adapters/bun.js"
     }
   },
   "scripts": {

@@ -1,0 +1,9 @@
+{
+  // Node types for tests and configs; tsconfig.build.json checks src without them (Workers has no Node).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["node"]
+  },
+  "include": ["src", "test", "*.config.ts"]
+}

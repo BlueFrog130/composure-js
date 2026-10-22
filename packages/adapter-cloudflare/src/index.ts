@@ -1,7 +1,6 @@
 // Cloudflare Workers Adapter (ADR 0007). `export default app` already fits the Workers fetch
 // handler; `handle` names the shape and is where `scheduled` and friends will hang.
-import type { App } from "../app.ts"
-import type { BindingsOf, Env } from "../types.ts"
+import type { App, BindingsOf, Env } from "composurejs"
 
 /** The part of Workers' `ExecutionContext` the Adapter uses. */
 export interface ExecutionContext {

@@ -1,3 +1,4 @@
+// The same file is in adapter-node and adapter-bun; change both.
 /** Default time Background Work gets to finish on shutdown (ADR 0007). */
 export const SHUTDOWN_GRACE_MS = 30_000
 

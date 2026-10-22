@@ -11,7 +11,7 @@ One inbound request from Discord (ping, command invocation, component click, aut
 _Avoid_: Event, request (when meaning the Discord payload)
 
 **Adapter**:
-The platform integration (`composurejs/cloudflare`, `/node`, `/bun`, ...) that turns a platform call into `app.fetch(request, env, platform)`: it supplies the env, a way to run Background Work, and the platform's entry point. It maps nothing itself; the pipeline is core's.
+The platform integration (`@composurejs/adapter-cloudflare`, `adapter-node`, `adapter-bun`, ...) that turns a platform call into `app.fetch(request, env, platform)`: it supplies the env, a way to run Background Work, and the platform's entry point. It maps nothing itself; the pipeline is core's.
 _Avoid_: Runtime, driver, server
 
 **Platform**:

@@ -16,6 +16,8 @@ export interface Versions {
   vite: string
   cli: string
   vitePlugin: string
+  adapterNode: string
+  adapterBun: string
 }
 
 export type Files = Record<string, string>
@@ -83,7 +85,10 @@ function packageJson(template: Template, name: string, v: Versions) {
   }
   if (template === "cloudflare") Object.assign(devDependencies, { "@cloudflare/vite-plugin": "^1.64.0", wrangler: "^4.151.3" })
   else devDependencies["@types/node"] = "^26.6.5"
-  return { name, private: true, type: "module", scripts, dependencies: { composurejs: v.composurejs }, devDependencies }
+  const dependencies: Record<string, string> = { composurejs: v.composurejs }
+  if (template === "node") dependencies["@composurejs/adapter-node"] = v.adapterNode
+  if (template === "bun") dependencies["@composurejs/adapter-bun"] = v.adapterBun
+  return { name, private: true, type: "module", scripts, dependencies, devDependencies }
 }
 
 function viteConfig(template: Template): string {
@@ -127,7 +132,7 @@ export default app
       }
     case "node":
       return {
-        "src/node.ts": `import { serve } from "composurejs/node"
+        "src/node.ts": `import { serve } from "@composurejs/adapter-node"
 import { app } from "./app.tsx"
 
 const server = await serve(app)
@@ -137,7 +142,7 @@ console.info({ msg: "Listening", url: server.url })
     case "bun":
       return {
         "src/bun.ts": `// \`bun dist/index.js\`: Bun serves the default export.
-import { handle } from "composurejs/bun"
+import { handle } from "@composurejs/adapter-bun"
 import { app } from "./app.tsx"
 
 export default handle(app, { port: Number(process.env.PORT ?? 3000) })

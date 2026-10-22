@@ -87,11 +87,11 @@ export default app // Workers: reads DISCORD_PUBLIC_KEY from env
 
 ```ts
 // Node
-import { serve } from "composurejs/node"
+import { serve } from "@composurejs/adapter-node"
 await serve(app, { port: 3000 })
 
 // Bun
-import { handle } from "composurejs/bun"
+import { handle } from "@composurejs/adapter-bun"
 export default handle(app)
 ```
 

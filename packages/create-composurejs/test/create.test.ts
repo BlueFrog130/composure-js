@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { type Env, main } from "../src/create.ts"
 import { generate, type Template } from "../src/templates.ts"
 
-const VERSIONS = { composurejs: "^1.2.3", cli: "^1.0.0", vitePlugin: "^1.1.0", vite: "^8.3.5" }
+const VERSIONS = { composurejs: "^1.2.3", cli: "^1.0.0", vitePlugin: "^1.1.0", adapterNode: "^1.0.1", adapterBun: "^1.0.2", vite: "^8.3.5" }
 const tmp = fileURLToPath(new URL("./.tmp/", import.meta.url))
 
 function env(overrides: Partial<Env> = {}) {
@@ -47,7 +47,10 @@ describe("generate", () => {
     expect(JSON.parse(cf["wrangler.jsonc"]!)).toMatchObject({ name: "cf-bot", main: "src/worker.ts" })
     expect(JSON.parse(cf["package.json"]!).scripts.deploy).toBe("vite build && wrangler deploy")
     expect(JSON.parse(generate("node", "n", VERSIONS)["package.json"]!).scripts.start).toBe("node --env-file-if-exists=.env dist/index.js")
-    expect(generate("bun", "b", VERSIONS)["src/bun.ts"]).toContain(`import { handle } from "composurejs/bun"`)
+    expect(generate("bun", "b", VERSIONS)["src/bun.ts"]).toContain(`import { handle } from "@composurejs/adapter-bun"`)
+    expect(JSON.parse(generate("node", "n", VERSIONS)["package.json"]!).dependencies).toMatchObject({ "@composurejs/adapter-node": "^1.0.1" })
+    expect(JSON.parse(generate("bun", "b", VERSIONS)["package.json"]!).dependencies).toMatchObject({ "@composurejs/adapter-bun": "^1.0.2" })
+    expect(JSON.parse(cf["package.json"]!).dependencies).toEqual({ composurejs: "^1.2.3" })
   })
 })
 

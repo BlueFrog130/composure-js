@@ -2,11 +2,8 @@
 // shutdown, GET /health.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import type { App } from "../app.ts"
-import { MAX_BODY_BYTES } from "../pipeline.ts"
-import type { BindingsOf, Env } from "../types.ts"
+import { type App, type BindingsOf, createTracker, type Env, MAX_BODY_BYTES, type Tracker } from "composurejs"
 import { onShutdown, SHUTDOWN_GRACE_MS } from "./shutdown.ts"
-import { createTracker, type Tracker } from "./tracker.ts"
 
 export interface ServeOptions<E extends Env> {
   /** Default `PORT` from the environment, else 3000; 0 picks a free port. */
@@ -96,4 +93,3 @@ export async function send(res: ServerResponse, response: Response): Promise<voi
   res.writeHead(response.status, headers)
   res.end(Buffer.from(await response.arrayBuffer()))
 }
-export { createTracker, type Tracker } from "./tracker.ts"

@@ -16,6 +16,8 @@
     "coldstart": "node scripts/coldstart.mjs"
   },
   "dependencies": {
+    "@composurejs/adapter-bun": "workspace:*",
+    "@composurejs/adapter-node": "workspace:*",
     "composurejs": "workspace:*"
   },
   "devDependencies": {
