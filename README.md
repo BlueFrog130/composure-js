@@ -12,8 +12,11 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 > - Component and Modal Handlers, with modal values typed by Fields
 > - nested Apps
 > - the Cloudflare, Node and Bun Adapters
+> - `c.defer` / `c.deferUpdate`
+> - REST Endpoints (Tier 1, typed from Discord's OpenAPI spec)
+> - Webhook Events
 >
-> Next: defer, REST, Webhook Events, Sync, and the Vite dev loop and build targets.
+> Next: Sync, and the Vite dev loop and build targets.
 
 ```tsx
 import { App, Button, command, Container, p, Row, Text, view } from "composurejs"
@@ -30,6 +33,17 @@ export const Card = view("card", {
   ),
 })
 // The click re-renders the message from new Props; its custom_id is "card:like:<title>:<likes>".
+
+// Deferred work and REST (Endpoints are functions, so a bundle keeps only those it calls):
+import { createMessage } from "composurejs/rest"
+const report = command({
+  name: "report",
+  description: "Slow report",
+  handler: (c) => c.defer(async () => {
+    await createMessage(c.bot, LOG_CHANNEL, `Report requested by ${c.user.username}`)
+    return <Text>Done</Text>
+  }),
+})
 const app = new App().command(command({ name: "card", description: "A card", handler: () => <Card title="Hi" likes={0} /> })).view(Card)
 ```
 

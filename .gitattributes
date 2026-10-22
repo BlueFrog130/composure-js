@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Vendored and generated: refreshed by packages/composurejs/scripts/update-spec.mjs
+packages/composurejs/spec/openapi.json linguist-vendored -diff
+packages/composurejs/src/rest/schema.d.ts linguist-generated -diff

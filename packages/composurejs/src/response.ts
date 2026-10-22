@@ -8,6 +8,7 @@ import { render } from "./jsx/render.ts"
 const EPHEMERAL = Symbol.for("composurejs.ephemeral")
 const UPDATE = Symbol.for("composurejs.update")
 const RERENDER = Symbol("composurejs.rerender")
+const DEFER = Symbol.for("composurejs.defer")
 
 /** An Output only the invoking user sees. */
 export interface EphemeralOutput {
@@ -19,8 +20,35 @@ export interface UpdateOutput {
   readonly [UPDATE]: Output
 }
 
+/** Work finished after answering (ADR 0007): `c.defer(..)` and `c.deferUpdate(..)`. */
+export interface Deferred {
+  /** `message`: a loading reply (type 5), then the result edits it. `update`: acknowledge a component (type 6), then edit its message. */
+  readonly kind: "message" | "update"
+  /** Decided when deferring, because Discord fixes it then. */
+  readonly ephemeral: boolean
+  run(): Promise<Output>
+}
+
+/** An Output answering now and finishing as Background Work. */
+export interface DeferredOutput {
+  readonly [DEFER]: Deferred
+}
+
 /** What a handler may return to answer an Interaction. */
-export type Output = string | JSX.Element | EphemeralOutput | UpdateOutput | InteractionResponse
+export type Output = string | JSX.Element | EphemeralOutput | UpdateOutput | DeferredOutput | InteractionResponse
+
+export function deferredOutput(deferred: Deferred): DeferredOutput {
+  return { [DEFER]: deferred }
+}
+
+export function isDeferred(value: unknown): value is DeferredOutput {
+  return typeof value === "object" && value !== null && DEFER in value
+}
+
+/** Splits `Ephemeral(x)` into `x` and whether it was wrapped. */
+export function unwrapEphemeral(output: Output): [Output, boolean] {
+  return has(output, EPHEMERAL) ? [output[EPHEMERAL], true] : [output, false]
+}
 
 /** Answers with `output`, visible only to the invoking user. */
 export function Ephemeral(output: Output): EphemeralOutput {
@@ -45,6 +73,8 @@ export interface Answer {
   files: Upload[]
   /** Views whose Inline Handlers the answer places. */
   handlerPrefixes?: string[]
+  /** Work to run after answering, for deferred answers. */
+  deferred?: Deferred
 }
 
 /** Turns an Output into the JSON Discord expects for an Interaction of `interactionType`, rendering and validating Views. */
@@ -55,11 +85,27 @@ export async function toAnswer(output: Output | undefined | void, interactionTyp
   }
   if (output instanceof Promise) return toAnswer(await output, interactionType)
   if (has(output, EPHEMERAL)) {
+    const inner = output[EPHEMERAL]
+    if (isDeferred(inner)) {
+      if (inner[DEFER].kind === "update") throw new ResponseError("deferUpdate edits the component's message, which cannot become ephemeral")
+      return toAnswer(deferredOutput({ ...inner[DEFER], ephemeral: true }), interactionType)
+    }
     const answer = await toAnswer(output[EPHEMERAL], interactionType)
     const { response } = answer
     if (response.type !== ResponseType.ChannelMessageWithSource) throw new ResponseError("Ephemeral only applies to new messages, not to Update, modals or deferrals")
     const data = response.data ?? {}
     return { ...answer, response: { ...response, data: { ...data, flags: (data.flags ?? 0) | MessageFlags.Ephemeral } } }
+  }
+  if (isDeferred(output)) {
+    const deferred = output[DEFER]
+    if (deferred.kind === "update") {
+      if (interactionType !== InteractionType.MessageComponent && interactionType !== InteractionType.ModalSubmit) {
+        throw new ResponseError("deferUpdate only answers component clicks and modal submits")
+      }
+      return { response: { type: ResponseType.DeferredMessageUpdate }, files: [], deferred }
+    }
+    const data = deferred.ephemeral ? { data: { flags: MessageFlags.Ephemeral } } : {}
+    return { response: { type: ResponseType.DeferredChannelMessageWithSource, ...data }, files: [], deferred }
   }
   if (has(output, RERENDER)) {
     const answer = await toAnswer(output[RERENDER], interactionType)

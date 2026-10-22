@@ -5,7 +5,7 @@ import type { Transport } from "../transport.ts"
 import type { BindingsOf, DataOf, Env, Platform } from "../types.ts"
 import { type Buildable, component, type ComponentBuilder, modalSubmit, type ModalSubmitBuilder, type SubmittedValue } from "./builders.ts"
 import { TestKey } from "./key.ts"
-import { MockTransport, type RecordedFile } from "./transport.ts"
+import { MockTransport, type RecordedFile, type RecordedRequest } from "./transport.ts"
 
 /** Background Work held until the test runs it. */
 export class TestPlatform implements Required<Platform> {
@@ -48,16 +48,18 @@ export async function answer<E extends Env>(
   const request = await key.request(JSON.stringify(payload))
   const data = "data" in options ? (options.data as DataOf<E>) : await internals(app).loadData(env)
   const mock = options.transport instanceof MockTransport ? options.transport : options.transport ? undefined : new MockTransport()
+  const platform = options.platform ?? new TestPlatform()
   const response = await handleInteraction(app, request, {
-    credentials: { publicKey: key.publicKey },
+    credentials: { publicKey: key.publicKey, token: "test-bot-token" },
     env,
     data,
-    platform: options.platform ?? new TestPlatform(),
+    platform,
     transport: mock?.fetch ?? (options.transport as Transport),
   })
   // A 202 means the answer went through the callback endpoint (it carried files).
   const callback = response.status === 202 ? mock?.requests.findLast((r) => r.path.endsWith("/callback")) : undefined
-  return callback ? TestResponse.of(202, callback.json as InteractionResponse, callback.files, payload) : TestResponse.from(response, payload)
+  const res = callback ? TestResponse.of(202, callback.json as InteractionResponse, callback.files, payload) : await TestResponse.from(response, payload)
+  return res.withRuntime(mock, platform)
 }
 
 type Json = Record<string, unknown>
@@ -78,6 +80,28 @@ export class TestResponse {
     const text = await response.text()
     const isJson = response.headers.get("content-type")?.includes("application/json")
     return new TestResponse(response.status, isJson && text ? (JSON.parse(text) as InteractionResponse) : undefined, [], interaction)
+  }
+
+  #transport: MockTransport | undefined
+  #platform: Platform | undefined
+
+  /** @internal */
+  withRuntime(transport: MockTransport | undefined, platform: Platform): this {
+    this.#transport = transport
+    this.#platform = platform
+    return this
+  }
+
+  /** The MockTransport the App sent REST requests through (unless the test passed its own Transport). */
+  get transport(): MockTransport {
+    if (!this.#transport) throw new Error("This answer used the Transport the test passed in")
+    return this.#transport
+  }
+
+  /** Runs the Background Work (deferred edits, follow-ups) and returns every REST request sent so far. */
+  async settle(): Promise<RecordedRequest[]> {
+    if (this.#platform instanceof TestPlatform) await this.#platform.runBackground()
+    return this.transport.requests
   }
 
   static of(status: number, body: InteractionResponse | undefined, files: RecordedFile[] = [], interaction?: Interaction): TestResponse {
@@ -166,4 +190,38 @@ export class TestResponse {
   component(customId: string): Json | undefined {
     return this.allComponents.find((c) => c.custom_id === customId)
   }
+}
+
+/** A Webhook Event body as Discord sends it (`type` 1), or its PING (`webhookPing()`). */
+export function webhookEvent(type: string, data: unknown, timestamp = new Date().toISOString()): Record<string, unknown> {
+  return { version: 1, application_id: "1052322265397739523", type: 1, event: { type, timestamp, data } }
+}
+
+export function webhookPing(): Record<string, unknown> {
+  return { version: 1, application_id: "1052322265397739523", type: 0 }
+}
+
+export interface EventResult {
+  status: number
+  /** REST requests the Event Handler made. */
+  requests: RecordedRequest[]
+}
+
+/** Delivers a signed Webhook Event to the App's events path and runs its handler. */
+export async function sendEvent<E extends Env>(app: App<E>, body: unknown, options: AnswerOptions<E> & { path?: string } = {}): Promise<EventResult> {
+  const key = await (sharedKey ??= TestKey.generate())
+  const env = (options.env ?? {}) as BindingsOf<E>
+  const request = await key.request(JSON.stringify(body), { url: `https://bot.test${options.path ?? "/events"}` })
+  const data = "data" in options ? (options.data as DataOf<E>) : await internals(app).loadData(env)
+  const mock = options.transport instanceof MockTransport ? options.transport : new MockTransport()
+  const platform = options.platform ?? new TestPlatform()
+  const response = await handleInteraction(app, request, {
+    credentials: { publicKey: key.publicKey, token: "test-bot-token" },
+    env,
+    data,
+    platform,
+    transport: mock.fetch,
+  })
+  if (platform instanceof TestPlatform) await platform.runBackground()
+  return { status: response.status, requests: mock.requests }
 }

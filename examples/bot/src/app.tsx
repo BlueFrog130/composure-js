@@ -145,4 +145,27 @@ export const feedbackCommand = command({ name: "feedback", description: "Tell us
 const basics = new App().command(ping).command(hello).command(cookie).command(highFive)
 const interactive = new App().command(poll).component(vote).command(feedbackCommand).modal(feedback)
 
-export const app = new App().route(basics).route(server).route(interactive)
+/** Deferred: answers at once with a loading state, then edits in the result (up to ~30s on Workers). */
+export const report = command({
+  name: "report",
+  description: "Build a slow report",
+  handler: (c) =>
+    c.defer(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return (
+        <Container accentColor={BRAND}>
+          <Text>### Report for {c.user.username}</Text>
+          <Text>-# generated in the background</Text>
+        </Container>
+      )
+    }),
+})
+
+export const app = new App()
+  .route(basics)
+  .route(server)
+  .route(interactive)
+  .command(report)
+  .events((_c, event) => {
+    console.info({ msg: "Webhook Event", type: event.type })
+  })

@@ -29,6 +29,11 @@
       "types": "./dist/components.d.ts",
       "default": "./dist/components.js"
     },
+    "./rest": {
+      "@composurejs/source": "./src/rest/index.ts",
+      "types": "./dist/rest/index.d.ts",
+      "default": "./dist/rest/index.js"
+    },
     "./testing": {
       "@composurejs/source": "./src/testing/index.ts",
       "types": "./dist/testing/index.d.ts",

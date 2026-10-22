@@ -95,7 +95,7 @@ describe("files", () => {
     const res = await answer(app(logger), invoke("export"), { transport })
     expect(res.status).toBe(200)
     expect([res.text, res.isEphemeral]).toEqual(["Something went wrong.", true])
-    expect(entries[0]).toMatchObject({ level: "error", msg: "Sending a response with files failed", status: 400, route: "POST /interactions/{id}/{token}/callback" })
+    expect(entries.find((e) => e.level === "error")).toMatchObject({ level: "error", msg: "Answering through the callback endpoint failed", status: 400, route: "POST /interactions/{interaction_id}/{interaction_token}/callback" })
     expect(JSON.stringify(entries)).not.toContain("test-interaction-token")
   })
 })

@@ -101,6 +101,8 @@ export const regressionApp = new App({ transport: async () => new Response(null,
     }),
   )
   .component(vote)
+  .command(command({ name: "slow", description: "Deferred", handler: (c) => c.defer(async () => "done") }))
+  .events(() => {})
   .view(Counter)
   .modal(feedback)
   .command(userCommand({ name: "High five", handler: (_c, target) => `high five ${target.displayName}` }))
@@ -151,6 +153,8 @@ export type Signing = "valid" | "tampered" | "missing" | "stale"
 export interface Case {
   name: string
   body: string
+  /** Default /interactions. */
+  path?: string
   signing?: Signing
   method?: string
   status: number
@@ -177,6 +181,10 @@ export const cases: Case[] = [
     },
   },
   { name: "ephemeral", body: json(slash("secret")), status: 200, response: message("shh", EPHEMERAL) },
+  { name: "deferred", body: json(slash("slow")), status: 200, response: { type: 5 } },
+  { name: "webhook event PING", path: "/events", body: json({ version: 1, application_id: APP, type: 0 }), status: 204 },
+  { name: "webhook event", path: "/events", body: json({ version: 1, application_id: APP, type: 1, event: { type: "BRAND_NEW_EVENT", timestamp: "2026-01-01T00:00:00Z", data: {} } }), status: 204 },
+  { name: "webhook event, tampered", path: "/events", signing: "tampered", body: json({ version: 1, application_id: APP, type: 0 }), status: 401 },
   { name: "View with a file, via the callback endpoint", body: json(slash("export")), status: 202 },
   {
     name: "modal",
@@ -348,7 +356,8 @@ export const cases: Case[] = [
 ]
 
 /** The signed request for `kase`, at `url`. */
-export async function requestFor(kase: Case, url = "https://bot.test/interactions"): Promise<Request> {
+export async function requestFor(kase: Case, base = "https://bot.test"): Promise<Request> {
+  const url = base + (kase.path ?? "/interactions")
   const method = kase.method ?? "POST"
   const signing = kase.signing ?? "valid"
   const headers: Record<string, string> = { "content-type": "application/json" }
@@ -356,6 +365,7 @@ export async function requestFor(kase: Case, url = "https://bot.test/interaction
     const timestamp = signing === "stale" ? String(Math.floor(Date.now() / 1000) - 3600) : undefined
     Object.assign(headers, await key.sign(kase.body, timestamp))
   }
-  const body = signing === "tampered" ? kase.body.replace("ping", "pong") : kase.body
+  // Any change to the signed bytes must fail, even one that keeps the JSON valid.
+  const body = signing === "tampered" ? `${kase.body} ` : kase.body
   return new Request(url, { method, headers, ...(method !== "GET" && { body }) })
 }

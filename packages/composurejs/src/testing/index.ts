@@ -1,4 +1,4 @@
-export { answer, type AnswerOptions, TestPlatform, TestResponse } from "./answer.ts"
+export { answer, type AnswerOptions, type EventResult, sendEvent, TestPlatform, TestResponse, webhookEvent, webhookPing } from "./answer.ts"
 export {
   autocomplete,
   type AutocompleteBuilder,

@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest"
-import { answer, autocomplete, command, userCommand } from "composurejs/testing"
+import { answer, autocomplete, command, sendEvent, userCommand, webhookEvent } from "composurejs/testing"
 import { app } from "../src/app.tsx"
 
 test("the App tree is valid", () => {
@@ -58,4 +58,18 @@ test("/feedback opens a modal whose submit is typed by its fields", async () => 
 
 test("High five is a user context menu Command", async () => {
   expect((await answer(app, userCommand("High five").target({ id: "2", username: "bob", global_name: "Bob" }))).text).toBe("alice high-fives Bob 🙏")
+})
+
+test("/report defers, then edits the original with the View", async () => {
+  const res = await answer(app, command("report"))
+  expect(res.body).toEqual({ type: 5 })
+  const [edit] = await res.settle()
+  expect(edit).toMatchObject({ method: "PATCH", json: { components: [{ type: 17, components: [{ content: "### Report for alice" }, { content: "-# generated in the background" }] }] } })
+})
+
+test("Webhook Events are ACKed and logged", async () => {
+  const info = vi.spyOn(console, "info").mockImplementation(() => {})
+  const res = await sendEvent(app, webhookEvent("SOMETHING_NEW", {}))
+  expect(res.status).toBe(204)
+  expect(info).toHaveBeenCalledWith({ msg: "Webhook Event", type: "unknown" })
 })

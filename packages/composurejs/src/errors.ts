@@ -31,6 +31,35 @@ export class RenderError extends Error {
   override name = "RenderError"
 }
 
+/** Discord answered a REST request with an error. `route` is the template, never the URL (it can hold a token). */
+export class DiscordApiError extends Error {
+  override name = "DiscordApiError"
+  constructor(
+    readonly status: number,
+    /** Discord's JSON error code (10008 Unknown Message, 50013 Missing Permissions, ...), if any. */
+    readonly code: number | undefined,
+    readonly route: string,
+    /** Per-field validation errors, as Discord sends them. */
+    readonly errors: unknown,
+    message: string,
+  ) {
+    super(`${route}: ${status}${code !== undefined ? ` (${code})` : ""} ${message}`)
+  }
+}
+
+/** A 429 asked to wait longer than the client's cap (ADR 0006). */
+export class RateLimitedError extends Error {
+  override name = "RateLimitedError"
+  constructor(
+    readonly route: string,
+    /** Seconds Discord asked to wait. */
+    readonly retryAfter: number,
+    readonly global: boolean,
+  ) {
+    super(`${route}: rate limited for ${retryAfter}s${global ? " (global)" : ""}`)
+  }
+}
+
 /** A handler returned something that cannot answer an Interaction. */
 export class ResponseError extends Error {
   override name = "ResponseError"

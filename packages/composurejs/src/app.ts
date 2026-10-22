@@ -2,6 +2,7 @@ import type { AnyCommand } from "./command.ts"
 import type { Context } from "./context.ts"
 import { type Credentials, credentialsFromEnv } from "./credentials.ts"
 import { AppConfigError } from "./errors.ts"
+import type { EventHandler } from "./events.ts"
 import type { ComponentHandler, ComponentRoute, ModalHandler, View } from "./handlers.ts"
 import { consoleLogger, type Logger, serializeError } from "./log.ts"
 import type { Middleware } from "./middleware.ts"
@@ -20,6 +21,10 @@ export interface AppOptions<E extends Env> {
   maxSignatureAge?: number
   /** Sends REST requests (ADR 0006). Default `fetch`; tests inject a MockTransport. */
   transport?: Transport
+  /** Longest 429 wait at runtime, in ms, before throwing. Default 2000. */
+  maxRateLimitWait?: number
+  /** Path Webhook Events arrive at. Default `/events`. */
+  eventsPath?: string
 }
 
 /** Renders what the user sees when a handler throws. At most one per App tree. */
@@ -46,6 +51,9 @@ export interface Built<E extends Env = Env> {
   logger: Logger
   maxSignatureAge: number
   transport: Transport
+  maxRateLimitWait: number
+  events: EventHandler<E> | undefined
+  eventsPath: string
 }
 
 interface Resolved<E extends Env> {
@@ -64,6 +72,7 @@ export class App<E extends Env = Env> {
   readonly #routes: Route<E>[] = []
   readonly #middleware: Middleware<E>[] = []
   #onError: ErrorRenderer<E> | undefined
+  #events: EventHandler<E> | undefined
   #built: Built<E> | undefined
   #resolved: Promise<Resolved<E>> | undefined
 
@@ -111,6 +120,14 @@ export class App<E extends Env = Env> {
   onError(renderer: ErrorRenderer<E>): this {
     if (this.#onError) throw new AppConfigError("onError is already set on this App")
     this.#onError = renderer
+    this.#built = undefined
+    return this
+  }
+
+  /** Answers Webhook Events (ACKed at once, handled as Background Work). At most one App in a tree may set it. */
+  events(handler: EventHandler<E>): this {
+    if (this.#events) throw new AppConfigError("events is already set on this App")
+    this.#events = handler
     this.#built = undefined
     return this
   }
@@ -180,10 +197,14 @@ export class App<E extends Env = Env> {
       logger,
       maxSignatureAge: this.#options.maxSignatureAge ?? 300,
       transport: this.#options.transport ?? fetchTransport,
+      maxRateLimitWait: this.#options.maxRateLimitWait ?? 2000,
+      events: undefined,
+      eventsPath: this.#options.eventsPath ?? "/events",
     }
     const seen = new Map<string, string>()
     const prefixes = new Map<string, string>()
     let onErrorAt: string | undefined
+    let eventsAt: string | undefined
 
     const visit = (app: App<E>, path: string, stack: Set<App<E>>, outer: Middleware<E>[]) => {
       if (stack.has(app)) throw new AppConfigError(`${path}: Apps route to each other in a cycle`)
@@ -196,6 +217,12 @@ export class App<E extends Env = Env> {
         if (onErrorAt) throw new AppConfigError(`onError is set twice in one App tree: at ${onErrorAt} and at ${path}`)
         onErrorAt = path
         built.onError = app.#onError
+      }
+      if (app.#events) {
+        // A bot has one events URL (composure-rs ADR 0013).
+        if (eventsAt) throw new AppConfigError(`events is set twice in one App tree: at ${eventsAt} and at ${path}`)
+        eventsAt = path
+        built.events = app.#events
       }
       app.#routes.forEach((route, index) => {
         const at = `${path}.route[${index}]`

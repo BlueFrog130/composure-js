@@ -13,13 +13,17 @@ import { Context } from "./context.ts"
 import type { Credentials } from "./credentials.ts"
 import { type Interaction, type InteractionResponse, InteractionType, ResponseType } from "./discord.ts"
 import { FAIL, prefixOf } from "./codec.ts"
-import { InvalidOptionsError, RenderError, UnknownCommandError, UserError } from "./errors.ts"
+import { DiscordApiError, InvalidOptionsError, RenderError, ResponseError, UnknownCommandError, UserError } from "./errors.ts"
+import { decodeEvent, EventContext } from "./events.ts"
 import { dispatchComponent, isViewNode } from "./handlers.ts"
 import { serializeError } from "./log.ts"
 import { runChain } from "./middleware.ts"
 import { OptionType, resolveOptions, resolveUser } from "./options.ts"
-import { type Answer, Ephemeral, type Output, rerendered, toAnswer } from "./response.ts"
-import { DISCORD_API, multipart, type Transport } from "./transport.ts"
+import { type Answer, type Deferred, Ephemeral, isDeferred, type Output, rerendered, toAnswer, unwrapEphemeral } from "./response.ts"
+import type { RestOptions } from "./rest/client.ts"
+import { InteractionClient } from "./rest/interaction.ts"
+import { toMessageBody } from "./rest/message.ts"
+import type { Transport } from "./transport.ts"
 import type { BindingsOf, DataOf, Env, Platform } from "./types.ts"
 import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verifySignature } from "./verify.ts"
 
@@ -41,60 +45,116 @@ export interface HandleOptions<E extends Env> {
 }
 
 /**
- * Answers one HTTP request carrying an Interaction, with Credentials and Bot Data already
- * loaded. `app.fetch` loads them and calls this; use it for custom routing.
+ * Answers one HTTP request carrying an Interaction (or, at the events path, a Webhook Event),
+ * with Credentials and Bot Data already loaded. `app.fetch` loads them and calls this; use it
+ * for custom routing.
  */
 export async function handleInteraction<E extends Env>(app: App<E>, request: Request, options: HandleOptions<E>): Promise<Response> {
   const built = internals(app).build()
+  if (new URL(request.url).pathname === built.eventsPath) return handleEvent(app, request, options)
+  const read = await readSigned(built, request, options.credentials)
+  if (read instanceof Response) return read
+  const interaction = read
+  if (!isInteraction(interaction)) return notAnInteraction()
+
+  const rest: RestOptions = { transport: options.transport ?? built.transport, logger: built.logger, maxRateLimitWait: built.maxRateLimitWait }
+  const { answer, c } = await answerInteraction(built, interaction, options, rest)
+  const client = () => c?.client ?? new InteractionClient(interaction.application_id, interaction.id, interaction.token, rest)
+
+  if (answer.files.length > 0) return sendThroughCallback(built, interaction, answer, client())
+  if (answer.deferred && c) {
+    const work = runDeferred(built, c, answer.deferred)
+    if (options.platform?.waitUntil) {
+      options.platform.waitUntil(work)
+      return Response.json(answer.response)
+    }
+    // No waitUntil (AWS Lambda, an untracked server): answer through the callback endpoint,
+    // finish the work, then answer the HTTP request with 202 (ADR 0007).
+    const sent = await sendThroughCallback(built, interaction, answer, client())
+    if (sent.status === 202) await work
+    return sent
+  }
+  return Response.json(answer.response)
+}
+
+/** Verifies and parses a signed request; a Response when it must be rejected. */
+async function readSigned<E extends Env>(built: Built<E>, request: Request, credentials: Credentials): Promise<unknown> {
   if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: { Allow: "POST" } })
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return tooLarge()
   const body = new Uint8Array(await request.arrayBuffer())
   if (body.byteLength > MAX_BODY_BYTES) return tooLarge()
-
-  const verified = await verifySignature(
-    options.credentials.publicKey,
-    request.headers.get(SIGNATURE_HEADER),
-    request.headers.get(TIMESTAMP_HEADER),
-    body,
-    { maxAge: built.maxSignatureAge },
-  )
+  const verified = await verifySignature(credentials.publicKey, request.headers.get(SIGNATURE_HEADER), request.headers.get(TIMESTAMP_HEADER), body, {
+    maxAge: built.maxSignatureAge,
+  })
   if (!verified) return new Response("Invalid request signature", { status: 401 })
-
-  let interaction: unknown
   try {
-    interaction = JSON.parse(new TextDecoder().decode(body))
+    return JSON.parse(new TextDecoder().decode(body)) as unknown
   } catch {
     return notAnInteraction()
   }
-  if (!isInteraction(interaction)) return notAnInteraction()
-
-  const answer = await answerInteraction(built, interaction, options)
-  if (answer.files.length > 0) return sendWithFiles(built, interaction, answer, options.transport ?? built.transport)
-  return Response.json(answer.response)
 }
 
 /**
- * Files cannot ride on the HTTP response: send the answer as multipart through the callback
- * endpoint, then answer the request with 202. If Discord rejects it, the Interaction is still
- * unanswered, so the HTTP response carries the generic error instead.
+ * Answers a Webhook Event request: 204 at once, the App's Event Handler as Background Work.
+ * Without a platform waitUntil the handler runs before the 204, within Discord's 3 seconds.
  */
-async function sendWithFiles<E extends Env>(built: Built<E>, interaction: Interaction, answer: Answer, transport: Transport): Promise<Response> {
-  const url = `${DISCORD_API}/interactions/${interaction.id}/${interaction.token}/callback`
-  let failure: Record<string, unknown> | undefined
-  try {
-    const res = await transport(new Request(url, { method: "POST", body: multipart(answer.response as { data?: object }, answer.files) }))
-    if (res.ok) return new Response(null, { status: 202 })
-    failure = { status: res.status, body: (await res.text()).slice(0, 2000) }
-  } catch (error) {
-    failure = { error: serializeError(error) }
-  }
-  // Log the route template, never the URL: it holds the Interaction token.
-  built.logger.error({ msg: "Sending a response with files failed", route: "POST /interactions/{id}/{token}/callback", interactionId: interaction.id, ...failure })
-  return Response.json((await toAnswer(Ephemeral(GENERIC_ERROR_MESSAGE), interaction.type)).response)
+export async function handleEvent<E extends Env>(app: App<E>, request: Request, options: HandleOptions<E>): Promise<Response> {
+  const built = internals(app).build()
+  const body = await readSigned(built, request, options.credentials)
+  if (body instanceof Response) return body
+  if (typeof body !== "object" || body === null || typeof (body as { type?: unknown }).type !== "number") return new Response("Not a webhook event", { status: 400 })
+  const { type, event } = body as { type: number; event?: unknown }
+  const ack = new Response(null, { status: 204 })
+  // 0 is Discord's PING; types this version does not know are ACKed and ignored.
+  if (type !== 1 || !built.events) return ack
+
+  const decoded = decodeEvent(event)
+  const c = new EventContext<E>({
+    env: options.env,
+    data: options.data,
+    platform: options.platform,
+    logger: built.logger,
+    credentials: options.credentials,
+    rest: { transport: options.transport ?? built.transport, logger: built.logger, maxRateLimitWait: built.maxRateLimitWait },
+  })
+  const handler = built.events
+  const work = (async () => {
+    try {
+      await handler(c, decoded)
+    } catch (error) {
+      // Only logged: the event is already ACKed.
+      built.logger.error({ msg: "Event Handler failed", event: decoded.type, error: serializeError(error) })
+    }
+  })()
+  if (options.platform?.waitUntil) options.platform.waitUntil(work)
+  else await work
+  return ack
 }
 
-async function answerInteraction<E extends Env>(built: Built<E>, interaction: Interaction, options: HandleOptions<E>): Promise<Answer> {
-  if (interaction.type === InteractionType.Ping) return { response: { type: ResponseType.Pong }, files: [] }
+/**
+ * Answers through the callback endpoint (multipart when there are files), then answers the
+ * HTTP request with 202. If Discord rejects it, the Interaction is still unanswered, so the
+ * HTTP response carries the generic error instead.
+ */
+async function sendThroughCallback<E extends Env>(built: Built<E>, interaction: Interaction, answer: Answer, client: InteractionClient): Promise<Response> {
+  try {
+    await client.callback(answer.response, answer.files)
+    return new Response(null, { status: 202 })
+  } catch (error) {
+    // DiscordApiError names the route template, never the URL: it holds the Interaction token.
+    const detail = error instanceof DiscordApiError ? { status: error.status, code: error.code, route: error.route } : { error: serializeError(error) }
+    built.logger.error({ msg: "Answering through the callback endpoint failed", interactionId: interaction.id, ...detail })
+    return Response.json((await toAnswer(Ephemeral(GENERIC_ERROR_MESSAGE), interaction.type)).response)
+  }
+}
+
+async function answerInteraction<E extends Env>(
+  built: Built<E>,
+  interaction: Interaction,
+  options: HandleOptions<E>,
+  rest: RestOptions,
+): Promise<{ answer: Answer; c?: Context<E> }> {
+  if (interaction.type === InteractionType.Ping) return { answer: { response: { type: ResponseType.Pong }, files: [] } }
 
   const c = new Context<E>({
     interaction,
@@ -102,20 +162,53 @@ async function answerInteraction<E extends Env>(built: Built<E>, interaction: In
     data: options.data,
     platform: options.platform,
     logger: built.logger,
+    credentials: options.credentials,
+    rest,
   })
   try {
     const answer = await toAnswer(await dispatch(built, c), interaction.type)
-    for (const prefix of answer.handlerPrefixes ?? []) {
-      if (!built.handlers.has(prefix)) throw new RenderError(`View "${prefix}" places Inline Handlers but is not listed in the App; add app.view(..) for it`)
-    }
-    return answer
+    checkListed(built, answer.handlerPrefixes)
+    return { answer, c }
   } catch (error) {
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
       // A message is no answer to autocomplete; the user sees no suggestions.
       built.logger.error({ msg: "Autocomplete failed", interactionId: interaction.id, command: interaction.data.name, error: serializeError(error) })
-      return { response: NO_CHOICES, files: [] }
+      return { answer: { response: NO_CHOICES, files: [] }, c }
     }
-    return renderError(built, error, c)
+    return { answer: await renderError(built, error, c), c }
+  }
+}
+
+function checkListed<E extends Env>(built: Built<E>, prefixes: readonly string[] | undefined): void {
+  for (const prefix of prefixes ?? []) {
+    if (!built.handlers.has(prefix)) throw new RenderError(`View "${prefix}" places Inline Handlers but is not listed in the App; add app.view(..) for it`)
+  }
+}
+
+/**
+ * Background Work of a Deferred Response: run the work, then edit the original (the deferred
+ * reply, or the component's message for deferUpdate). On failure the Error Renderer's output
+ * edits the original, or for deferUpdate goes out as an ephemeral follow-up, so the component's
+ * message keeps its state (composure-rs ADR 0006).
+ */
+async function runDeferred<E extends Env>(built: Built<E>, c: Context<E>, deferred: Deferred): Promise<void> {
+  try {
+    const [output, ephemeral] = unwrapEphemeral(await deferred.run())
+    if (ephemeral && !deferred.ephemeral) {
+      throw new ResponseError("Ephemerality is decided when deferring, as Discord fixes it then: c.defer(work, { ephemeral: true })")
+    }
+    if (isDeferred(output)) throw new ResponseError("Deferred work cannot defer again")
+    const body = await toMessageBody(output)
+    checkListed(built, body.handlerPrefixes)
+    await c.client.editOriginal(body)
+  } catch (error) {
+    try {
+      const [output] = unwrapEphemeral(await errorOutput(built, error, c))
+      if (deferred.kind === "update") await c.client.followup(Ephemeral(output))
+      else await c.client.editOriginal(await toMessageBody(output as never))
+    } catch (reportError) {
+      built.logger.error({ msg: "Reporting failed deferred work failed", interactionId: c.interaction.id, error: serializeError(reportError) })
+    }
   }
 }
 
@@ -229,18 +322,27 @@ async function autocomplete<E extends Env>(command: AnyCommand<E>, c: Context<E,
 
 /** The Error Renderer's output, ephemeral; logs every error except User Errors. */
 async function renderError<E extends Env>(built: Built<E>, error: unknown, c: Context<E>): Promise<Answer> {
+  const output = await errorOutput(built, error, c)
+  try {
+    return await toAnswer(Ephemeral(unwrapEphemeral(output)[0]), c.interaction.type)
+  } catch (rendererError) {
+    built.logger.error({ msg: "Error Renderer failed", interactionId: c.interaction.id, error: serializeError(rendererError) })
+    return toAnswer(Ephemeral(defaultErrorOutput(error)), c.interaction.type)
+  }
+}
+
+/** Logs `error` (User Errors at debug) and asks the Error Renderer what the user sees. */
+async function errorOutput<E extends Env>(built: Built<E>, error: unknown, c: Context<E>): Promise<Output> {
   const entry = { interactionId: c.interaction.id, type: c.interaction.type, ...routeOf(c.interaction), error: serializeError(error) }
   if (error instanceof UserError) built.logger.debug({ msg: "User Error", ...entry })
   else if (error instanceof UnknownCommandError) built.logger.warn({ msg: "Unknown Command", ...entry })
   else if (error instanceof InvalidOptionsError) built.logger.warn({ msg: "Invalid Options", ...entry })
   else built.logger.error({ msg: "Handler failed", ...entry })
-
   try {
-    const output = built.onError ? await built.onError(error, c) : defaultErrorOutput(error)
-    return await toAnswer(Ephemeral(output), c.interaction.type)
+    return built.onError ? await built.onError(error, c) : defaultErrorOutput(error)
   } catch (rendererError) {
     built.logger.error({ msg: "Error Renderer failed", interactionId: c.interaction.id, error: serializeError(rendererError) })
-    return toAnswer(Ephemeral(defaultErrorOutput(error)), c.interaction.type)
+    return defaultErrorOutput(error)
   }
 }
 

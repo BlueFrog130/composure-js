@@ -58,7 +58,7 @@ export {
   type ResolvedUser,
   type Role,
 } from "./options.ts"
-export { GENERIC_ERROR_MESSAGE, handleInteraction, type HandleOptions, MAX_BODY_BYTES, OUTDATED_MESSAGE } from "./pipeline.ts"
+export { GENERIC_ERROR_MESSAGE, handleEvent, handleInteraction, type HandleOptions, MAX_BODY_BYTES, OUTDATED_MESSAGE } from "./pipeline.ts"
 export { Ephemeral, type EphemeralOutput, type Output, Update, type UpdateOutput } from "./response.ts"
 export { LIMITS, render, type Rendered, type RenderedMessage, type RenderedModal } from "./jsx/render.ts"
 export { DISCORD_API, fetchTransport, type Transport } from "./transport.ts"
@@ -83,3 +83,7 @@ export {
   type View,
   type ViewConfig,
 } from "./handlers.ts"
+export { decodeEvent, EventContext, type EventHandler, type WebhookEvent } from "./events.ts"
+export { DiscordApiError, RateLimitedError } from "./errors.ts"
+export type { Deferred, DeferredOutput } from "./response.ts"
+export type { BotClient, InteractionClient, RestOptions } from "./rest/index.ts"

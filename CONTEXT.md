@@ -53,6 +53,10 @@ _Avoid_: Task, job, spawn
 A non-interaction notification Discord POSTs to the events path (app authorized, entitlement created, ...); ACKed with 204 at once and handled as Background Work.
 _Avoid_: Gateway event, Interaction
 
+**Event Handler**:
+The one function (`app.events((c, event) => ..)`, at most one per App tree) answering Webhook Events; `event` is a union decoded from Discord's event types, `{ type: "unknown", raw }` for anything else.
+_Avoid_: Listener, subscriber
+
 **Error Renderer**:
 The one output composurejs renders itself: what the user sees when a handler throws, both for the initial response and for failed Background Work. Set with `app.onError`, at most one per App tree.
 _Avoid_: Error handler (it renders, it does not recover), Theme
@@ -83,7 +87,7 @@ REST client authorized by the bot token; `c.bot`, available only when the Creden
 _Avoid_: HTTP client, API client
 
 **Endpoint**:
-One Discord REST route (method + path) exposed as a client method.
+One Discord REST route (method + path, as in the OpenAPI spec), exposed as a function in `composurejs/rest` taking the client first (`createMessage(c.bot, ..)`), or as an Interaction Client method.
 _Avoid_: Route (that is what an App lists)
 
 ### Commands

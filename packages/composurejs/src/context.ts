@@ -1,7 +1,11 @@
 import type { Entitlement, Interaction, Member, User } from "./discord.ts"
 import { type Logger, serializeError } from "./log.ts"
-import { Ephemeral, type EphemeralOutput, type Output } from "./response.ts"
-import type { BindingsOf, DataOf, Env, Platform, VariablesOf } from "./types.ts"
+import type { Credentials } from "./credentials.ts"
+import { CredentialsError } from "./errors.ts"
+import { deferredOutput, type DeferredOutput, Ephemeral, type EphemeralOutput, type Output } from "./response.ts"
+import { BotClient, type RestOptions } from "./rest/client.ts"
+import { InteractionClient } from "./rest/interaction.ts"
+import type { BindingsOf, DataOf, Env, MaybePromise, Platform, VariablesOf } from "./types.ts"
 
 export interface ContextInit<E extends Env, I extends Interaction> {
   interaction: I
@@ -9,6 +13,8 @@ export interface ContextInit<E extends Env, I extends Interaction> {
   data: DataOf<E>
   platform: Platform | undefined
   logger: Logger
+  credentials: Credentials
+  rest: RestOptions
 }
 
 /** The `c` every handler receives. */
@@ -22,6 +28,10 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
   readonly #platform: Platform | undefined
   readonly #logger: Logger
   readonly #vars: Record<string, unknown> = {}
+  readonly #credentials: Credentials
+  readonly #rest: RestOptions
+  #client: InteractionClient | undefined
+  #bot: BotClient | undefined
 
   constructor(init: ContextInit<E, I>) {
     this.interaction = init.interaction
@@ -29,6 +39,35 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
     this.data = init.data
     this.#platform = init.platform
     this.#logger = init.logger
+    this.#credentials = init.credentials
+    this.#rest = init.rest
+  }
+
+  /** REST authorized by this Interaction's token: follow-ups and the original response. */
+  get client(): InteractionClient {
+    const { application_id, id, token } = this.interaction
+    return (this.#client ??= new InteractionClient(application_id, id, token, this.#rest))
+  }
+
+  /** REST authorized by the bot token, for the Endpoints in `composurejs/rest`. Throws when the Credentials have none. */
+  get bot(): BotClient {
+    const { token } = this.#credentials
+    if (!token) throw new CredentialsError("c.bot needs a bot token: set DISCORD_TOKEN (or Credentials.token)")
+    return (this.#bot ??= new BotClient(token, this.#rest))
+  }
+
+  /**
+   * Answers now with a loading state (Discord allows 3 seconds), then edits in `work`'s result as
+   * Background Work, bounded by the platform (about 30s on Workers). Whether the message is
+   * ephemeral is decided here, because Discord fixes it on the deferred reply.
+   */
+  defer(work: (c: this) => MaybePromise<Output>, options: { ephemeral?: boolean } = {}): DeferredOutput {
+    return deferredOutput({ kind: "message", ephemeral: options.ephemeral ?? false, run: async () => work(this) })
+  }
+
+  /** For a component: acknowledges without changing its message, then edits that message with `work`'s result. */
+  deferUpdate(work: (c: this) => MaybePromise<Output>): DeferredOutput {
+    return deferredOutput({ kind: "update", ephemeral: false, run: async () => work(this) })
   }
 
   /** The Interaction's JSON as Discord sent it, including fields the Wire Types do not know. */
