@@ -222,6 +222,34 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  bots/composure:
+    dependencies:
+      composurejs:
+        specifier: workspace:*
+        version: link:../../packages/composurejs
+    devDependencies:
+      '@cloudflare/vite-plugin':
+        specifier: ^1.64.0
+        version: 1.64.0(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))(wrangler@4.151.3(@types/node@26.6.5))
+      '@composurejs/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@composurejs/vite':
+        specifier: workspace:*
+        version: link:../../packages/vite
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      miniflare:
+        specifier: 5.20261019.1-beta
+        version: 5.20261019.1-beta(@types/node@26.6.5)
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
+      wrangler:
+        specifier: ^4.151.3
+        version: 4.151.3(@types/node@26.6.5)
+
   docs:
     devDependencies:
       '@composurejs/vite':

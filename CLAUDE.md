@@ -17,6 +17,7 @@ pnpm size                      # builds examples/bot, then size-limit (.size-lim
 pnpm -C examples/bot coldstart # workerd cold start vs. an empty Worker (report only)
 pnpm -C docs dev               # the guide; `pnpm -C docs build` type-checks every ```ts twoslash snippet (after pnpm build)
 pnpm -C examples/bot dev       # vite dev on workerd; needs DISCORD_PUBLIC_KEY in examples/bot/.dev.vars
+pnpm vitest run --project bot  # composurejs's own bot (bots/composure); its build test needs pnpm build first
 ```
 
 The example's Vite configs import the built `@composurejs/vite` (dist), as a bot would; its Vitest config imports the plugin's source. `examples/bot/test/build.test.ts` runs the real `vite build` (the Worker, and `[composure(), server()]` through Vite's `build()` into `dist/server`) and drives the output (Node/Bun processes, the Worker in Miniflare, which must match wrangler's version); it skips Bun when `bun` is not on PATH.
@@ -40,6 +41,7 @@ Use pnpm only. pnpm 12 blocks dependency build scripts unless they're listed in 
 - `packages/vite/src/lock.ts`: the Handler Lock (ADR 0029): `composure()` collects each build's shipped handlers and checks `composure.handlers.json` in `buildEnd` (warn and rewrite locally, fail under `CI`); `vite dev` warns per module. The plugin instances that load the App for Sync pass `handlerLock: false`.
 - `packages/vite/src/transform.ts`: Inline Handler hoisting (oxc-parser + magic-string, `enforce: "pre"`): every `onClick`/`onSelect`/`onSubmit` function and `named()` call in any module becomes `const __composure_hN = __handler(id, captures, make, where)` after the imports, its site `__composure_hN.bind([..])`. That call is the contract with `handlers.ts`; change both together. Vite is required (ADR 0015): there is no un-compiled API. Vitest configs import the plugin from workspace source, so tests run through it; `test/handlers.test.tsx` imports from `../src/*.ts` by path to get un-compiled code.
 - Workspace packages resolve to `src` through the `@composurejs/source` export condition (tsconfig `customConditions`, vitest `ssr.resolve.conditions`). Published consumers get `dist`.
+- `bots/composure`: composurejs's own production bot (Workers, deployed by `.github/workflows/bot.yml`), the counterpart of composure-rs's `bots/composure` in the same Discord server; its README's "Next to composure-rs's bot" says what keeps the two apart. Keep its Commands in step with the rs bot's.
 - `test/fixtures.tsx`: signed regression fixtures (fixed seed), replayed over `app.fetch` (`test/regression.test.ts`) and over the Default Server (`replayFixtures` in `test/replay.ts`, called from `packages/vite/test/server.test.ts`). Add a case for every new Interaction shape.
 
 ## Rules

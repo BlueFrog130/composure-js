@@ -1,0 +1,25 @@
+{
+  "name": "@composurejs/bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "deploy": "vite build && wrangler deploy",
+    "typecheck": "tsc -p tsconfig.json",
+    "sync": "composure sync",
+    "sync:check": "composure sync --check"
+  },
+  "dependencies": {
+    "composurejs": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.64.0",
+    "@composurejs/cli": "workspace:*",
+    "@composurejs/vite": "workspace:*",
+    "@types/node": "^26.6.5",
+    "miniflare": "5.20261019.1-beta",
+    "vite": "^8.3.5",
+    "wrangler": "^4.151.3"
+  }
+}

@@ -1,0 +1,57 @@
+name: Deploy bot
+
+# Deploys composurejs's own bot (bots/composure) to Cloudflare Workers and syncs its Commands: on
+# pushes to main that change it or the packages it builds on, after each release (so /about shows
+# the released version), and by hand.
+#
+# Secrets: CLOUDFLARE_API_TOKEN (Workers Scripts: Edit), CLOUDFLARE_ACCOUNT_ID, DISCORD_TOKEN and
+# DISCORD_APPLICATION_ID (the production application's: composurejs's, not composure-rs's). The
+# Worker's own secrets are set once with `wrangler secret put` (bots/composure/README.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bots/composure/**"
+      - "packages/**"
+      - "docs/guide/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/bot.yml"
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: bot-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy and sync
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: bot
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The bot's vite.config.ts imports the built @composurejs/vite, as any bot would
+      - run: pnpm build
+      - run: pnpm vitest run --project bot
+      # Production: .env.production selects wrangler.jsonc's production env
+      - run: pnpm -C bots/composure build
+      - run: pnpm -C bots/composure exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Sync Commands
+        run: pnpm -C bots/composure exec composure sync --yes
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
