@@ -35,6 +35,8 @@ export const MAX_BODY_BYTES = 1024 * 1024
 export const GENERIC_ERROR_MESSAGE = "Something went wrong."
 export const OUTDATED_MESSAGE = "This message is outdated."
 
+const decoder = new TextDecoder()
+
 const NO_CHOICES: InteractionResponse = { type: ResponseType.ApplicationCommandAutocompleteResult, data: { choices: [] } }
 
 export interface HandleOptions<E extends Env> {
@@ -226,7 +228,7 @@ async function readSigned<E extends Env>(built: Built<E>, request: Request, cred
   })
   if (!verified) return new Response("Invalid request signature", { status: 401 })
   try {
-    return JSON.parse(new TextDecoder().decode(body)) as unknown
+    return JSON.parse(decoder.decode(body)) as unknown
   } catch {
     return notAnInteraction()
   }
@@ -280,7 +282,7 @@ async function sendThroughCallback<E extends Env>(built: Built<E>, interaction: 
     return new Response(null, { status: 202 })
   } catch (error) {
     // DiscordApiError names the route template, never the URL: it holds the Interaction token.
-    const detail = error instanceof DiscordApiError ? { status: error.status, code: error.code, route: error.route } : { error: serializeError(error) }
+    const detail = error instanceof DiscordApiError ? { status: error.status, code: error.code, route: error.route, errors: error.errors } : { error: serializeError(error) }
     built.logger.error({ msg: "Answering through the callback endpoint failed", interactionId: interaction.id, ...detail })
     return Response.json((await toAnswer(Ephemeral(GENERIC_ERROR_MESSAGE), interaction.type)).response)
   }

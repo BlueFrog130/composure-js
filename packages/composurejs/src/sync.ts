@@ -3,13 +3,13 @@
 // targets with changes are overwritten with one bulk request each, the others are left alone.
 import type { RESTPostAPIApplicationCommandsJSONBody } from "discord-api-types/v10"
 import type { ScopedDefinition } from "./app.ts"
+import { APPLICATION_ID_VAR, TOKEN_VAR } from "./credentials.ts"
 import { BotClient, type RestOptions } from "./rest/client.ts"
 import { bulkOverwriteGlobalCommands, bulkOverwriteGuildCommands, getGlobalCommands, getGuildCommands } from "./rest/endpoints.ts"
 
 export type Definition = RESTPostAPIApplicationCommandsJSONBody
 
-export const TOKEN_VAR = "DISCORD_TOKEN"
-export const APPLICATION_ID_VAR = "DISCORD_APPLICATION_ID"
+export { APPLICATION_ID_VAR, TOKEN_VAR }
 export const SCOPE_VAR_PREFIX = "COMPOSURE_SCOPE_"
 
 export interface SyncConfig {

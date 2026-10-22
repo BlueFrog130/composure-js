@@ -82,6 +82,9 @@ interface Resolved<E extends Env> {
 
 const INTERNAL = Symbol("composurejs.app")
 
+/** Bumped by every change to any App, so a parent's build never misses a change to an App it routes to. */
+let generation = 0
+
 /**
  * The explicit list of Routes a bot serves, built by chaining (ADR 0001). The single source
  * for dispatch and Sync; Apps nest with {@link App.route}.
@@ -92,7 +95,7 @@ export class App<E extends Env = Env> {
   readonly #middleware: Middleware<E>[] = []
   #onError: ErrorRenderer<E> | undefined
   #events: EventHandler<E> | undefined
-  #built: Built<E> | undefined
+  #built: { at: number; built: Built<E> } | undefined
   #resolved: Promise<Resolved<E>> | undefined
 
   constructor(options: AppOptions<E> = {}) {
@@ -116,7 +119,7 @@ export class App<E extends Env = Env> {
    */
   use(...middleware: Middleware<E>[]): this {
     this.#middleware.push(...middleware)
-    this.#built = undefined
+    generation++
     return this
   }
 
@@ -124,7 +127,7 @@ export class App<E extends Env = Env> {
   onError(renderer: ErrorRenderer<E>): this {
     if (this.#onError) throw new AppConfigError("onError is already set on this App")
     this.#onError = renderer
-    this.#built = undefined
+    generation++
     return this
   }
 
@@ -132,7 +135,7 @@ export class App<E extends Env = Env> {
   events(handler: EventHandler<E>): this {
     if (this.#events) throw new AppConfigError("events is already set on this App")
     this.#events = handler
-    this.#built = undefined
+    generation++
     return this
   }
 
@@ -173,7 +176,7 @@ export class App<E extends Env = Env> {
 
   #add(route: Route<E>): this {
     this.#routes.push(route)
-    this.#built = undefined
+    generation++
     return this
   }
 
@@ -197,7 +200,7 @@ export class App<E extends Env = Env> {
   }
 
   #build(): Built<E> {
-    if (this.#built) return this.#built
+    if (this.#built?.at === generation) return this.#built.built
     const logger = this.#options.logger ?? consoleLogger
     const built: Built<E> = {
       commands: new Map(),
@@ -251,7 +254,7 @@ export class App<E extends Env = Env> {
       stack.delete(app)
     }
     visit(this, "app", new Set(), [])
-    this.#built = built
+    this.#built = { at: generation, built }
     return built
   }
 }

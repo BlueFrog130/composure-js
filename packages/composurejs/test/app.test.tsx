@@ -160,6 +160,14 @@ describe("App tree", () => {
     expect(() => app.check()).toThrow("onError is set twice in one App tree: at app and at app.route[0]")
   })
 
+  test("a nested App changed after the tree was built is seen", async () => {
+    const inner = new App()
+    const app = new App().route(inner)
+    app.check()
+    inner.command(ping)
+    expect((await answer(app, chatInput("ping"))).text).toBe("pong")
+  })
+
   test("cycles are rejected", () => {
     const a = new App()
     const b = new App().route(a)

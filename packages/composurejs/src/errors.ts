@@ -43,8 +43,20 @@ export class DiscordApiError extends Error {
     readonly errors: unknown,
     message: string,
   ) {
-    super(`${route}: ${status}${code !== undefined ? ` (${code})` : ""} ${message}`)
+    super([`${route}: ${status}${code !== undefined ? ` (${code})` : ""} ${message}`, ...fieldErrors(errors)].join("\n  "))
   }
+}
+
+/** Discord's nested per-field errors as `path: message (CODE)` lines: `components[0].label: This field is required (BASE_TYPE_REQUIRED)`. */
+function fieldErrors(errors: unknown, path = ""): string[] {
+  if (typeof errors !== "object" || errors === null) return []
+  const out: string[] = []
+  for (const [key, value] of Object.entries(errors)) {
+    if (key === "_errors" && Array.isArray(value)) {
+      for (const e of value as { code?: unknown; message?: unknown }[]) out.push(`${path || "body"}: ${String(e.message)} (${String(e.code)})`)
+    } else out.push(...fieldErrors(value, /^\d+$/.test(key) ? `${path}[${key}]` : path ? `${path}.${key}` : key))
+  }
+  return out
 }
 
 /** Discord did not answer a REST request within the client's timeout (ADR 0006). `route` is the template. */

@@ -58,6 +58,14 @@ describe("BotClient", () => {
     expect((error as Error).message).toBe("POST /channels/{channel_id}/messages: 403 (50013) Missing Permissions")
   })
 
+  test("Discord's per-field errors are in the message and on the error", async () => {
+    const errors = { components: { "0": { label: { _errors: [{ code: "BASE_TYPE_REQUIRED", message: "This field is required" }] } } } }
+    const transport = new MockTransport().reply(400, { code: 50035, message: "Invalid Form Body", errors })
+    const error = await createMessage(bot(transport), "1", "x").catch((e: unknown) => e)
+    expect(error).toMatchObject({ status: 400, code: 50035, errors })
+    expect((error as Error).message).toBe("POST /channels/{channel_id}/messages: 400 (50035) Invalid Form Body\n  components[0].label: This field is required (BASE_TYPE_REQUIRED)")
+  })
+
   test("short 429s are waited out; long ones throw RateLimitedError", async () => {
     vi.useFakeTimers()
     try {

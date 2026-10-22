@@ -5,6 +5,7 @@ export const TIMESTAMP_HEADER = "X-Signature-Timestamp"
 
 // One import per distinct key per isolate (ADR 0007).
 const keys = new Map<string, Promise<CryptoKey>>()
+const encoder = new TextEncoder()
 
 function importPublicKey(hex: string): Promise<CryptoKey> {
   let key = keys.get(hex)
@@ -42,7 +43,7 @@ export async function verifySignature(
   const sig = signature.length === 128 ? fromHex(signature) : undefined
   if (!sig) return false
 
-  const stamp = new TextEncoder().encode(timestamp)
+  const stamp = encoder.encode(timestamp)
   const message = new Uint8Array(stamp.length + body.length)
   message.set(stamp)
   message.set(body, stamp.length)

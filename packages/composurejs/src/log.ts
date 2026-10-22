@@ -21,10 +21,13 @@ export const consoleLogger: Logger = {
   error: (entry) => console.error(entry),
 }
 
-/** An error as a plain object, following its `cause` chain. */
+/**
+ * An error as a plain object, following its `cause` chain. Own fields come along, so a
+ * DiscordApiError's `status`, `code` and per-field `errors` reach the log.
+ */
 export function serializeError(error: unknown, depth = 0): unknown {
   if (!(error instanceof Error)) return error
-  const out: Record<string, unknown> = { name: error.name, message: error.message, stack: error.stack }
+  const out: Record<string, unknown> = { ...error, name: error.name, message: error.message, stack: error.stack }
   if (error.cause !== undefined && depth < 8) out.cause = serializeError(error.cause, depth + 1)
   return out
 }

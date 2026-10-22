@@ -42,7 +42,7 @@ interface Base {
 // ---- Message root --------------------------------------------------------------------------
 
 export interface AllowedMentions {
-  /** Kinds of mention parsed from the text. Default: whatever Discord defaults to (all). */
+  /** Kinds of mention parsed from the text. Default `[]`: only `users` and `roles` listed here ping. Without `allowedMentions`, Discord parses all. */
   parse?: ("users" | "roles" | "everyone")[]
   /** Users that may be pinged (max 100); not with `parse: ["users"]`. */
   users?: string[]

@@ -25,7 +25,11 @@ export function runChain<E extends Env>(chain: readonly Middleware<E>[], c: Cont
     let inner: Promise<Output> | undefined
     const next: Next = () => {
       if (inner) return Promise.reject(new ResponseError("A middleware called next() twice"))
-      return (inner = at(i + 1))
+      inner = at(i + 1)
+      // A middleware may call next() and answer with something else without awaiting it: the
+      // inner rejection must not become an unhandled rejection (fatal on Node).
+      inner.catch(() => {})
+      return inner
     }
     const out = await mw(c, next)
     if (out !== undefined) return out

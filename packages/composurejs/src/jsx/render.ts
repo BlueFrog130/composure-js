@@ -3,7 +3,7 @@
 import type { APIMessageTopLevelComponent, APIModalInteractionResponseCallbackData } from "discord-api-types/v10"
 import { type AllowedMentions, type Emoji, isUpload, type Upload } from "../components.ts"
 import { MessageFlags } from "../discord.ts"
-import { withRoute } from "../codec.ts"
+import { prefixOf, withRoute } from "../codec.ts"
 import { uncompiledHandler } from "../handlers.ts"
 import { RenderError } from "../errors.ts"
 import type { Choices } from "../options.ts"
@@ -63,6 +63,12 @@ const UPLOAD_NAME = /^[\w.-]+$/
 
 const tag = (name: string) => `<${name}>`
 
+/** A `custom_id` for an error message: its routing prefix only, since errors are logged and the rest is Custom ID State. */
+const idOf = (customId: string) => {
+  const [prefix, rest] = prefixOf(customId)
+  return `"${prefix}${rest === undefined ? "" : ":…"}"`
+}
+
 /** Where a Form (forms.ts) keeps its renderer: looked up, not imported, so bots without Forms do not bundle them. */
 const FORM = Symbol.for("composurejs.form")
 
@@ -89,11 +95,11 @@ class Walk {
     if (typeof value !== "string" || value === "") throw new RenderError(`${tag(owner)} needs a customId`)
     if (value.length > LIMITS.customId) {
       throw new RenderError(
-        `${tag(owner)} custom_id is ${value.length} characters; the limit is ${LIMITS.customId}. Carry an id and load the rest instead: "${value.slice(0, 40)}…"`,
+        `${tag(owner)} custom_id is ${value.length} characters; the limit is ${LIMITS.customId}. Carry an id and load the rest instead (custom_id ${idOf(value)})`,
       )
     }
     const first = this.customIds.get(value)
-    if (first) throw new RenderError(`custom_id "${value}" is used twice in one ${this.modal ? "modal" : "message"} (${tag(first)} and ${tag(owner)})`)
+    if (first) throw new RenderError(`custom_id ${idOf(value)} is used twice in one ${this.modal ? "modal" : "message"} (${tag(first)} and ${tag(owner)})`)
     if (register) this.customIds.set(value, owner)
     return value
   }
@@ -313,7 +319,10 @@ async function renderRow(node: ElementNode, walk: Walk): Promise<Json> {
     json.components = [await renderSelect(selects[0]!, walk)]
   } else {
     check(nodes.length <= LIMITS.rowButtons, `A <Row> holds at most ${LIMITS.rowButtons} <Button>s, this one has ${nodes.length}`)
-    json.components = await Promise.all(nodes.map((n) => renderButton(n, walk)))
+    // In order: the walk's counts and custom_id checks are shared state.
+    const buttons: Json[] = []
+    for (const n of nodes) buttons.push(await renderButton(n, walk))
+    json.components = buttons
   }
   return json
 }

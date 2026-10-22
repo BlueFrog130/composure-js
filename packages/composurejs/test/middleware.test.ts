@@ -33,6 +33,24 @@ describe("middleware", () => {
     expect((await t.answer(app, t.chatInput("x"))).text).toBe("ran")
   })
 
+  test("an inner failure a middleware does not await is not an unhandled rejection", async () => {
+    const unhandled: unknown[] = []
+    const record = (reason: unknown) => unhandled.push(reason)
+    process.on("unhandledRejection", record)
+    try {
+      const detached = middleware((_c, next) => {
+        void next()
+        return "answered"
+      })
+      const app = new App({ logger: quiet }).use(detached).command(command({ name: "x", description: "X", handler: () => Promise.reject(new Error("boom")) }))
+      expect((await t.answer(app, t.chatInput("x"))).text).toBe("answered")
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off("unhandledRejection", record)
+    }
+  })
+
   test("can replace the inner Output", async () => {
     const shout = middleware(async (_c, next) => {
       const out = await next()

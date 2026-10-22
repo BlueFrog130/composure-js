@@ -279,7 +279,10 @@ describe("Inline Handlers", () => {
       </Row>
     )
     await answer(new App({ logger }).command(command({ name: "long", description: "L", handler: () => <Long text={"x".repeat(100)} /> })), chatInput("long"))
-    expect((entries[0]?.error as Error).message).toMatch(/custom_id is \d+ characters; the limit is 100\. Carry an id and load the rest instead/)
+    const message = (entries[0]?.error as Error).message
+    expect(message).toMatch(/custom_id is \d+ characters; the limit is 100\. Carry an id and load the rest instead \(custom_id "[^":]+:…"\)$/)
+    // Errors are logged: never the captured values (Custom ID State).
+    expect(message).not.toContain("xxxx")
   })
 
   test("clicks run through the root App's middleware", async () => {
