@@ -4,7 +4,7 @@
 // safe to repeat (not POST) are retried on network errors, timeouts and 5xx.
 import type { Upload } from "../components.ts"
 import { DiscordApiError, RateLimitedError, RequestTimeoutError } from "../errors.ts"
-import { type Logger, consoleLogger } from "../log.ts"
+import { defaultLogger, type Logger } from "../log.ts"
 import { DISCORD_API, fetchTransport, formData, type Transport } from "../transport.ts"
 import type { operations } from "./schema.d.ts"
 
@@ -95,7 +95,7 @@ export class RestClient {
     this.#authorization = authorization
     this.#transport = options.transport ?? fetchTransport
     this.#maxWait = options.maxRateLimitWait ?? 2000
-    this.#logger = options.logger ?? consoleLogger
+    this.#logger = options.logger ?? defaultLogger()
     this.#base = options.apiBase ?? DISCORD_API
     this.#timeout = options.timeout ?? 10_000
     this.route = options.route

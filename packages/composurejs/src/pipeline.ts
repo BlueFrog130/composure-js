@@ -12,12 +12,12 @@ import type { AnyCommand, AutoDeferSetting, Command, Group } from "./command.ts"
 import { Context, ROUTE } from "./context.ts"
 import type { Credentials } from "./credentials.ts"
 import { type Interaction, type InteractionResponse, InteractionType, MessageFlags, ResponseType } from "./discord.ts"
-import { FAIL, splitRoute } from "./codec.ts"
+import { FAIL, prefixOf, splitRoute } from "./codec.ts"
 import { DiscordApiError, InvalidOptionsError, ResponseError, UnknownCommandError, UserError } from "./errors.ts"
 import { decodeEvent, EventContext } from "./events.ts"
 import { dispatchHandler } from "./handlers.ts"
 import { isNode } from "./jsx/node.ts"
-import { serializeError } from "./log.ts"
+import { type Logger, serializeError, withFields } from "./log.ts"
 import { runChain } from "./middleware.ts"
 import { type Choice, OptionType, resolveOptions, resolveUser } from "./options.ts"
 import { LIMITS } from "./jsx/render.ts"
@@ -63,15 +63,16 @@ export async function handleInteraction<E extends Env>(app: App<E>, request: Req
   const interaction = read
   if (!isInteraction(interaction)) return notAnInteraction()
 
-  const rest = restOptions(built, options)
-  const answering = answerInteraction(built, interaction, options, rest)
+  const log = interaction.type === InteractionType.Ping ? built.logger : withFields(built.logger, logFields(interaction))
+  const rest = restOptions(built, options, log)
+  const answering = answerInteraction(built, interaction, options, rest, log)
   const auto = autoDeferOf(built, interaction, options.receivedAt ?? Date.now())
   const first = auto ? await raceTimer(answering, auto.wait) : await answering
-  if (first === TIMED_OUT) return autoDeferred(built, interaction, answering, auto!.sent, options, rest)
+  if (first === TIMED_OUT) return autoDeferred(built, interaction, answering, auto!.sent, options, rest, log)
   const { answer, c } = first
   const client = () => c?.client ?? new InteractionClient(interaction.application_id, interaction.id, interaction.token, rest)
 
-  if (answer.files.length > 0) return sendThroughCallback(built, interaction, answer, client())
+  if (answer.files.length > 0) return sendThroughCallback(log, interaction, answer, client())
   if (answer.deferred && c) {
     const work = runDeferred(built, c, answer.deferred)
     if (options.platform?.waitUntil) {
@@ -80,7 +81,7 @@ export async function handleInteraction<E extends Env>(app: App<E>, request: Req
     }
     // No waitUntil (AWS Lambda, an untracked server): answer through the callback endpoint,
     // finish the work, then answer the HTTP request with 202 (ADR 0007).
-    const sent = await sendThroughCallback(built, interaction, answer, client())
+    const sent = await sendThroughCallback(log, interaction, answer, client())
     if (sent.status === 202) await work
     return sent
   }
@@ -94,6 +95,7 @@ interface Sent {
 }
 
 const TIMED_OUT = Symbol("composurejs.timedOut")
+const AUTO_DEFER_PUBLIC = 'A public Auto Defer was answered ephemerally; set autoDefer: "ephemeral" on the Command'
 
 async function raceTimer<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -146,34 +148,35 @@ async function autoDeferred<E extends Env>(
   sent: Sent,
   options: HandleOptions<E>,
   rest: RestOptions,
+  log: Logger,
 ): Promise<Response> {
   const response: InteractionResponse =
     sent.kind === "update"
       ? { type: ResponseType.DeferredMessageUpdate }
       : { type: ResponseType.DeferredChannelMessageWithSource, ...(sent.ephemeral && { data: { flags: MessageFlags.Ephemeral } }) }
-  built.logger.debug({ msg: "Auto Defer", interactionId: interaction.id, kind: sent.kind })
+  log.debug({ msg: "Auto Defer", kind: sent.kind })
   const work = (async () => {
     const { answer, c } = await answering
     if (!c) return
     if (answer.deferred) return runDeferred(built, c, answer.deferred, sent)
     try {
-      await deliver(c, answer, sent, built)
+      await deliver(c, answer, sent)
     } catch (error) {
       await reportFailure(built, c, error, sent)
     }
-  })().catch((error: unknown) => built.logger.error({ msg: "Answering after Auto Defer failed", interactionId: interaction.id, error: serializeError(error) }))
+  })().catch((error: unknown) => log.error({ msg: "Answering after Auto Defer failed", error: serializeError(error) }))
   if (options.platform?.waitUntil) {
     options.platform.waitUntil(work)
     return Response.json(response)
   }
   const client = new InteractionClient(interaction.application_id, interaction.id, interaction.token, rest)
-  const answered = await sendThroughCallback(built, interaction, { response, files: [] }, client)
+  const answered = await sendThroughCallback(log, interaction, { response, files: [] }, client)
   if (answered.status === 202) await work
   return answered
 }
 
 /** Delivers an answer rendered after its Interaction was deferred: edits the original, or follows up. */
-async function deliver<E extends Env>(c: Context<E>, answer: Answer, sent: Sent, built: Built<E>): Promise<void> {
+async function deliver<E extends Env>(c: Context<E>, answer: Answer, sent: Sent): Promise<void> {
   const { response, files } = answer
   const data: Record<string, unknown> = { ...(response as { data?: Record<string, unknown> }).data }
   const flags = (data.flags as number | undefined) ?? 0
@@ -184,7 +187,7 @@ async function deliver<E extends Env>(c: Context<E>, answer: Answer, sent: Sent,
       if (sent.kind === "update") return void (await c.client.followup(messageBody(data, files)))
       if (ephemeral && !sent.ephemeral) {
         // Discord fixed the loading reply as public; a private answer replaces it.
-        built.logger.warn({ msg: 'A public Auto Defer was answered ephemerally; set autoDefer: "ephemeral" on the Command', interactionId: c.interaction.id })
+        c.log.warn({ msg: AUTO_DEFER_PUBLIC })
         await c.client.deleteOriginal()
         return void (await c.client.followup(messageBody(data, files)))
       }
@@ -209,12 +212,12 @@ async function reportFailure<E extends Env>(built: Built<E>, c: Context<E>, erro
     if (sent.kind === "update") await c.client.followup(Ephemeral(output))
     else await c.client.editOriginal(await toMessageBody(output as never, { route: c[ROUTE] }))
   } catch (reportError) {
-    built.logger.error({ msg: "Reporting failed deferred work failed", interactionId: c.interaction.id, error: serializeError(reportError) })
+    c.log.error({ msg: "Reporting failed deferred work failed", error: serializeError(reportError) })
   }
 }
 
-function restOptions<E extends Env>(built: Built<E>, options: HandleOptions<E>): RestOptions {
-  return { transport: options.transport ?? built.transport, logger: built.logger, maxRateLimitWait: built.maxRateLimitWait, timeout: built.requestTimeout }
+function restOptions<E extends Env>(built: Built<E>, options: HandleOptions<E>, logger: Logger): RestOptions {
+  return { transport: options.transport ?? built.transport, logger, maxRateLimitWait: built.maxRateLimitWait, timeout: built.requestTimeout }
 }
 
 /** Verifies and parses a signed request; a Response when it must be rejected. */
@@ -249,13 +252,14 @@ export async function handleEvent<E extends Env>(app: App<E>, request: Request, 
   if (type !== 1 || !built.events) return ack
 
   const decoded = decodeEvent(event)
+  const log = withFields(built.logger, { event: decoded.type })
   const c = new EventContext<E>({
     env: options.env,
     data: options.data,
     platform: options.platform,
-    logger: built.logger,
+    logger: log,
     credentials: options.credentials,
-    rest: restOptions(built, options),
+    rest: restOptions(built, options, log),
   })
   const handler = built.events
   const work = (async () => {
@@ -263,7 +267,7 @@ export async function handleEvent<E extends Env>(app: App<E>, request: Request, 
       await handler(c, decoded)
     } catch (error) {
       // Only logged: the event is already ACKed.
-      built.logger.error({ msg: "Event Handler failed", event: decoded.type, error: serializeError(error) })
+      log.error({ msg: "Event Handler failed", error: serializeError(error) })
     }
   })()
   if (options.platform?.waitUntil) options.platform.waitUntil(work)
@@ -276,14 +280,14 @@ export async function handleEvent<E extends Env>(app: App<E>, request: Request, 
  * HTTP request with 202. If Discord rejects it, the Interaction is still unanswered, so the
  * HTTP response carries the generic error instead.
  */
-async function sendThroughCallback<E extends Env>(built: Built<E>, interaction: Interaction, answer: Answer, client: InteractionClient): Promise<Response> {
+async function sendThroughCallback(log: Logger, interaction: Interaction, answer: Answer, client: InteractionClient): Promise<Response> {
   try {
     await client.callback(answer.response, answer.files)
     return new Response(null, { status: 202 })
   } catch (error) {
     // DiscordApiError names the route template, never the URL: it holds the Interaction token.
     const detail = error instanceof DiscordApiError ? { status: error.status, code: error.code, route: error.route, errors: error.errors } : { error: serializeError(error) }
-    built.logger.error({ msg: "Answering through the callback endpoint failed", interactionId: interaction.id, ...detail })
+    log.error({ msg: "Answering through the callback endpoint failed", ...detail })
     return Response.json((await toAnswer(Ephemeral(GENERIC_ERROR_MESSAGE), interaction.type)).response)
   }
 }
@@ -293,6 +297,7 @@ async function answerInteraction<E extends Env>(
   interaction: Interaction,
   options: HandleOptions<E>,
   rest: RestOptions,
+  log: Logger,
 ): Promise<{ answer: Answer; c?: Context<E> }> {
   if (interaction.type === InteractionType.Ping) return { answer: { response: { type: ResponseType.Pong }, files: [] } }
 
@@ -301,7 +306,7 @@ async function answerInteraction<E extends Env>(
     env: options.env,
     data: options.data,
     platform: options.platform,
-    logger: built.logger,
+    logger: log,
     credentials: options.credentials,
     rest,
   })
@@ -310,7 +315,7 @@ async function answerInteraction<E extends Env>(
   } catch (error) {
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
       // A message is no answer to autocomplete; the user sees no suggestions.
-      built.logger.error({ msg: "Autocomplete failed", interactionId: interaction.id, command: interaction.data.name, error: serializeError(error) })
+      log.error({ msg: "Autocomplete failed", error: serializeError(error) })
       return { answer: { response: NO_CHOICES, files: [] }, c }
     }
     return { answer: await renderError(built, error, c), c }
@@ -336,7 +341,7 @@ async function runDeferred<E extends Env>(built: Built<E>, c: Context<E>, deferr
       // c.defer from a click after Auto Defer acknowledged it as an update: the answer is a new message.
       await c.client.followup(deferred.ephemeral ? messageBody({ ...body.json, flags: ((body.json.flags as number | undefined) ?? 0) | MessageFlags.Ephemeral }, body.files) : body)
     } else if (deferred.ephemeral && !sent.ephemeral && sent.kind === "message") {
-      built.logger.warn({ msg: 'A public Auto Defer was answered ephemerally; set autoDefer: "ephemeral" on the Command', interactionId: c.interaction.id })
+      c.log.warn({ msg: AUTO_DEFER_PUBLIC })
       await c.client.deleteOriginal()
       await c.client.followup(messageBody({ ...body.json, flags: ((body.json.flags as number | undefined) ?? 0) | MessageFlags.Ephemeral }, body.files))
     } else await c.client.editOriginal(body)
@@ -360,9 +365,7 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
     }
     case InteractionType.ApplicationCommandAutocomplete: {
       const entry = built.commands.get(`${interaction.data.type}:${interaction.data.name}`)
-      return runChain(entry?.chain ?? built.middleware, c, () =>
-        entry ? autocomplete(built, entry.command, c as Context<E, APIApplicationCommandAutocompleteInteraction>) : NO_CHOICES,
-      )
+      return runChain(entry?.chain ?? built.middleware, c, () => (entry ? autocomplete(entry.command, c as Context<E, APIApplicationCommandAutocompleteInteraction>) : NO_CHOICES))
     }
     case InteractionType.MessageComponent:
     case InteractionType.ModalSubmit: {
@@ -375,7 +378,7 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
         const output = route !== undefined && !entry ? FAIL : await dispatchHandler(c, customId)
         if (output === FAIL) {
           // An unknown handler id or route, or captures that no longer decode: the Fallback (ADR 0015).
-          built.logger.debug({ msg: "Fallback", handler: customId.split(":")[0], interactionId: interaction.id })
+          c.log.debug({ msg: "Fallback" })
           return Ephemeral(OUTDATED_MESSAGE)
         }
         return rerender(output, interaction)
@@ -383,7 +386,7 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
     }
     default:
       // A kind this version does not know (ADR 0003): answer, never crash.
-      built.logger.warn({ msg: "Unknown interaction type", type: (interaction as { type: unknown }).type, interactionId: (interaction as { id?: unknown }).id })
+      c.log.warn({ msg: "Unknown interaction type" })
       return runChain(built.middleware, c, () => Ephemeral(GENERIC_ERROR_MESSAGE))
   }
 }
@@ -445,7 +448,7 @@ function findLeaf<E extends Env>(command: Command<E> | Group<E>, options: APIApp
   return undefined
 }
 
-async function autocomplete<E extends Env>(built: Built<E>, command: AnyCommand<E>, c: Context<E, APIApplicationCommandAutocompleteInteraction>): Promise<Output> {
+async function autocomplete<E extends Env>(command: AnyCommand<E>, c: Context<E, APIApplicationCommandAutocompleteInteraction>): Promise<Output> {
   if (command.kind !== "command" && command.kind !== "group") return NO_CHOICES
   const found = findLeaf(command, c.interaction.data.options as APIApplicationCommandInteractionDataOption[])
   const focused = found?.options?.find((o) => "focused" in o && o.focused)
@@ -455,7 +458,7 @@ async function autocomplete<E extends Env>(built: Built<E>, command: AnyCommand<
   const others: Record<string, string | number | boolean> = {}
   for (const o of found.options ?? []) if (o !== focused && "value" in o) others[o.name] = o.value
   const results = await handler(c as never, String(focused.value), others)
-  return { type: ResponseType.ApplicationCommandAutocompleteResult, data: { choices: suggestions(built, c, results) } }
+  return { type: ResponseType.ApplicationCommandAutocompleteResult, data: { choices: suggestions(c, results) } }
 }
 
 /**
@@ -463,13 +466,13 @@ async function autocomplete<E extends Env>(built: Built<E>, command: AnyCommand<
  * without knowing why: over-long names are cut, empty names and over-long values are dropped
  * (logged), and the first 25 are kept.
  */
-function suggestions<E extends Env>(built: Built<E>, c: Context<E>, results: readonly (Choice | string | number)[]): Choice[] {
+function suggestions<E extends Env>(c: Context<E>, results: readonly (Choice | string | number)[]): Choice[] {
   const out: Choice[] = []
   for (const r of results) {
     if (out.length === LIMITS.selectOptions) break
     const { name, value } = typeof r === "object" ? r : { name: String(r), value: r }
     if (name === "" || (typeof value === "string" && (value === "" || value.length > LIMITS.optionText))) {
-      built.logger.warn({ msg: "Autocomplete Choice dropped: names and string values must be 1-100 characters", interactionId: c.interaction.id, name: name.slice(0, 40) })
+      c.log.warn({ msg: "Autocomplete Choice dropped: names and string values must be 1-100 characters", name: name.slice(0, 40) })
       continue
     }
     out.push({ name: name.length > LIMITS.optionText ? `${name.slice(0, LIMITS.optionText - 1)}…` : name, value })
@@ -483,22 +486,22 @@ async function renderError<E extends Env>(built: Built<E>, error: unknown, c: Co
   try {
     return await toAnswer(Ephemeral(unwrapEphemeral(output)[0]), c.interaction.type, c[ROUTE])
   } catch (rendererError) {
-    built.logger.error({ msg: "Error Renderer failed", interactionId: c.interaction.id, error: serializeError(rendererError) })
+    c.log.error({ msg: "Error Renderer failed", error: serializeError(rendererError) })
     return toAnswer(Ephemeral(defaultErrorOutput(error)), c.interaction.type)
   }
 }
 
 /** Logs `error` (User Errors at debug) and asks the Error Renderer what the user sees. */
 async function errorOutput<E extends Env>(built: Built<E>, error: unknown, c: Context<E>): Promise<Output> {
-  const entry = { interactionId: c.interaction.id, type: c.interaction.type, ...routeOf(c.interaction), error: serializeError(error) }
-  if (error instanceof UserError) built.logger.debug({ msg: "User Error", ...entry })
-  else if (error instanceof UnknownCommandError) built.logger.warn({ msg: "Unknown Command", ...entry })
-  else if (error instanceof InvalidOptionsError) built.logger.warn({ msg: "Invalid Options", ...entry })
-  else built.logger.error({ msg: "Handler failed", ...entry })
+  const entry = { error: serializeError(error) }
+  if (error instanceof UserError) c.log.debug({ msg: "User Error", ...entry })
+  else if (error instanceof UnknownCommandError) c.log.warn({ msg: "Unknown Command", ...entry })
+  else if (error instanceof InvalidOptionsError) c.log.warn({ msg: "Invalid Options", ...entry })
+  else c.log.error({ msg: "Handler failed", ...entry })
   try {
     return built.onError ? await built.onError(error, c) : defaultErrorOutput(error)
   } catch (rendererError) {
-    built.logger.error({ msg: "Error Renderer failed", interactionId: c.interaction.id, error: serializeError(rendererError) })
+    c.log.error({ msg: "Error Renderer failed", error: serializeError(rendererError) })
     return defaultErrorOutput(error)
   }
 }
@@ -508,8 +511,26 @@ export function defaultErrorOutput(error: unknown): string {
   return error instanceof UserError ? error.message : GENERIC_ERROR_MESSAGE
 }
 
-function routeOf(interaction: Interaction): { command?: string } {
-  return interaction.type === InteractionType.ApplicationCommand ? { command: interaction.data.name } : {}
+/**
+ * What every entry logged while answering an Interaction carries: its id and type, the Command or
+ * the handler (the `custom_id` prefix, never its Custom ID State), guild and user.
+ */
+function logFields(interaction: Interaction): Record<string, unknown> {
+  const { data, member, user, guild_id } = interaction as {
+    data?: { name?: unknown; custom_id?: unknown }
+    member?: { user?: { id: string } }
+    user?: { id: string }
+    guild_id?: string
+  }
+  const userId = (member?.user ?? user)?.id
+  return {
+    interactionId: interaction.id,
+    interactionType: interaction.type,
+    ...(typeof data?.name === "string" && { command: data.name }),
+    ...(typeof data?.custom_id === "string" && { handler: prefixOf(data.custom_id)[0] }),
+    ...(guild_id !== undefined && { guildId: guild_id }),
+    ...(userId !== undefined && { userId }),
+  }
 }
 
 function isInteraction(value: unknown): value is Interaction {

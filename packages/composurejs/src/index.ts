@@ -30,7 +30,7 @@ export { type Credentials, credentialsFromEnv, APPLICATION_ID_VAR, PUBLIC_KEY_VA
 export type { ChatInputInteraction, Entitlement, Interaction, InteractionResponse, Member, User } from "./discord.ts"
 export { AppConfigError, CredentialsError, InvalidOptionsError, RenderError, ResponseError, UnknownCommandError, UserError } from "./errors.ts"
 export { createFactory } from "./factory.ts"
-export { consoleLogger, type LogEntry, type Logger } from "./log.ts"
+export { createLogger, type LogEntry, type LogFields, type LogFormat, type Logger, type LoggerOptions, type LogLevel, serializeError, withFields } from "./log.ts"
 export { middleware, type Middleware, type Next } from "./middleware.ts"
 export {
   type Attachment,

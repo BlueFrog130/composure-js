@@ -1,13 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
-import { App, AppConfigError, command, Ephemeral, type LogEntry, type Logger, Text, UserError } from "composurejs"
-import { answer, chatInput, TestKey, TestPlatform } from "composurejs/testing"
-
-function recordingLogger() {
-  const entries: (LogEntry & { level: string })[] = []
-  const at = (level: string) => (entry: LogEntry) => void entries.push({ level, ...entry })
-  const logger: Logger = { debug: at("debug"), info: at("info"), warn: at("warn"), error: at("error") }
-  return { logger, entries }
-}
+import { App, AppConfigError, command, Ephemeral, Text, UserError } from "composurejs"
+import { answer, chatInput, recordLogs, TestKey, TestPlatform } from "composurejs/testing"
 
 const ping = command({ name: "ping", description: "Pong", handler: () => "pong" })
 
@@ -70,7 +63,7 @@ describe("answering", () => {
 
 describe("errors", () => {
   test("a User Error is shown as written, ephemeral, logged at debug", async () => {
-    const { logger, entries } = recordingLogger()
+    const { logger, entries } = recordLogs()
     const app = new App({ logger }).command(
       command({
         name: "x",
@@ -87,7 +80,7 @@ describe("errors", () => {
   })
 
   test("other errors are logged with their cause chain and shown generically", async () => {
-    const { logger, entries } = recordingLogger()
+    const { logger, entries } = recordLogs()
     const app = new App({ logger }).command(
       command({
         name: "x",
@@ -115,13 +108,13 @@ describe("errors", () => {
       }),
     )
     inner.onError((error) => <Text>Oops: {(error as Error).message}</Text>)
-    const res = await answer(new App({ logger: recordingLogger().logger }).route(inner), chatInput("x"))
+    const res = await answer(new App({ logger: recordLogs().logger }).route(inner), chatInput("x"))
     expect(res.isEphemeral).toBe(true)
     expect(res.text).toBe("Oops: boom")
   })
 
   test("a failing Error Renderer falls back to the default message", async () => {
-    const app = new App({ logger: recordingLogger().logger })
+    const app = new App({ logger: recordLogs().logger })
       .command(
         command({
           name: "x",
@@ -138,7 +131,7 @@ describe("errors", () => {
   })
 
   test("returning nothing is an error", async () => {
-    const app = new App({ logger: recordingLogger().logger }).command(command({ name: "x", description: "X", handler: () => undefined as never }))
+    const app = new App({ logger: recordLogs().logger }).command(command({ name: "x", description: "X", handler: () => undefined as never }))
     expect((await answer(app, chatInput("x"))).text).toBe("Something went wrong.")
   })
 })
@@ -184,7 +177,7 @@ describe("App tree", () => {
 describe("credentials and Bot Data", () => {
   test("loaders run once per isolate; failures answer 500 and are retried", async () => {
     const key = await TestKey.generate()
-    const { logger, entries } = recordingLogger()
+    const { logger, entries } = recordLogs()
     const credentials = vi.fn().mockRejectedValueOnce(new Error("secret store down")).mockResolvedValue({ publicKey: key.publicKey })
     const data = vi.fn(async (env: { GREETING: string }) => ({ greeting: env.GREETING }))
     const app = new App<{ Bindings: { GREETING: string }; Data: { greeting: string } }>({ credentials, data, logger }).command(
@@ -212,7 +205,7 @@ describe("credentials and Bot Data", () => {
 
   test("a missing or malformed public key answers 500", async () => {
     const key = await TestKey.generate()
-    const { logger } = recordingLogger()
+    const { logger } = recordLogs()
     const request = async () => key.request(JSON.stringify(chatInput("ping").build()))
     expect((await new App({ logger }).command(ping).fetch(await request(), {})).status).toBe(500)
     expect((await new App({ logger, credentials: { publicKey: "zz" } }).command(ping).fetch(await request())).status).toBe(500)

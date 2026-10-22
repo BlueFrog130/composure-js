@@ -57,12 +57,15 @@ export interface EventContextInit<E extends Env> {
 export class EventContext<E extends Env = Env> {
   readonly env: BindingsOf<E>
   readonly data: DataOf<E>
+  /** Structured logging with the event's type on every entry. */
+  readonly log: Logger
   readonly #init: EventContextInit<E>
   #bot: BotClient | undefined
 
   constructor(init: EventContextInit<E>) {
     this.env = init.env
     this.data = init.data
+    this.log = init.logger
     this.#init = init
   }
 
@@ -74,7 +77,7 @@ export class EventContext<E extends Env = Env> {
 
   /** More Background Work; rejections are logged. */
   waitUntil(promise: Promise<unknown>): void {
-    const logged = promise.catch((error: unknown) => this.#init.logger.error({ msg: "Background Work failed", error: serializeError(error) }))
+    const logged = promise.catch((error: unknown) => this.log.error({ msg: "Background Work failed", error: serializeError(error) }))
     this.#init.platform?.waitUntil?.(logged)
   }
 }

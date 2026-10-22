@@ -1,6 +1,6 @@
 # Troubleshooting
 
-**Discord says "This interaction failed".** Your bot answered with something Discord rejected, didn't answer within 3 seconds, or wasn't reached at all. Check the log: render errors (limits, placement) and handler errors are logged with what went wrong. For slow work, [defer](./deferring).
+**Discord says "This interaction failed".** Your bot answered with something Discord rejected, didn't answer within 3 seconds, or wasn't reached at all. Check the log: render errors (limits, placement) and handler errors are logged with what went wrong, tagged with the Interaction ([Logging](./logging)). For slow work, [defer](./deferring).
 
 **The Interactions Endpoint URL won't save.** Discord sends a signed PING to a new URL first. The server must be running and reachable, and `DISCORD_PUBLIC_KEY` must be the public key of that same application. A wrong key gets 401.
 

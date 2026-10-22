@@ -5,7 +5,7 @@ import { type Credentials, credentialsFromEnv } from "./credentials.ts"
 import { routeKey } from "./codec.ts"
 import { AppConfigError } from "./errors.ts"
 import type { EventHandler } from "./events.ts"
-import { consoleLogger, type Logger, serializeError } from "./log.ts"
+import { createLogger, defaultLogger, type Logger, type LoggerOptions, serializeError } from "./log.ts"
 import type { Middleware } from "./middleware.ts"
 import { handleInteraction } from "./pipeline.ts"
 import type { Output } from "./response.ts"
@@ -17,7 +17,11 @@ export interface AppOptions<E extends Env> {
   credentials?: Credentials | ((env: BindingsOf<E>) => MaybePromise<Credentials>)
   /** Builds the Bot Data once per isolate; `c.data`. */
   data?: (env: BindingsOf<E>) => MaybePromise<DataOf<E>>
-  logger?: Logger
+  /**
+   * Where core logs, and `c.log`: a Logger (pino's fits), or options for the built-in one
+   * (`{ level: "debug", format: "json" }`). Default `createLogger()`: `info` and above.
+   */
+  logger?: Logger | LoggerOptions
   /** Oldest accepted signature timestamp, in seconds. Default 300. */
   maxSignatureAge?: number
   /** Sends REST requests (ADR 0006). Default `fetch`; tests inject a MockTransport. */
@@ -97,6 +101,7 @@ export class App<E extends Env = Env> {
   #events: EventHandler<E> | undefined
   #built: { at: number; built: Built<E> } | undefined
   #resolved: Promise<Resolved<E>> | undefined
+  #logger: Logger | undefined
 
   constructor(options: AppOptions<E> = {}) {
     this.#options = options
@@ -152,7 +157,7 @@ export class App<E extends Env = Env> {
   /** Answers one platform request: verify, parse, dispatch, render (ADR 0007). */
   readonly fetch = async (request: Request, env?: BindingsOf<E>, platform?: Platform): Promise<Response> => {
     const receivedAt = Date.now()
-    const logger = this.#options.logger ?? consoleLogger
+    const logger = this.#log()
     const bindings = (env ?? {}) as BindingsOf<E>
     let resolved: Resolved<E>
     try {
@@ -180,6 +185,11 @@ export class App<E extends Env = Env> {
     return this
   }
 
+  #log(): Logger {
+    const { logger } = this.#options
+    return (this.#logger ??= logger === undefined ? defaultLogger() : typeof (logger as Logger).error === "function" ? (logger as Logger) : createLogger(logger as LoggerOptions))
+  }
+
   #resolve(env: BindingsOf<E>): Promise<Resolved<E>> {
     // Once per isolate; a failure is not cached (ADR 0008).
     this.#resolved ??= (async () => {
@@ -201,7 +211,7 @@ export class App<E extends Env = Env> {
 
   #build(): Built<E> {
     if (this.#built?.at === generation) return this.#built.built
-    const logger = this.#options.logger ?? consoleLogger
+    const logger = this.#log()
     const built: Built<E> = {
       commands: new Map(),
       routes: new Map(),

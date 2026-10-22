@@ -58,6 +58,7 @@ export default defineConfig({
             { text: "REST", link: "/guide/rest" },
             { text: "Webhook Events", link: "/guide/events" },
             { text: "Middleware", link: "/guide/middleware" },
+            { text: "Logging", link: "/guide/logging" },
             { text: "Platforms", link: "/guide/platforms" },
             { text: "Local development", link: "/guide/local-dev" },
             { text: "Deploying", link: "/guide/deploying" },

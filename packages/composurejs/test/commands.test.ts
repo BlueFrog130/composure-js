@@ -6,8 +6,6 @@ import {
   createFactory,
   defineChoices,
   group,
-  type LogEntry,
-  type Logger,
   messageCommand,
   option,
   type PartialChannel,
@@ -16,13 +14,6 @@ import {
   userCommand,
 } from "composurejs"
 import * as t from "composurejs/testing"
-
-function recordingLogger() {
-  const entries: (LogEntry & { level: string })[] = []
-  const at = (level: string) => (entry: LogEntry) => void entries.push({ level, ...entry })
-  const logger: Logger = { debug: at("debug"), info: at("info"), warn: at("warn"), error: at("error") }
-  return { logger, entries }
-}
 
 const Flavor = defineChoices({ chocolate: "Chocolate chip", oat: "Oatmeal raisin" })
 
@@ -104,7 +95,7 @@ describe("Options", () => {
   })
 
   test("Options that do not match the definition answer generically and warn", async () => {
-    const { logger, entries } = recordingLogger()
+    const { logger, entries } = t.recordLogs()
     const app = new App({ logger }).command(command({ name: "x", description: "X", options: { n: option.integer("N") }, handler: () => "ok" }))
     expect((await t.answer(app, t.chatInput("x"))).text).toBe("Something went wrong.")
     expect((await t.answer(app, t.chatInput("x").option("n", "not a number"))).text).toBe("Something went wrong.")
@@ -211,7 +202,7 @@ describe("Groups", () => {
   })
 
   test("an unknown subcommand answers generically", async () => {
-    const app = new App({ logger: recordingLogger().logger }).command(admin)
+    const app = new App({ logger: t.recordLogs().logger }).command(admin)
     expect((await t.answer(app, t.chatInput("admin").subcommand("kick"))).text).toBe("Something went wrong.")
   })
 
@@ -354,7 +345,7 @@ describe("autocomplete", () => {
   })
 
   test("over-long names are cut; empty names and over-long values are dropped and logged", async () => {
-    const { logger, entries } = recordingLogger()
+    const { logger, entries } = t.recordLogs()
     const long = command({
       name: "long",
       description: "Long",
@@ -378,7 +369,7 @@ describe("autocomplete", () => {
   })
 
   test("a failing handler logs and suggests nothing", async () => {
-    const { logger, entries } = recordingLogger()
+    const { logger, entries } = t.recordLogs()
     const broken = command({
       name: "b",
       description: "B",

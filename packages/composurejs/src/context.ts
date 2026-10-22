@@ -29,8 +29,12 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
   readonly env: BindingsOf<E>
   /** Bot Data, built once per isolate. */
   readonly data: DataOf<E>
+  /**
+   * Structured logging with this Interaction's fields (id, type, Command or handler, guild, user)
+   * on every entry: `c.log.info({ msg: "Role granted", roleId })`.
+   */
+  readonly log: Logger
   readonly #platform: Platform | undefined
-  readonly #logger: Logger
   readonly #vars: Record<string, unknown> = {}
   readonly #credentials: Credentials
   readonly #rest: RestOptions
@@ -44,7 +48,7 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
     this.env = init.env
     this.data = init.data
     this.#platform = init.platform
-    this.#logger = init.logger
+    this.log = init.logger
     this.#credentials = init.credentials
     this.#rest = init.rest
   }
@@ -137,7 +141,7 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
   /** Runs `promise` as Background Work; rejections are logged. */
   waitUntil(promise: Promise<unknown>): void {
     const logged = promise.catch((error: unknown) => {
-      this.#logger.error({ msg: "Background Work failed", interactionId: this.interaction.id, error: serializeError(error) })
+      this.log.error({ msg: "Background Work failed", error: serializeError(error) })
     })
     // Without a platform waitUntil the work still runs, untracked.
     this.#platform?.waitUntil?.(logged)
