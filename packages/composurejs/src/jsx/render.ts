@@ -6,6 +6,7 @@ import { MessageFlags } from "../discord.ts"
 import { withRoute } from "../codec.ts"
 import { uncompiledHandler } from "../handlers.ts"
 import { RenderError } from "../errors.ts"
+import { formLabels, isForm } from "../forms.ts"
 import type { Choices } from "../options.ts"
 import { INPUTS, SELECTS } from "../placement.ts"
 import { type Child, type ElementNode, isNode } from "./node.ts"
@@ -68,6 +69,8 @@ class Walk {
   textLength = 0
   readonly customIds = new Map<string, string>()
   readonly files = new Map<string, Upload>()
+  /** Rendering a Form's Labels, whose input names carry how they decode. */
+  inForm = false
   constructor(
     readonly modal: boolean,
     /** The Owning Route handlers rendered here are marked with. */
@@ -363,7 +366,7 @@ async function renderSelect(node: ElementNode, walk: Walk): Promise<Json> {
   const json = walk.add({
     type: SELECT_TYPES[node.tag],
     ...withId(p.id),
-    custom_id: walk.customId(walk.modal ? inputName(node) : handlerId(node, "onSelect", walk), node.tag),
+    custom_id: walk.customId(walk.modal ? inputName(node, walk) : handlerId(node, "onSelect", walk), node.tag),
   } as Json)
   if (!walk.modal) check(node.props.name === undefined, `${tag(node.tag)} name only applies in a <Modal>; in a message use onSelect`)
   checkText(node.tag, "placeholder", p.placeholder, LIMITS.placeholder)
@@ -490,8 +493,11 @@ function allowedMentions(a: AllowedMentions): Json {
 
 async function renderModal(node: ElementNode, route: string | undefined): Promise<ModalData> {
   const walk = new Walk(true, route)
-  const p = node.props as { title?: string; customId?: string }
+  const p = node.props as { title?: string; customId?: string; form?: unknown; values?: unknown }
   check(typeof p.title === "string", "<Modal> needs a title")
+  check(p.form === undefined || isForm(p.form), "<Modal> form must be made with form({ .. })")
+  check(p.values === undefined || p.form !== undefined, "<Modal> values prefill a form; there is no form")
+  const form = isForm(p.form) ? p.form : undefined
   checkText("Modal", "title", p.title, LIMITS.modalTitle, 1)
   const customId = walk.customId(handlerId(node, "onSubmit", walk), "Modal", false)
 
@@ -508,11 +514,16 @@ async function renderModal(node: ElementNode, route: string | undefined): Promis
     }
     flush()
     if (child.tag === "Text") components.push(await renderText(child, walk))
+    else if (child.tag === "Label" && form) throw new RenderError("<Label> cannot go next to <Modal form={..}>: add it to the Form as a Field")
     else if (child.tag === "Label") components.push(await renderLabel(child, walk))
     else if (INPUTS.includes(child.tag)) throw new RenderError(`${tag(child.tag)} goes inside a <Label> in a <Modal>`)
     else throw misplaced(child, "Modal")
   }
   flush()
+  if (form) {
+    walk.inForm = true
+    for (const label of formLabels(form, (p.values ?? {}) as Record<string, unknown>)) components.push(await renderLabel(label, walk))
+  }
   check(components.length >= 1 && components.length <= LIMITS.modalComponents, `A <Modal> holds 1-${LIMITS.modalComponents} <Label>s and <Text>s, it has ${components.length}`)
   return { custom_id: customId, title: p.title!, components } as unknown as ModalData
 }
@@ -544,7 +555,7 @@ async function renderLabel(node: ElementNode, walk: Walk): Promise<Json> {
 async function renderInput(node: ElementNode, walk: Walk): Promise<Json> {
   if (SELECTS.includes(node.tag)) return renderSelect(node, walk)
   const p = node.props as Record<string, unknown> & { required?: boolean; id?: number }
-  const json = walk.add({ ...withId(p.id), custom_id: walk.customId(inputName(node), node.tag) } as Json)
+  const json = walk.add({ ...withId(p.id), custom_id: walk.customId(inputName(node, walk), node.tag) } as Json)
   if (p.required !== undefined) json.required = p.required
   switch (node.tag) {
     case "TextInput": {
@@ -596,8 +607,10 @@ function handlerId(node: ElementNode, prop: string, walk: Walk): unknown {
 }
 
 /** A modal input's `name`: its `custom_id`, and its key in the submit handler's values. */
-function inputName(node: ElementNode): string {
+function inputName(node: ElementNode, walk: Walk): string {
   const { name } = node.props
   check(typeof name === "string" && name !== "", `${tag(node.tag)} in a <Modal> needs a name, its key in onSubmit's values`)
+  // "~" marks how a Form Field decodes (ADR 0028).
+  check(walk.inForm || !(name as string).includes("~"), `${tag(node.tag)} name "${name as string}" cannot contain "~"`)
   return name as string
 }

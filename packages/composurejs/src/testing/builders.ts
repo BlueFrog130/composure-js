@@ -128,15 +128,15 @@ type Resolved = Record<"users" | "members" | "roles" | "channels" | "attachments
 abstract class ResolvingBuilder<I extends Interaction> extends InteractionBuilder<I> {
   protected readonly resolved: Resolved = { users: {}, members: {}, roles: {}, channels: {}, attachments: {}, messages: {} }
   // Member data depends on where it is invoked, known only at build.
-  protected users = new Map<string, [User, Partial<ResolvedMember> | undefined]>()
+  protected resolvedUsers = new Map<string, [User, Partial<ResolvedMember> | undefined]>()
 
   protected resolveUser(user: WithId<User>, member?: Partial<ResolvedMember>): string {
-    this.users.set(user.id, [toUser(user), member])
+    this.resolvedUsers.set(user.id, [toUser(user), member])
     return user.id
   }
 
   protected resolvedData(): Data | undefined {
-    for (const [id, [user, member]] of this.users) {
+    for (const [id, [user, member]] of this.resolvedUsers) {
       this.resolved.users[id] = { ...user }
       if (this.inGuildNow) this.resolved.members[id] = { roles: [], joined_at: JOINED_AT, flags: 0, permissions: PERMISSIONS, ...member }
     }
@@ -226,7 +226,7 @@ class UserCommandBuilder extends ResolvingBuilder<APIUserApplicationCommandInter
 
   /** The clicked user (default Alice). */
   target(user: WithId<User>, member?: Partial<ResolvedMember>): this {
-    this.users.clear()
+    this.resolvedUsers.clear()
     this.#target = this.resolveUser(user, member)
     return this
   }
@@ -331,6 +331,21 @@ class ModalSubmitBuilder extends ResolvingBuilder<APIModalSubmitInteraction> {
             ? { type: 21, custom_id: customId, value: null }
             : { type: 4, custom_id: customId, value }
     this.#inputs.push({ type: 18, component })
+    return this
+  }
+
+  /** Users chosen in a `<UserSelect>` (or a Form's `field.user`), resolved as Discord sends them. */
+  users(customId: string, users: WithId<User>[]): this {
+    this.#inputs.push({ type: 18, component: { type: 5, custom_id: customId, values: users.map((u) => this.resolveUser(u)) } })
+    return this
+  }
+
+  /** Roles chosen in a `<RoleSelect>` (or a Form's `field.role`), resolved as Discord sends them. */
+  roles(customId: string, roles: WithId<Role>[]): this {
+    for (const role of roles) {
+      this.resolved.roles[role.id] = { name: "role", color: 0, hoist: false, position: 1, permissions: "0", managed: false, mentionable: true, flags: 0, ...role }
+    }
+    this.#inputs.push({ type: 18, component: { type: 6, custom_id: customId, values: roles.map((r) => r.id) } })
     return this
   }
 

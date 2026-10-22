@@ -57,10 +57,13 @@ export const Permission = {
   BypassSlowmode: 1n << 52n,
 } as const
 
+/** Administrator, which has every permission; a literal so that `c.can` does not keep the whole table in a bundle. */
+const ADMINISTRATOR = 1n << 3n
+
 /** Whether the permission set `held` (Discord's decimal string) has every flag in `wanted`; Administrator has them all. */
 export function hasPermissions(held: string | undefined, wanted: readonly bigint[]): boolean {
   if (held === undefined || !/^\d+$/.test(held)) return false
   const bits = BigInt(held)
-  if ((bits & Permission.Administrator) !== 0n) return true
+  if ((bits & ADMINISTRATOR) !== 0n) return true
   return wanted.every((flag) => (bits & flag) === flag)
 }

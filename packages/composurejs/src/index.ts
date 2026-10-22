@@ -74,3 +74,4 @@ export { DiscordApiError, RateLimitedError, RequestTimeoutError } from "./errors
 export type { Deferred, DeferredOutput } from "./response.ts"
 export type { BotClient, InteractionClient, RestOptions } from "./rest/index.ts"
 export { Permission } from "./permissions.ts"
+export { type Field, field, type Form, form, type FormPrefill, type FormValues } from "./forms.ts"

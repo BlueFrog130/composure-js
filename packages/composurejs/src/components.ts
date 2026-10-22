@@ -3,6 +3,7 @@
 import type { JSX } from "./jsx-runtime.ts"
 import { type Child, createNode } from "./jsx/node.ts"
 import type { ClickHandler, HandlerRef, SelectHandler, SubmitHandler } from "./handlers.ts"
+import type { Form } from "./forms.ts"
 import type { Choices } from "./options.ts"
 
 const UPLOAD = Symbol.for("composurejs.upload")
@@ -215,11 +216,11 @@ export function Button(props: ButtonProps): JSX.Element {
   return createNode("Button", { ...props })
 }
 
-interface SelectBase extends Base {
+interface SelectBase<V extends string = string> extends Base {
   /** Routes the selection to whatever handles this `custom_id`; max 100 characters. */
   customId?: string
-  /** Answers the selection in a message: `onSelect={(c, values: Topping[]) => ..}`. Instead of `customId`. */
-  onSelect?: SelectHandler | HandlerRef
+  /** Answers the selection in a message: `onSelect={(c, values) => ..}`. Instead of `customId`. */
+  onSelect?: SelectHandler<V> | HandlerRef
   /** In a modal: the key of this select's values in `onSubmit`. */
   name?: string
   /** Shown while nothing is selected; max 150 characters. */
@@ -234,15 +235,15 @@ interface SelectBase extends Base {
   required?: boolean
 }
 
-export interface StringSelectProps extends SelectBase {
-  /** Options from shared Choices, before any `<Option>` children. */
-  options?: Choices<string>
+export interface StringSelectProps<V extends string = string> extends SelectBase<V> {
+  /** Options from shared Choices, before any `<Option>` children; they type `onSelect`'s values. */
+  options?: Choices<V>
   /** `<Option>`s; 1-25 in all. */
   children?: Child
 }
 
 /** A select of fixed options. */
-export function StringSelect(props: StringSelectProps): JSX.Element {
+export function StringSelect<V extends string = string>(props: StringSelectProps<V>): JSX.Element {
   return createNode("StringSelect", { ...props })
 }
 
@@ -302,19 +303,23 @@ export function ChannelSelect(props: ChannelSelectProps): JSX.Element {
 
 // ---- Modals --------------------------------------------------------------------------------
 
-export interface ModalProps {
+export interface ModalProps<V = Record<string, any>, P = Partial<V>> {
   /** Required. Shown at the top; max 45 characters. */
   title: string
   /** Routes the submit to whatever handles this `custom_id`; max 100 characters. */
   customId?: string
-  /** Answers the submit: `onSubmit={(c, v: { reason: string }) => ..}`, values keyed by input `name`. Instead of `customId`. */
-  onSubmit?: SubmitHandler | HandlerRef
-  /** 1-5 `<Label>`s and `<Text>`s. */
+  /** The modal's inputs as a {@link Form}: one `<Label>` per Field, after any `<Text>` children. Types `onSubmit`'s values. */
+  form?: Form<V, P>
+  /** Prefills the Form's Fields. */
+  values?: P
+  /** Answers the submit: `onSubmit={(c, v) => ..}`, values typed from `form`, or keyed by input `name` and annotated. Instead of `customId`. */
+  onSubmit?: SubmitHandler<V> | HandlerRef
+  /** 1-5 `<Label>`s and `<Text>`s in all; with `form`, only `<Text>`s. */
   children?: Child
 }
 
 /** A modal form. Only at the root of a View; answering with it opens it. */
-export function Modal(props: ModalProps): JSX.Element {
+export function Modal<V = Record<string, any>, P = Partial<V>>(props: ModalProps<V, P>): JSX.Element {
   return createNode("Modal", { ...props })
 }
 

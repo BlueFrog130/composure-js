@@ -5,7 +5,8 @@
 import type { APIInteractionDataResolved, APIMessageComponentInteraction, APIModalSubmitInteraction } from "discord-api-types/v10"
 import { decodeValue, encodeValue, FAIL, type Fail, joinFields, prefixOf, splitFields } from "./codec.ts"
 import type { Context } from "./context.ts"
-import { RenderError } from "./errors.ts"
+import { RenderError, UserError } from "./errors.ts"
+import { resolveUser } from "./options.ts"
 import type { Output } from "./response.ts"
 import type { Env, MaybePromise } from "./types.ts"
 
@@ -19,10 +20,10 @@ type Bivariant<A extends unknown[], R> = { bivarianceHack(...args: A): R }["biva
 
 /** `onClick`: answers a button click. Returning a View updates the clicked message. */
 export type ClickHandler = Bivariant<[c: ComponentContext<any>], MaybePromise<Output>>
-/** `onSelect`: answers a select; annotate `values` to type them (`(c, values: Topping[]) => ..`). */
-export type SelectHandler = Bivariant<[c: ComponentContext<any>, values: string[]], MaybePromise<Output>>
-/** `onSubmit`: answers a modal; `values` by input `name`, annotate them (`(c, v: { reason: string }) => ..`). */
-export type SubmitHandler = Bivariant<[c: ModalContext<any>, values: ModalValues], MaybePromise<Output>>
+/** `onSelect`: answers a select. Values are typed from `options={Choices}`; otherwise annotate them (`(c, values: Topping[]) => ..`). */
+export type SelectHandler<V extends string = string> = Bivariant<[c: ComponentContext<any>, values: V[]], MaybePromise<Output>>
+/** `onSubmit`: answers a modal. Values are typed from `form={..}`; otherwise by input `name`, annotated (`(c, v: { reason: string }) => ..`). */
+export type SubmitHandler<V = ModalValues> = Bivariant<[c: ModalContext<any>, values: V], MaybePromise<Output>>
 
 /**
  * Submitted values by input `name`: a string for text inputs and radio groups (`undefined` when
@@ -132,12 +133,61 @@ interface Submitted {
 export function modalValues(components: readonly unknown[] | undefined, resolved: APIInteractionDataResolved | undefined): ModalValues {
   const out: ModalValues = {}
   const visit = (c: Submitted) => {
-    if (typeof c.custom_id === "string") out[c.custom_id] = valueOf(c, resolved)
+    if (typeof c.custom_id === "string") {
+      const [name, value] = decodeInput(c.custom_id, c, resolved)
+      out[name] = value
+    }
     if (c.component) visit(c.component)
     for (const child of c.components ?? []) visit(child)
   }
   for (const c of components ?? []) visit(c as Submitted)
   return out
+}
+
+/**
+ * An input's name and value. A Form Field's input says how to decode it after a `~` (ADR 0028):
+ * `n`/`d` a whole or any number (with min, max and label for the message), `r` resolved entities.
+ */
+function decodeInput(id: string, input: Submitted, resolved: APIInteractionDataResolved | undefined): [string, unknown] {
+  const tilde = id.indexOf("~")
+  if (tilde === -1) return [id, valueOf(input, resolved)]
+  const name = id.slice(0, tilde)
+  const [kind, min, max, label] = splitFields(id.slice(tilde + 1)) ?? []
+  switch (kind) {
+    case "n":
+    case "d":
+      return [name, parseNumber(valueOf(input, resolved), kind === "n", min, max, label ?? name)]
+    case "r":
+      return [name, (input.values ?? []).map((value) => resolveEntity(input.type, String(value), resolved)).filter((v) => v !== undefined)]
+  }
+  return [id, valueOf(input, resolved)]
+}
+
+/** A number typed into a text input; a User Error naming the field when it is not one in range. */
+function parseNumber(raw: unknown, whole: boolean, min: string | undefined, max: string | undefined, label: string): number | undefined {
+  if (typeof raw !== "string") return undefined
+  const text = raw.trim()
+  const value = Number(text)
+  if (text === "" || !Number.isFinite(value) || (whole && !/^[+-]?\d+$/.test(text))) throw new UserError(`"${label}" must be ${whole ? "a whole number" : "a number"}.`)
+  if (whole && !Number.isSafeInteger(value)) throw new UserError(`"${label}" is too large.`)
+  if (min && value < Number(min)) throw new UserError(`"${label}" must be at least ${min}.`)
+  if (max && value > Number(max)) throw new UserError(`"${label}" must be at most ${max}.`)
+  return value
+}
+
+/** A selected id as the entity Discord resolved it, by select type (5 user, 6 role, 7 mentionable, 8 channel). */
+function resolveEntity(type: number | undefined, id: string, resolved: APIInteractionDataResolved | undefined): unknown {
+  switch (type) {
+    case 5:
+      return resolveUser(id, resolved)
+    case 6:
+      return resolved?.roles?.[id]
+    case 7:
+      return resolveUser(id, resolved) ?? resolved?.roles?.[id]
+    case 8:
+      return resolved?.channels?.[id]
+  }
+  return undefined
 }
 
 function valueOf(input: Submitted, resolved: APIInteractionDataResolved | undefined): unknown {

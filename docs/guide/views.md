@@ -103,7 +103,7 @@ A handler is registered when its module loads, so every module with handlers mus
 
 ## Selects and modals
 
-Annotate a select's values to type them:
+A select's values are typed from its `options`:
 
 ```tsx twoslash
 import { defineChoices, Row, StringSelect } from "composurejs"
@@ -112,10 +112,12 @@ const Toppings = defineChoices({ nuts: "Nuts", salt: "Sea salt" })
 
 export const Picker = () => (
   <Row>
-    <StringSelect maxValues={2} options={Toppings} onSelect={(c, values: ("nuts" | "salt")[]) => c.reply(`Picked ${values.join(" and ")}`)} />
+    <StringSelect maxValues={2} options={Toppings} onSelect={(c, values) => c.reply(`Picked ${values.join(" and ")}`)} />
   </Row>
 )
 ```
+
+With `<Option>` children instead, annotate them: `(c, values: Topping[]) => ..`.
 
 A button can open a modal by returning it. Markup the modal's `onSubmit` returns updates the message the button was on:
 
@@ -147,3 +149,46 @@ Submitted values are keyed by input `name`:
 - a boolean for checkboxes
 - a list for selects and checkbox groups
 - resolved attachments for file uploads
+
+Those values are typed by annotation, which TypeScript does not check against the inputs.
+
+## Forms
+
+A Form defines a modal's inputs once: the modal renders from it, and `onSubmit`'s values are typed and parsed from it.
+
+```tsx twoslash
+import { command, defineChoices, field, form, Modal, Text } from "composurejs"
+// ---cut---
+const Mood = defineChoices({ great: "Great", fine: "Fine", meh: "Meh" })
+
+const feedback = form({
+  mood: field.radio(Mood, { label: "How is it going?" }),
+  stars: field.integer({ label: "Stars", min: 1, max: 5 }),
+  notes: field.text({ label: "Anything to add?", paragraph: true }).optional(),
+})
+
+export const review = command({
+  name: "review",
+  description: "Leave a review",
+  handler: () => (
+    <Modal title="Review" form={feedback} values={{ stars: 5 }} onSubmit={(c, v) => c.ephemeral(`${v.mood}, ${v.stars}★`)}>
+      <Text>Thanks for taking a minute.</Text>
+    </Modal>
+  ),
+})
+```
+
+- Each Field renders as a `<Label>` with its input, after any `<Text>` children; a `<Label>` of your own next to `form` is an error. A modal holds 5 in all.
+- `values` prefills Fields. Every Field is required unless `.optional()`, which makes its value `undefined` when left empty (an empty list for Fields that take several).
+- `field.integer` and `field.number` parse the text and check `min` / `max`. Bad input answers the user with what is wrong (`"Stars" must be at most 5.`) without calling `onSubmit`.
+- `field.user`, `role`, `mentionable` and `channel` give the resolved users, roles and channels; `field.files` gives attachments.
+
+| Field | Value |
+|---|---|
+| `field.text({ paragraph, minLength, maxLength, placeholder })` | `string` |
+| `field.integer({ min, max })`, `field.number({ min, max })` | `number` |
+| `field.radio(choices)` | one choice's value |
+| `field.select(choices, { min, max })`, `field.checkboxes(choices, { min, max })` | a list of values |
+| `field.checkbox()` | `boolean` |
+| `field.user()`, `field.role()`, `field.mentionable()`, `field.channel({ types })` | a list of resolved entities |
+| `field.files({ types })` | a list of attachments |

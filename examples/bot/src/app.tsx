@@ -2,24 +2,22 @@
 import {
   App,
   Button,
-  Checkbox,
   command,
   Container,
   defineChoices,
   Ephemeral,
+  field,
+  form,
   group,
-  Label,
   md,
   middleware,
   named,
   Modal,
   option,
-  RadioGroup,
   Row,
   Section,
   Separator,
   Text,
-  TextInput,
   userCommand,
   UserError,
 } from "composurejs"
@@ -118,12 +116,19 @@ export const poll = command({
 })
 
 const Mood = defineChoices({ great: "Great", fine: "Fine", meh: "Meh" })
-type FeedbackValues = { mood: "great" | "fine" | "meh"; notes: string | undefined; followUp: boolean }
+
+// A Form: the modal renders a Label per Field, and onSubmit's values are typed from it.
+const feedbackForm = form({
+  mood: field.radio(Mood, { label: "How is it going?" }),
+  notes: field.text({ label: "Anything to add?", paragraph: true, maxLength: 1000, placeholder: "Optional" }).optional(),
+  followUp: field.checkbox({ label: "Contact me about this" }),
+})
 
 export const Feedback = () => (
   <Modal
     title="Feedback"
-    onSubmit={(c, { mood, notes, followUp }: FeedbackValues) =>
+    form={feedbackForm}
+    onSubmit={(c, { mood, notes, followUp }) =>
       c.ephemeral(
         <Container>
           <Text>### Thanks for your feedback!</Text>
@@ -143,17 +148,7 @@ export const Feedback = () => (
         </Container>,
       )
     }
-  >
-    <Label text="How is it going?">
-      <RadioGroup name="mood" options={Mood} />
-    </Label>
-    <Label text="Anything to add?">
-      <TextInput name="notes" paragraph maxLength={1000} placeholder="Optional" required={false} />
-    </Label>
-    <Label text="Contact me about this">
-      <Checkbox name="followUp" />
-    </Label>
-  </Modal>
+  />
 )
 
 export const feedback = command({ name: "feedback", description: "Tell us how it's going", handler: () => <Feedback /> })

@@ -170,10 +170,18 @@ export class TestResponse {
   /** Submitting the modal this response opens, with values by input `custom_id`. */
   submit(values: Record<string, SubmittedValue> = {}): ModalSubmitBuilder {
     if (this.type !== 9) throw new Error(`submit() needs a modal response (type 9), this is type ${String(this.type)}`)
-    const inputs = new Set(this.allComponents.map((c) => c.custom_id).filter((id) => typeof id === "string"))
+    // By input name; a Form Field's custom_id adds how it decodes after "~".
+    const inputs = new Map(
+      this.allComponents
+
+        .map((c) => c.custom_id)
+        .filter((id): id is string => typeof id === "string")
+        .map((id) => [id.split("~")[0]!, id]),
+    )
     const builder = modalSubmit(this.data!.custom_id as string)
-    for (const [id, value] of Object.entries(values)) {
-      if (!inputs.has(id)) throw new Error(`The modal has no input "${id}"; inputs: ${[...inputs].join(", ")}`)
+    for (const [name, value] of Object.entries(values)) {
+      const id = inputs.get(name)
+      if (!id) throw new Error(`The modal has no input "${name}"; inputs: ${[...inputs.keys()].join(", ")}`)
       builder.field(id, value)
     }
     const message = (this.interaction as { message?: Json } | undefined)?.message
