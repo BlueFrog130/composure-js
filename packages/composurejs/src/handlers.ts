@@ -83,9 +83,14 @@ export function named<F extends (...args: any[]) => unknown>(id: string, handler
   throw new RenderError(`named("${id}", ..): ${PLUGIN_HINT}`)
 }
 
-/** Thrown at render when an `on*` prop is still a function: the build did not run the plugin. */
+/**
+ * Thrown at render when an `on*` prop is still a function. The plugin compiles every handler it
+ * can see, so either it is not in the build or the function arrived some way it cannot follow.
+ */
 export function uncompiledHandler(prop: string): RenderError {
-  return new RenderError(`${prop} got a function: ${PLUGIN_HINT}`)
+  return new RenderError(
+    `${prop} got a function the build did not compile. Write the handler inline, at module scope, or with named("id", ..), and pass handler props on unchanged; otherwise check that @composurejs/vite is in the build (vite.config.ts: plugins: [composure()])`,
+  )
 }
 
 /** Runs the handler a `custom_id` addresses; FAIL when it is unknown or its values do not decode (the Fallback answers). */

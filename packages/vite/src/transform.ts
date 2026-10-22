@@ -77,7 +77,8 @@ function blockDeclarations(statements: Node[]): string[] {
   return out
 }
 
-type Scope = Set<string>
+/** Names declared in one scope; `params` are the enclosing function's parameters. */
+type Scope = Set<string> & { params?: Set<string> }
 
 interface Visitor {
   /** Return false to skip the node's children. */
@@ -92,8 +93,9 @@ function walk(node: Node, visitor: Visitor, parents: Node[] = [], scopes: Scope[
 
   if (isFunction(node)) {
     const scope: Scope = new Set()
+    scope.params = new Set(node.params.flatMap((p: Node) => patternNames(p, [])))
     if (node.type === "FunctionExpression" && node.id) scope.add(node.id.name)
-    for (const p of node.params) patternNames(p, []).forEach((n) => scope.add(n))
+    for (const n of scope.params) scope.add(n)
     const body = node.body
     if (body.type === "BlockStatement") blockDeclarations(body.body).forEach((n) => scope.add(n))
     const next = [...scopes, scope]
@@ -227,9 +229,11 @@ const HANDLER_ATTRS = new Set(["onClick", "onSelect", "onSubmit"])
 const NAMED_ID = /^[A-Za-z0-9-][A-Za-z0-9_-]{0,31}$/
 
 interface Site {
-  /** What the handler reference replaces: the inline function, or the whole `named(..)` call. */
+  /** What the handler reference replaces: the inline function, the whole `named(..)` call, or a module-level name. */
   replace: Node
   closure: Node
+  /** A module-level or imported name: wrapped when it holds a function, passed on when it already holds a reference. */
+  reference?: true
   /** The id from named(), else generated. */
   name: string | undefined
   owner: string
@@ -290,14 +294,30 @@ export function transformHandlers(
   walk(program, {
     enter(node, parents, scopes) {
       if (node.type === "JSXAttribute" && node.name.type === "JSXIdentifier" && HANDLER_ATTRS.has(node.name.name) && node.value?.type === "JSXExpressionContainer") {
-        const expr: Node = node.value.expression
-        if (isFunction(expr)) {
-          sites.push({ replace: expr, closure: expr, name: undefined, owner: ownerOf(parents), attr: node.name.name, locals: captureLocals(expr, scopes, node.name.name) })
-        } else if (expr.type === "Identifier" && findScope(scopes, expr.name) >= 0) {
-          throw new HandlerTransformError(
-            `${node.name.name}={${expr.name}}: write the handler inline, so it can be hoisted with what it captures (or use named("id", ..))`,
-            expr.start,
-          )
+        const attr: string = node.name.name
+        const owner = ownerOf(parents)
+        for (const leaf of handlerLeaves(node.value.expression)) {
+          if (isFunction(leaf)) {
+            sites.push({ replace: leaf, closure: leaf, name: undefined, owner, attr, locals: captureLocals(leaf, scopes, attr) })
+          } else if (leaf.type === "Identifier") {
+            const at = findScope(scopes, leaf.name)
+            // Module scope, an import or a global: wrapped as a handler with no captures.
+            if (at < 0) {
+              if (leaf.name !== "undefined") sites.push({ replace: leaf, closure: leaf, reference: true, name: undefined, owner, attr, locals: [] })
+            }
+            // A parameter (a handler prop passed through a wrapper component) already holds a reference.
+            else if (!scopes[at]!.params?.has(leaf.name)) {
+              throw new HandlerTransformError(
+                `${attr}={${leaf.name}}: ${leaf.name} is a local variable, which cannot be hoisted. Write the handler inline (it is hoisted with what it captures), define it at module scope, or use named("id", ..)`,
+                leaf.start,
+              )
+            }
+          } else if (leaf.type === "CallExpression" && !isNamed(leaf)) {
+            throw new HandlerTransformError(
+              `${attr}={${code.slice(leaf.callee.start, leaf.callee.end)}(..)}: a handler made by a call cannot be hoisted. Write it inline, define it at module scope, or use named("id", ..)`,
+              leaf.start,
+            )
+          }
         }
         return
       }
@@ -341,7 +361,8 @@ export function transformHandlers(
     const site = sites[i]!
     const ref = `__composure_h${i}`
     const closure = s.slice(site.closure.start, site.closure.end)
-    s.overwrite(site.replace.start, site.replace.end, `${ref}.bind([${site.locals.join(", ")}])`)
+    const bound = `${ref}.bind([${site.locals.join(", ")}])`
+    s.overwrite(site.replace.start, site.replace.end, site.reference ? `(typeof ${closure} === "function" ? ${bound} : ${closure})` : bound)
     const roots = [...new Set(site.locals.map((path) => path.split(".")[0]!))]
     const where = `${file}: ${site.owner}`
     decls[i] =
@@ -351,6 +372,25 @@ export function transformHandlers(
   if (lastImport) s.appendLeft(lastImport.end, header)
   else s.prepend(header)
   return { code: s.toString(), map: s.generateMap({ hires: true, source: id, includeContent: true }) }
+}
+
+/**
+ * The expressions a handler prop can take its value from: both branches of `?:`, the right side of
+ * `&&`, both sides of `||` and `??`, through parentheses and type assertions.
+ */
+function handlerLeaves(expr: Node): Node[] {
+  switch (expr.type) {
+    case "ParenthesizedExpression":
+    case "TSAsExpression":
+    case "TSSatisfiesExpression":
+    case "TSNonNullExpression":
+      return handlerLeaves(expr.expression)
+    case "ConditionalExpression":
+      return [...handlerLeaves(expr.consequent), ...handlerLeaves(expr.alternate)]
+    case "LogicalExpression":
+      return expr.operator === "&&" ? handlerLeaves(expr.right) : [...handlerLeaves(expr.left), ...handlerLeaves(expr.right)]
+  }
+  return [expr]
 }
 
 /** `Counter`, `cookie.handler`, `Shop.render`: the named declarations around a handler. */

@@ -5,6 +5,8 @@ import {
   App,
   Button,
   Checkbox,
+  type ClickHandler,
+  type ComponentContext,
   command,
   Container,
   defineChoices,
@@ -46,6 +48,17 @@ export const Counter = ({ count, owner }: { count: number; owner: string }) => (
     </Row>
   </Container>
 )
+
+/** A wrapper component passing its handler prop on. */
+const Primary = ({ label, onClick }: { label: string; onClick: ClickHandler }) => (
+  <Button style="primary" onClick={onClick}>
+    {label}
+  </Button>
+)
+
+function shout(c: ComponentContext) {
+  return c.reply(`HEY ${c.user.username.toUpperCase()}`)
+}
 
 const Echo = ({ text }: { text: string }) => (
   <Row>
@@ -146,6 +159,27 @@ describe("Inline Handlers", () => {
     const res = await answer(greet, chatInput("greet"))
     const waved = await answer(greet, res.click("Wave").by({ id: "2", username: "bob" }))
     expect([waved.type, waved.text]).toEqual([4, "bob waves back at alice in 798662131062931547"])
+  })
+
+  test("handlers pass through wrapper components; module-level functions work as handlers", async () => {
+    const app = new App().command(
+      command({
+        name: "wrapped",
+        description: "Wrapped",
+        handler: () => (
+          <Row>
+            <Primary label="Go" onClick={(c) => c.reply(`forwarded to ${c.user.username}`)} />
+            <Button onClick={shout}>Shout</Button>
+            <Button onClick={STEPS.length > 1 ? (c) => c.reply("many") : (c) => c.reply("one")}>Count</Button>
+          </Row>
+        ),
+      }),
+    )
+    const res = await answer(app, chatInput("wrapped"))
+    expect(res.component(res.allComponents[1]!.custom_id as string)?.style).toBe(1)
+    expect((await answer(app, res.click("Go"))).text).toBe("forwarded to alice")
+    expect((await answer(app, res.click("Shout"))).text).toBe("HEY ALICE")
+    expect((await answer(app, res.click("Count"))).text).toBe("many")
   })
 
   test("strings with : and \\ round-trip", async () => {
@@ -318,15 +352,14 @@ describe("named()", () => {
 })
 
 describe("without @composurejs/vite", () => {
-  test("a function on* prop fails at render, saying the plugin must be in the build", async () => {
+  test("a function on* prop fails at render, saying how to write it and that the plugin must be in the build", async () => {
     const { logger, entries } = recordingLogger()
     const raw = new App({ logger }).command(
       command({ name: "raw", description: "R", handler: () => jsx(Row, { children: jsx(RawButton, { onClick: () => "hi", children: "x" }) }) }),
     )
     await answer(raw, chatInput("raw"))
-    expect((entries[0]?.error as Error).message).toBe(
-      "<Button onClick> got a function: Inline Handlers are compiled by @composurejs/vite, which must be in the build (vite.config.ts: plugins: [composure()])",
-    )
+    expect((entries[0]?.error as Error).message).toContain("<Button onClick> got a function the build did not compile")
+    expect((entries[0]?.error as Error).message).toContain("plugins: [composure()]")
   })
 
   test("named() throws when called", () => {

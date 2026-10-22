@@ -111,7 +111,7 @@ describe("transformHandlers", () => {
 
   test("errors point at the handler", () => {
     expect(() => run(`import { Button } from "composurejs"\nexport const V = () => { const go = () => 1; return <Button onClick={go} /> }`)).toThrow(
-      "onClick={go}: write the handler inline, so it can be hoisted with what it captures",
+      "onClick={go}: go is a local variable, which cannot be hoisted. Write the handler inline",
     )
     expect(() => run(`import { Button, named } from "composurejs"\nconst id = "x"\nexport const V = () => <Button onClick={named(id, () => 1)} />`)).toThrow(
       "named() needs a string literal id",
@@ -122,8 +122,38 @@ describe("transformHandlers", () => {
     ).toThrow('named("a") is used twice in this module')
   })
 
-  test("leaves references and modules without handlers alone", () => {
-    expect(run(`import { Button } from "composurejs"\nimport { refresh } from "./refs"\nexport const V = () => <Button onClick={refresh} />`)).toBeUndefined()
+  test("a module-level or imported function is wrapped as a handler; a reference held there passes on", () => {
+    const out = run(`import { Button } from "composurejs"\nimport { refresh } from "./refs"\nexport const V = () => <Button onClick={refresh} />`)!
+    expect(out).toContain(`onClick={(typeof refresh === "function" ? __composure_h0.bind([]) : refresh)}`)
+    expect(out).toMatch(/const __composure_h0 = __composure_handler\("_[\w-]{7}", \[\], \(\) => \(refresh\)/)
+  })
+
+  test("a handler prop passed through a wrapper component is left as it is", () => {
+    const out = run(`import { Button } from "composurejs"
+      const Fancy = ({ onClick, label }) => <Button style="primary" onClick={onClick}>{label}</Button>
+      const Plain = (props) => <Button onClick={props.onClick}>x</Button>
+      export const V = ({ n }) => <Fancy label="go" onClick={() => <V n={n + 1} />} />`)!
+    expect(out).toContain(`<Button style="primary" onClick={onClick}>`)
+    expect(out).toContain(`<Button onClick={props.onClick}>`)
+    expect(out).toContain(`<Fancy label="go" onClick={__composure_h0.bind([n])} />`)
+  })
+
+  test("each function branch of ?:, &&, || and ?? is hoisted on its own", () => {
+    const out = run(`import { Button } from "composurejs"
+      export const V = ({ a, n }) => <><Button onClick={a ? (c) => "yes" : (c) => "no " + n} /><Button onClick={a && ((c) => "x")} /><Button onClick={(a as any) ?? (() => "y")} /></>`)!
+    expect(out).toContain(`onClick={a ? __composure_h0.bind([]) : __composure_h1.bind([n])}`)
+    expect(out).toContain(`onClick={a && (__composure_h2.bind([]))}`)
+    expect(out).toContain(`onClick={(a as any) ?? (__composure_h3.bind([]))}`)
+  })
+
+  test("a handler made by a call is a compile error", () => {
+    expect(() => run(`import { Button } from "composurejs"\nimport { make } from "./x"\nexport const V = () => <Button onClick={make(1)} />`)).toThrow(
+      "onClick={make(..)}: a handler made by a call cannot be hoisted",
+    )
+  })
+
+  test("leaves modules without handlers alone", () => {
+    expect(run(`import { Button } from "composurejs"\nexport const V = () => <Button onClick={undefined} />`)).toBeUndefined()
     expect(run(`export const x = 1`)).toBeUndefined()
   })
 

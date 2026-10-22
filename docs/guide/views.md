@@ -37,6 +37,30 @@ Discord keeps no state between clicks. Each click is a new HTTP request, possibl
 
 On a click, the id finds the handler, the values are decoded, and the handler runs with them. **Vite is required**: without the plugin, an `onClick` that is still a function fails at render, saying so.
 
+## Where a handler can come from
+
+- **Written inline**, as above. Each branch of `?:`, `&&`, `||` and `??` counts: `onClick={mine ? (c) => .. : (c) => ..}` hoists both.
+- **A function at module scope or an import**: `onClick={refresh}`. It captures nothing, so it reads only `c` and what is at module scope.
+- **A handler prop passed on** by a wrapper component, unchanged:
+
+```tsx twoslash
+import { Button, type ClickHandler, Row } from "composurejs"
+// ---cut---
+const Primary = ({ label, onClick }: { label: string; onClick: ClickHandler }) => (
+  <Button style="primary" onClick={onClick}>
+    {label}
+  </Button>
+)
+
+export const Menu = ({ page }: { page: number }) => (
+  <Row>
+    <Primary label="Next" onClick={() => <Menu page={page + 1} />} />
+  </Row>
+)
+```
+
+The handler is compiled where it is written (`<Primary onClick={..}>`), and `Primary` receives its reference. A local variable holding a function (`const go = () => ..; <Button onClick={go}>`) and a handler made by a call (`onClick={make(x)}`) cannot be hoisted and are compile errors: write them inline instead.
+
 ## What a handler may read
 
 - **Strings, numbers, booleans** (and `null` / `undefined`) from props, locals and loop variables. Read the part you need: `item.id`, not `item`. Capturing an object or a function fails at render, saying what to capture instead.
