@@ -14,6 +14,6 @@ export default defineConfig({
   },
   format: "esm",
   platform: "neutral",
-  dts: true,
+  dts: { tsconfig: "tsconfig.build.json" },
   external: [/^node:/, /^discord-api-types/],
 })
