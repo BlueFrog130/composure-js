@@ -133,3 +133,99 @@ describe("c.deferUpdate", () => {
     ])
   })
 })
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+describe("Auto Defer", () => {
+  const quick = { autoDefer: { after: 20 } }
+
+  test("a Command slower than the threshold is deferred, and its answer edits the loading reply", async () => {
+    const app = new App(quick).command(command({ name: "slow", description: "S", handler: async () => (await sleep(60), (<Text>late</Text>)) }))
+    const res = await answer(app, chatInput("slow"))
+    expect(res.body).toEqual({ type: 5 })
+    const [edit] = await res.settle()
+    expect(edit).toMatchObject({ method: "PATCH", path: expect.stringMatching(ORIGINAL), json: { flags: 1 << 15, components: [{ type: 10, content: "late" }] } })
+  })
+
+  test("a fast handler is answered as usual", async () => {
+    const app = new App(quick).command(command({ name: "fast", description: "F", handler: () => "now" }))
+    expect((await answer(app, chatInput("fast"))).text).toBe("now")
+  })
+
+  test('a private answer replaces a public loading reply; autoDefer: "ephemeral" defers privately', async () => {
+    const { logger, entries } = recordingLogger()
+    const app = new App({ ...quick, logger })
+      .command(command({ name: "a", description: "A", handler: async (c) => (await sleep(60), c.ephemeral("psst")) }))
+      .command(command({ name: "b", description: "B", autoDefer: "ephemeral", handler: async (c) => (await sleep(60), c.ephemeral("psst")) }))
+    const a = await answer(app, chatInput("a"))
+    expect(a.body).toEqual({ type: 5 })
+    const [remove, followup] = await a.settle()
+    expect([remove?.method, followup?.method, followup?.json]).toEqual(["DELETE", "POST", { content: "psst", flags: 64 }])
+    expect(entries.some((e) => e.level === "warn" && /autoDefer: "ephemeral"/.test(e.msg))).toBe(true)
+
+    const b = await answer(app, chatInput("b"))
+    expect(b.body).toEqual({ type: 5, data: { flags: 64 } })
+    expect((await b.settle())[0]).toMatchObject({ method: "PATCH", json: { content: "psst" } })
+  })
+
+  test("a slow click is acknowledged as an update, then edits its message; a reply follows up", async () => {
+    const app = new App(quick).command(
+      command({
+        name: "menu",
+        description: "M",
+        handler: () => (
+          <Row>
+            <Button onClick={async () => (await sleep(60), (<Text>refreshed</Text>))}>Refresh</Button>
+            <Button onClick={async (c) => (await sleep(60), c.reply("new message"))}>Reply</Button>
+          </Row>
+        ),
+      }),
+    )
+    const menu = await answer(app, chatInput("menu"))
+    const refreshed = await answer(app, menu.click("Refresh"))
+    expect(refreshed.body).toEqual({ type: 6 })
+    expect((await refreshed.settle())[0]).toMatchObject({ method: "PATCH", path: expect.stringMatching(ORIGINAL), json: { components: [{ type: 10, content: "refreshed" }] } })
+    const replied = await answer(app, menu.click("Reply"))
+    expect((await replied.settle())[0]).toMatchObject({ method: "POST", json: { content: "new message" } })
+  })
+
+  test("a failure after deferring shows the Error Renderer's output", async () => {
+    const app = new App(quick).command(
+      command({
+        name: "boom",
+        description: "B",
+        handler: async () => {
+          await sleep(60)
+          throw new UserError("Nope")
+        },
+      }),
+    )
+    const res = await answer(app, chatInput("boom"))
+    const [remove, followup] = await res.settle()
+    expect([remove?.method, followup?.json]).toEqual(["DELETE", { content: "Nope", flags: 64 }])
+  })
+
+  test("c.defer after the threshold still runs its work; autoDefer: false turns it off", async () => {
+    const app = new App(quick)
+      .command(command({ name: "late", description: "L", handler: async (c) => (await sleep(60), c.defer(async () => "worked")) }))
+      .command(command({ name: "off", description: "O", autoDefer: false, handler: async () => (await sleep(60), "on time") }))
+    const late = await answer(app, chatInput("late"))
+    expect(late.body).toEqual({ type: 5 })
+    expect((await late.settle())[0]).toMatchObject({ method: "PATCH", json: { content: "worked" } })
+    expect((await answer(app, chatInput("off"))).text).toBe("on time")
+    expect((await answer(new App({ autoDefer: false }).command(command({ name: "x", description: "X", handler: async () => (await sleep(40), "ok") })), chatInput("x"))).text).toBe(
+      "ok",
+    )
+  })
+
+  test("without waitUntil, the deferral goes through the callback endpoint and the answer follows before the 202", async () => {
+    const transport = new MockTransport()
+    const app = new App(quick).command(command({ name: "slow", description: "S", handler: async () => (await sleep(60), "done") }))
+    const res = await answer(app, chatInput("slow"), { transport, platform: {} })
+    expect(res.status).toBe(202)
+    expect(transport.requests.map((r) => [r.method, r.json])).toEqual([
+      ["POST", { type: 5 }],
+      ["PATCH", { content: "done" }],
+    ])
+  })
+})

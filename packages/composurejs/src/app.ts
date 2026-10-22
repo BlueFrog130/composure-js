@@ -28,6 +28,11 @@ export interface AppOptions<E extends Env> {
   requestTimeout?: number
   /** Path Webhook Events arrive at. Default `/events`. */
   eventsPath?: string
+  /**
+   * Auto Defer (ADR 0027): a handler that has not answered `after` ms (default 2000) from the
+   * request's arrival gets a Deferred Response, and its answer is edited in. `false` turns it off.
+   */
+  autoDefer?: { after?: number } | false
 }
 
 /** A Command Definition and the Scope it is synced to (`undefined`: global). */
@@ -66,6 +71,8 @@ export interface Built<E extends Env = Env> {
   requestTimeout: number
   events: EventHandler<E> | undefined
   eventsPath: string
+  /** Auto Defer's threshold in ms, or undefined when off. */
+  autoDeferAfter: number | undefined
 }
 
 interface Resolved<E extends Env> {
@@ -141,6 +148,7 @@ export class App<E extends Env = Env> {
 
   /** Answers one platform request: verify, parse, dispatch, render (ADR 0007). */
   readonly fetch = async (request: Request, env?: BindingsOf<E>, platform?: Platform): Promise<Response> => {
+    const receivedAt = Date.now()
     const logger = this.#options.logger ?? consoleLogger
     const bindings = (env ?? {}) as BindingsOf<E>
     let resolved: Resolved<E>
@@ -151,7 +159,7 @@ export class App<E extends Env = Env> {
       return new Response("Internal Server Error", { status: 500 })
     }
     try {
-      return await handleInteraction(this, request, { ...resolved, env: bindings, platform })
+      return await handleInteraction(this, request, { ...resolved, env: bindings, platform, receivedAt })
     } catch (error) {
       logger.error({ msg: "Answering the request failed", error: serializeError(error) })
       return new Response("Internal Server Error", { status: 500 })
@@ -203,6 +211,7 @@ export class App<E extends Env = Env> {
       requestTimeout: this.#options.requestTimeout ?? 10_000,
       events: undefined,
       eventsPath: this.#options.eventsPath ?? "/events",
+      autoDeferAfter: this.#options.autoDefer === false ? undefined : (this.#options.autoDefer?.after ?? 2000),
     }
     const seen = new Map<string, string>()
     let onErrorAt: string | undefined

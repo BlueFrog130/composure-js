@@ -8,10 +8,10 @@ import type {
   APIMessage,
 } from "discord-api-types/v10"
 import { type App, type Built, internals } from "./app.ts"
-import type { AnyCommand, Command, Group } from "./command.ts"
+import type { AnyCommand, AutoDeferSetting, Command, Group } from "./command.ts"
 import { Context, ROUTE } from "./context.ts"
 import type { Credentials } from "./credentials.ts"
-import { type Interaction, type InteractionResponse, InteractionType, ResponseType } from "./discord.ts"
+import { type Interaction, type InteractionResponse, InteractionType, MessageFlags, ResponseType } from "./discord.ts"
 import { FAIL, splitRoute } from "./codec.ts"
 import { DiscordApiError, InvalidOptionsError, ResponseError, UnknownCommandError, UserError } from "./errors.ts"
 import { decodeEvent, EventContext } from "./events.ts"
@@ -24,7 +24,7 @@ import { LIMITS } from "./jsx/render.ts"
 import { type Answer, type Deferred, Ephemeral, isDeferred, type Output, rerendered, toAnswer, unwrapEphemeral, unwrapReply } from "./response.ts"
 import type { RestOptions } from "./rest/client.ts"
 import { InteractionClient } from "./rest/interaction.ts"
-import { toMessageBody } from "./rest/message.ts"
+import { messageBody, toMessageBody } from "./rest/message.ts"
 import type { Transport } from "./transport.ts"
 import type { BindingsOf, DataOf, Env, Platform } from "./types.ts"
 import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verifySignature } from "./verify.ts"
@@ -44,6 +44,8 @@ export interface HandleOptions<E extends Env> {
   platform?: Platform | undefined
   /** Overrides the App's Transport. */
   transport?: Transport | undefined
+  /** When the request arrived (ms since the epoch), for Auto Defer's threshold. Default: now. */
+  receivedAt?: number | undefined
 }
 
 /**
@@ -60,7 +62,11 @@ export async function handleInteraction<E extends Env>(app: App<E>, request: Req
   if (!isInteraction(interaction)) return notAnInteraction()
 
   const rest = restOptions(built, options)
-  const { answer, c } = await answerInteraction(built, interaction, options, rest)
+  const answering = answerInteraction(built, interaction, options, rest)
+  const auto = autoDeferOf(built, interaction, options.receivedAt ?? Date.now())
+  const first = auto ? await raceTimer(answering, auto.wait) : await answering
+  if (first === TIMED_OUT) return autoDeferred(built, interaction, answering, auto!.sent, options, rest)
+  const { answer, c } = first
   const client = () => c?.client ?? new InteractionClient(interaction.application_id, interaction.id, interaction.token, rest)
 
   if (answer.files.length > 0) return sendThroughCallback(built, interaction, answer, client())
@@ -77,6 +83,132 @@ export async function handleInteraction<E extends Env>(app: App<E>, request: Req
     return sent
   }
   return Response.json(answer.response)
+}
+
+/** What an Auto Defer sends: a loading reply (type 5, maybe ephemeral) or an acknowledged update (type 6). */
+interface Sent {
+  kind: "message" | "update"
+  ephemeral: boolean
+}
+
+const TIMED_OUT = Symbol("composurejs.timedOut")
+
+async function raceTimer<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<typeof TIMED_OUT>((resolve) => (timer = setTimeout(resolve, ms, TIMED_OUT)))
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Whether this Interaction gets Auto Defer, how long to wait, and what deferring sends (ADR 0027).
+ * Commands, clicks and modal submits; never Ping or autocomplete, which cannot be deferred.
+ */
+function autoDeferOf<E extends Env>(built: Built<E>, interaction: Interaction, receivedAt: number): { wait: number; sent: Sent } | undefined {
+  if (built.autoDeferAfter === undefined) return undefined
+  let setting: AutoDeferSetting | undefined
+  let kind: Sent["kind"]
+  switch (interaction.type) {
+    case InteractionType.ApplicationCommand: {
+      const command = built.commands.get(`${interaction.data.type}:${interaction.data.name}`)?.command
+      const leaf = command?.kind === "group" ? findLeaf(command, (interaction.data as CommandData).options)?.leaf : undefined
+      setting = leaf?.autoDefer ?? command?.autoDefer
+      kind = "message"
+      break
+    }
+    case InteractionType.MessageComponent:
+    case InteractionType.ModalSubmit: {
+      const { route } = splitRoute(interaction.data.custom_id)
+      setting = route === undefined ? undefined : built.routes.get(route)?.command.autoDefer
+      kind = interaction.type === InteractionType.MessageComponent || ("message" in interaction && interaction.message !== undefined) ? "update" : "message"
+      break
+    }
+    default:
+      return undefined
+  }
+  if (setting === false) return undefined
+  return { wait: Math.max(0, built.autoDeferAfter - (Date.now() - receivedAt)), sent: { kind, ephemeral: kind === "message" && setting === "ephemeral" } }
+}
+
+/**
+ * The handler is still running past the threshold: answer with the deferral now, and deliver its
+ * answer as Background Work once it has one (ADR 0027).
+ */
+async function autoDeferred<E extends Env>(
+  built: Built<E>,
+  interaction: Interaction,
+  answering: Promise<{ answer: Answer; c?: Context<E> }>,
+  sent: Sent,
+  options: HandleOptions<E>,
+  rest: RestOptions,
+): Promise<Response> {
+  const response: InteractionResponse =
+    sent.kind === "update"
+      ? { type: ResponseType.DeferredMessageUpdate }
+      : { type: ResponseType.DeferredChannelMessageWithSource, ...(sent.ephemeral && { data: { flags: MessageFlags.Ephemeral } }) }
+  built.logger.debug({ msg: "Auto Defer", interactionId: interaction.id, kind: sent.kind })
+  const work = (async () => {
+    const { answer, c } = await answering
+    if (!c) return
+    if (answer.deferred) return runDeferred(built, c, answer.deferred, sent)
+    try {
+      await deliver(c, answer, sent, built)
+    } catch (error) {
+      await reportFailure(built, c, error, sent)
+    }
+  })().catch((error: unknown) => built.logger.error({ msg: "Answering after Auto Defer failed", interactionId: interaction.id, error: serializeError(error) }))
+  if (options.platform?.waitUntil) {
+    options.platform.waitUntil(work)
+    return Response.json(response)
+  }
+  const client = new InteractionClient(interaction.application_id, interaction.id, interaction.token, rest)
+  const answered = await sendThroughCallback(built, interaction, { response, files: [] }, client)
+  if (answered.status === 202) await work
+  return answered
+}
+
+/** Delivers an answer rendered after its Interaction was deferred: edits the original, or follows up. */
+async function deliver<E extends Env>(c: Context<E>, answer: Answer, sent: Sent, built: Built<E>): Promise<void> {
+  const { response, files } = answer
+  const data: Record<string, unknown> = { ...(response as { data?: Record<string, unknown> }).data }
+  const flags = (data.flags as number | undefined) ?? 0
+  switch (response.type) {
+    case ResponseType.ChannelMessageWithSource: {
+      const ephemeral = (flags & MessageFlags.Ephemeral) !== 0
+      // A new message from a click (c.reply): the clicked message stays as it is.
+      if (sent.kind === "update") return void (await c.client.followup(messageBody(data, files)))
+      if (ephemeral && !sent.ephemeral) {
+        // Discord fixed the loading reply as public; a private answer replaces it.
+        built.logger.warn({ msg: 'A public Auto Defer was answered ephemerally; set autoDefer: "ephemeral" on the Command', interactionId: c.interaction.id })
+        await c.client.deleteOriginal()
+        return void (await c.client.followup(messageBody(data, files)))
+      }
+      // Edits cannot change ephemerality: the loading reply already fixed it.
+      const kept = flags & ~MessageFlags.Ephemeral
+      if (kept) data.flags = kept
+      else delete data.flags
+      return void (await c.client.editOriginal(messageBody(data, files)))
+    }
+    case ResponseType.UpdateMessage:
+      return void (await c.client.editOriginal(messageBody(data, files)))
+    case ResponseType.Modal:
+      throw new ResponseError("A modal cannot open after Auto Defer deferred the Interaction: open it before other slow work, or set autoDefer: false")
+  }
+  throw new ResponseError(`An answer of type ${response.type} cannot follow Auto Defer`)
+}
+
+/** The Error Renderer's output for work that failed after deferring: edits the loading reply, else an ephemeral follow-up. */
+async function reportFailure<E extends Env>(built: Built<E>, c: Context<E>, error: unknown, sent: Sent): Promise<void> {
+  try {
+    const [output] = unwrapEphemeral(await errorOutput(built, error, c))
+    if (sent.kind === "update") await c.client.followup(Ephemeral(output))
+    else await c.client.editOriginal(await toMessageBody(output as never, { route: c[ROUTE] }))
+  } catch (reportError) {
+    built.logger.error({ msg: "Reporting failed deferred work failed", interactionId: c.interaction.id, error: serializeError(reportError) })
+  }
 }
 
 function restOptions<E extends Env>(built: Built<E>, options: HandleOptions<E>): RestOptions {
@@ -187,24 +319,27 @@ async function answerInteraction<E extends Env>(
  * Background Work of a Deferred Response: run the work, then edit the original (the deferred
  * reply, or the component's message for deferUpdate). On failure the Error Renderer's output
  * edits the original, or for deferUpdate goes out as an ephemeral follow-up, so the component's
- * message keeps its state (composure-rs ADR 0006).
+ * message keeps its state (composure-rs ADR 0006). `sent` is what Discord was answered with, which
+ * differs from what the work asked for when Auto Defer answered first (ADR 0027).
  */
-async function runDeferred<E extends Env>(built: Built<E>, c: Context<E>, deferred: Deferred): Promise<void> {
+async function runDeferred<E extends Env>(built: Built<E>, c: Context<E>, deferred: Deferred, sent: Sent = deferred): Promise<void> {
   try {
     const [output, ephemeral] = unwrapEphemeral(await deferred.run())
     if (ephemeral && !deferred.ephemeral) {
       throw new ResponseError("Ephemerality is decided when deferring, as Discord fixes it then: c.defer(work, { ephemeral: true })")
     }
     if (isDeferred(output)) throw new ResponseError("Deferred work cannot defer again")
-    await c.client.editOriginal(await toMessageBody(output, { route: c[ROUTE] }))
+    const body = await toMessageBody(output, { route: c[ROUTE] })
+    if (sent.kind === "update" && deferred.kind === "message") {
+      // c.defer from a click after Auto Defer acknowledged it as an update: the answer is a new message.
+      await c.client.followup(deferred.ephemeral ? messageBody({ ...body.json, flags: ((body.json.flags as number | undefined) ?? 0) | MessageFlags.Ephemeral }, body.files) : body)
+    } else if (deferred.ephemeral && !sent.ephemeral && sent.kind === "message") {
+      built.logger.warn({ msg: 'A public Auto Defer was answered ephemerally; set autoDefer: "ephemeral" on the Command', interactionId: c.interaction.id })
+      await c.client.deleteOriginal()
+      await c.client.followup(messageBody({ ...body.json, flags: ((body.json.flags as number | undefined) ?? 0) | MessageFlags.Ephemeral }, body.files))
+    } else await c.client.editOriginal(body)
   } catch (error) {
-    try {
-      const [output] = unwrapEphemeral(await errorOutput(built, error, c))
-      if (deferred.kind === "update") await c.client.followup(Ephemeral(output))
-      else await c.client.editOriginal(await toMessageBody(output as never, { route: c[ROUTE] }))
-    } catch (reportError) {
-      built.logger.error({ msg: "Reporting failed deferred work failed", interactionId: c.interaction.id, error: serializeError(reportError) })
-    }
+    await reportFailure(built, c, error, sent)
   }
 }
 

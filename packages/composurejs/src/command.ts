@@ -33,6 +33,12 @@ export type InteractionContext = "guild" | "botDm" | "privateChannel"
 /** How the app must be installed for a Command to be available. */
 export type IntegrationType = "guildInstall" | "userInstall"
 
+/**
+ * Auto Defer for one Command (ADR 0027): `false` turns it off; `"ephemeral"` makes the loading
+ * state private, for Commands whose answers are.
+ */
+export type AutoDeferSetting = false | "ephemeral"
+
 /** Settings only a top-level Command (not a subcommand) has. */
 export interface TopLevelConfig {
   /** Default: wherever the app is installed. */
@@ -71,6 +77,8 @@ export interface CommandLocalization<O extends Options = Options> {
 export type Localizations<T> = { readonly [L in Locale]?: T }
 
 export interface CommandConfig<E extends Env, O extends Options> extends TopLevelConfig {
+  /** Auto Defer for this Command (and, on a Group, its subcommands unless they set it). Default: the App's. */
+  autoDefer?: AutoDeferSetting
   /** 1-32 lowercase characters: letters, digits, `-`, `_`, `'`. */
   name: string
   /** 1-100 characters. */
@@ -84,6 +92,7 @@ export interface CommandConfig<E extends Env, O extends Options> extends TopLeve
 
 /** A chat input (slash) Command, top-level or a subcommand of a Group. */
 export interface Command<E extends Env = Env, O extends Options = Options> {
+  readonly autoDefer: AutoDeferSetting | undefined
   readonly kind: "command"
   readonly type: typeof CommandType.ChatInput
   readonly name: string
@@ -98,6 +107,8 @@ export interface Command<E extends Env = Env, O extends Options = Options> {
 }
 
 export interface GroupConfig<E extends Env> extends TopLevelConfig {
+  /** Auto Defer for this Command (and, on a Group, its subcommands unless they set it). Default: the App's. */
+  autoDefer?: AutoDeferSetting
   name: string
   description: string
   /** The Group's own name and description per locale; each subcommand carries its own. */
@@ -108,6 +119,7 @@ export interface GroupConfig<E extends Env> extends TopLevelConfig {
 
 /** A Command that only contains subcommands (or nested Groups); not invokable itself. */
 export interface Group<E extends Env = Env> {
+  readonly autoDefer: AutoDeferSetting | undefined
   readonly kind: "group"
   readonly type: typeof CommandType.ChatInput
   readonly name: string
@@ -120,6 +132,8 @@ export interface Group<E extends Env = Env> {
 }
 
 export interface UserCommandConfig<E extends Env> extends TopLevelConfig {
+  /** Auto Defer for this Command (and, on a Group, its subcommands unless they set it). Default: the App's. */
+  autoDefer?: AutoDeferSetting
   /** 1-32 characters, shown in the user context menu as is. */
   name: string
   /** The name per locale. */
@@ -129,6 +143,7 @@ export interface UserCommandConfig<E extends Env> extends TopLevelConfig {
 
 /** A user context menu Command (right-click a user → Apps). */
 export interface UserCommand<E extends Env = Env> {
+  readonly autoDefer: AutoDeferSetting | undefined
   readonly kind: "user"
   readonly type: typeof CommandType.User
   readonly name: string
@@ -138,6 +153,8 @@ export interface UserCommand<E extends Env = Env> {
 }
 
 export interface MessageCommandConfig<E extends Env> extends TopLevelConfig {
+  /** Auto Defer for this Command (and, on a Group, its subcommands unless they set it). Default: the App's. */
+  autoDefer?: AutoDeferSetting
   /** 1-32 characters, shown in the message context menu as is. */
   name: string
   /** The name per locale. */
@@ -147,6 +164,7 @@ export interface MessageCommandConfig<E extends Env> extends TopLevelConfig {
 
 /** A message context menu Command (right-click a message → Apps). */
 export interface MessageCommand<E extends Env = Env> {
+  readonly autoDefer: AutoDeferSetting | undefined
   readonly kind: "message"
   readonly type: typeof CommandType.Message
   readonly name: string
@@ -169,6 +187,7 @@ export function command<O extends Options = {}, E extends Env = Env>(config: Com
   const locales = commandLocales(path, options, config.localizations)
   return {
     kind: "command",
+    autoDefer: config.autoDefer,
     type: CommandType.ChatInput,
     name,
     description,
@@ -211,6 +230,7 @@ export function group<E extends Env = Env>(config: GroupConfig<E>): Group<E> {
   const own = ownLocales(path, config.localizations, "chat")
   return {
     kind: "group",
+    autoDefer: config.autoDefer,
     type: CommandType.ChatInput,
     name,
     description,
@@ -247,6 +267,7 @@ export function userCommand<E extends Env = Env>(config: UserCommandConfig<E>): 
   const own = ownLocales(`User Command "${name}"`, config.localizations, "menu")
   return {
     kind: "user",
+    autoDefer: config.autoDefer,
     type: CommandType.User,
     name,
     topLevel,
@@ -263,6 +284,7 @@ export function messageCommand<E extends Env = Env>(config: MessageCommandConfig
   const own = ownLocales(`Message Command "${name}"`, config.localizations, "menu")
   return {
     kind: "message",
+    autoDefer: config.autoDefer,
     type: CommandType.Message,
     name,
     topLevel,

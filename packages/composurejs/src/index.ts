@@ -1,6 +1,7 @@
 export { App, type AppOptions, type ErrorRenderer, type Route, type ScopedDefinition } from "./app.ts"
 export {
   type AnyCommand,
+  type AutoDeferSetting,
   command,
   type Command,
   type CommandConfig,

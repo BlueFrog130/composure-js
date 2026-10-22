@@ -20,6 +20,11 @@ export interface MessageBody {
   files: Upload[]
 }
 
+/** @internal A rendered interaction response's `data` and files as a message body. */
+export function messageBody(json: Record<string, unknown>, files: Upload[]): MessageBody {
+  return { [BODY]: true, json: files.length > 0 ? { ...json, attachments: attachmentsOf(files) } : { ...json }, files }
+}
+
 /** Renders a MessageInput into a JSON body (plus files). */
 export async function toMessageBody(input: MessageInput<object>, { ephemeral = false, route }: { ephemeral?: boolean; route?: string | undefined } = {}): Promise<MessageBody> {
   if (typeof input === "object" && input !== null && BODY in input) return input as MessageBody
