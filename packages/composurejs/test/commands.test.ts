@@ -263,6 +263,65 @@ describe("context menu Commands", () => {
   })
 })
 
+describe("Localizations", () => {
+  const Flavor = defineChoices({ choc: "Chocolate", oat: "Oatmeal" })
+
+  test("names, descriptions, Option names and Choice names go into the definition per locale", () => {
+    const cookie = command({
+      name: "cookie",
+      description: "Give a cookie",
+      options: { flavor: option.string("Flavor").choices(Flavor), count: option.integer("How many").optional() },
+      localizations: {
+        fr: { name: "biscuit", description: "Donner un biscuit", options: { flavor: { name: "parfum", choices: { choc: "Chocolat" } } } },
+        de: { description: "Einen Keks geben", options: { count: { description: "Wie viele" } } },
+      },
+      handler: () => "ok",
+    })
+    expect(cookie.definition()).toEqual({
+      type: 1,
+      name: "cookie",
+      description: "Give a cookie",
+      name_localizations: { fr: "biscuit" },
+      description_localizations: { fr: "Donner un biscuit", de: "Einen Keks geben" },
+      options: [
+        {
+          type: 3,
+          name: "flavor",
+          description: "Flavor",
+          name_localizations: { fr: "parfum" },
+          required: true,
+          choices: [
+            { name: "Chocolate", name_localizations: { fr: "Chocolat" }, value: "choc" },
+            { name: "Oatmeal", value: "oat" },
+          ],
+        },
+        { type: 4, name: "count", description: "How many", description_localizations: { de: "Wie viele" } },
+      ],
+    })
+  })
+
+  test("Groups, subcommands and context menu Commands carry their own", () => {
+    const sub = command({ name: "ban", description: "Ban", localizations: { fr: { name: "bannir" } }, handler: () => "ok" })
+    const admin = group({ name: "admin", description: "Admin", localizations: { fr: { name: "administration" } }, subcommands: [sub] })
+    expect(admin.definition()).toMatchObject({ name_localizations: { fr: "administration" }, options: [{ name: "ban", name_localizations: { fr: "bannir" } }] })
+    expect(userCommand({ name: "High five", localizations: { fr: { name: "Tape là" } }, handler: () => "ok" }).definition()).toMatchObject({
+      name_localizations: { fr: "Tape là" },
+    })
+  })
+
+  test("localized names follow the original's rules; unknown Options and Choices are named", () => {
+    const base = { description: "D", handler: () => "ok" }
+    expect(() => command({ name: "x", ...base, localizations: { fr: { name: "Pas Bon" } } })).toThrow('Command "/x" name (fr) "Pas Bon" must be 1-32 lowercase')
+    expect(() => command({ name: "x", ...base, options: { a: option.string("A") }, localizations: { fr: { options: { b: { name: "b" } } as never } } })).toThrow(
+      'Command "/x" (fr): localizes option "b", which it does not have',
+    )
+    expect(() =>
+      command({ name: "x", ...base, options: { a: option.string("A").choices(Flavor) }, localizations: { fr: { options: { a: { choices: { mint: "Menthe" } } } } } }),
+    ).toThrow('localizes choice "mint", which it does not have')
+    expect(() => userCommand({ name: "u", handler: () => "ok", localizations: { fr: { description: "x" } as never } })).toThrow("context menu Commands have no description")
+  })
+})
+
 describe("autocomplete", () => {
   const flavors = ["chocolate", "oat", "peanut", "sugar"]
   const suggest = vi.fn((_c: unknown, input: string, others: Record<string, unknown>) =>

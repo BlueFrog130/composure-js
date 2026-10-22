@@ -89,6 +89,38 @@ They appear under right-click → Apps, and get the clicked user or message.
 | `scope: "dev"` | Sync sends it to the guilds in `COMPOSURE_SCOPE_DEV` instead of globally ([Deploying](./deploying#scopes)). |
 | `defaultMemberPermissions` | Permissions members need by default (`"0"`: admins only). |
 
+## Localizations
+
+Discord shows a Command's name, description, Options and Choices in the user's language when the definition carries them. `localizations` holds them by locale, shaped like the Command; Sync publishes them:
+
+```tsx twoslash
+import { command, defineChoices, option } from "composurejs"
+// ---cut---
+const Flavor = defineChoices({ choc: "Chocolate", oat: "Oatmeal" })
+
+export const cookie = command({
+  name: "cookie",
+  description: "Give someone a cookie",
+  options: { user: option.user("Who gets it"), flavor: option.string("Flavor").choices(Flavor) },
+  localizations: {
+    fr: {
+      name: "biscuit",
+      description: "Donner un biscuit",
+      options: { user: { name: "qui", description: "Qui le reçoit" }, flavor: { name: "parfum", choices: { choc: "Chocolat", oat: "Avoine" } } },
+    },
+  },
+  handler: (c, { user, flavor }) => `${user.displayName} gets a ${flavor} cookie`,
+})
+```
+
+- Locales are Discord's (`"fr"`, `"en-GB"`, `"pt-BR"`, ...), and `options` is keyed by the Options you defined, so a typo is a type error. Choices are keyed by value.
+- Localized names follow the same rules as the originals (lowercase for chat input Commands and Options) and are checked when the Command is defined.
+- The handler still receives Options under their original names.
+- Groups, subcommands and context menu Commands take `localizations` for their own name (and description): `group({ .., localizations: { fr: { name: "administration" } } })`.
+- Translations kept in JSON files fit as they are: `localizations: { fr: frCookie }`.
+
+The text of your answers is yours to translate: `c.locale` is the user's locale.
+
 ## Listing Commands on an App
 
 ```tsx twoslash

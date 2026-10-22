@@ -179,14 +179,32 @@ export function checkOptions(path: string, options: Options): void {
   }
 }
 
+/** Localized names and descriptions per locale, as Discord takes them. */
+export type LocaleMap = Record<string, string>
+
+/** One Option's Localizations, by locale; Choice names by Choice value. */
+export interface OptionLocales {
+  name?: LocaleMap
+  description?: LocaleMap
+  choices?: Record<string, LocaleMap>
+}
+
 /** The Options' definitions, required ones first (Discord's rule, applied rather than checked). */
-export function optionDefinitions(options: Options): APIApplicationCommandBasicOption[] {
+export function optionDefinitions(options: Options, locales: Record<string, OptionLocales> = {}): APIApplicationCommandBasicOption[] {
   const entries = Object.entries(options)
   const sorted = [...entries.filter(([, o]) => o.spec.required), ...entries.filter(([, o]) => !o.spec.required)]
   return sorted.map(([name, { spec }]) => {
+    const localized = locales[name]
     const json: Record<string, unknown> = { type: spec.type, name, description: spec.description }
+    if (localized?.name) json.name_localizations = localized.name
+    if (localized?.description) json.description_localizations = localized.description
     if (spec.required) json.required = true
-    if (spec.choices) json.choices = spec.choices.map(({ name, value }) => ({ name, value }))
+    if (spec.choices) {
+      json.choices = spec.choices.map(({ name, value }) => {
+        const names = localized?.choices?.[String(value)]
+        return names ? { name, name_localizations: names, value } : { name, value }
+      })
+    }
     if (spec.autocomplete) json.autocomplete = true
     if (spec.min !== undefined) json.min_value = spec.min
     if (spec.max !== undefined) json.max_value = spec.max

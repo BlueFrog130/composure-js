@@ -3,12 +3,24 @@ import type {
   APIMessage,
   APIMessageApplicationCommandInteraction,
   APIUserApplicationCommandInteraction,
+  Locale as DiscordLocale,
   RESTPostAPIApplicationCommandsJSONBody,
 } from "discord-api-types/v10"
 import type { Context } from "./context.ts"
 import { type ChatInputInteraction, CommandType } from "./discord.ts"
 import { AppConfigError } from "./errors.ts"
-import { checkLength, checkName, checkOptions, OptionType, optionDefinitions, type Options, type OptionValues, type ResolvedUser } from "./options.ts"
+import {
+  checkLength,
+  checkName,
+  checkOptions,
+  type LocaleMap,
+  type OptionLocales,
+  OptionType,
+  optionDefinitions,
+  type Options,
+  type OptionValues,
+  type ResolvedUser,
+} from "./options.ts"
 import type { Output } from "./response.ts"
 import type { Env, MaybePromise } from "./types.ts"
 
@@ -34,7 +46,29 @@ export interface TopLevelConfig {
   nsfw?: boolean
 }
 
+const LOCALES: unique symbol = Symbol("composurejs.locales")
+
 const TOP_LEVEL_KEYS = ["contexts", "integrationTypes", "scope", "defaultMemberPermissions", "nsfw"] as const
+
+/** A locale Discord's clients use: `"fr"`, `"en-GB"`, `"pt-BR"`, ... */
+export type Locale = `${DiscordLocale}`
+
+/** One Option's Localizations: its name and description, and Choice names keyed by Choice value. */
+export interface OptionLocalization {
+  name?: string
+  description?: string
+  choices?: Readonly<Record<string, string>>
+}
+
+/** A Command's Localizations in one locale. Each name follows the same rules as the original. */
+export interface CommandLocalization<O extends Options = Options> {
+  name?: string
+  description?: string
+  options?: { readonly [K in keyof O]?: OptionLocalization }
+}
+
+/** Localizations by locale (Discord shows them to users of that locale; Sync publishes them). */
+export type Localizations<T> = { readonly [L in Locale]?: T }
 
 export interface CommandConfig<E extends Env, O extends Options> extends TopLevelConfig {
   /** 1-32 lowercase characters: letters, digits, `-`, `_`, `'`. */
@@ -43,6 +77,8 @@ export interface CommandConfig<E extends Env, O extends Options> extends TopLeve
   description: string
   /** Keyed by Option name. Required Options are sent before optional ones automatically. */
   options?: O
+  /** Names, descriptions, Option names and Choice names per locale: `{ fr: { name: "saluer", .. } }`. */
+  localizations?: Localizations<CommandLocalization<NoInfer<O>>>
   handler(c: CommandContext<E>, options: OptionValues<O>): MaybePromise<Output>
 }
 
@@ -57,11 +93,15 @@ export interface Command<E extends Env = Env, O extends Options = Options> {
   handler(c: CommandContext<E>, options: OptionValues<O>): MaybePromise<Output>
   /** The Command Definition Sync publishes. */
   definition(): RESTPostAPIApplicationCommandsJSONBody
+  /** @internal */
+  readonly [LOCALES]: Locales
 }
 
 export interface GroupConfig<E extends Env> extends TopLevelConfig {
   name: string
   description: string
+  /** The Group's own name and description per locale; each subcommand carries its own. */
+  localizations?: Localizations<{ name?: string; description?: string }>
   /** Commands and, one level deep, Groups of Commands. */
   subcommands: readonly (Command<E, any> | Group<E>)[]
 }
@@ -75,11 +115,15 @@ export interface Group<E extends Env = Env> {
   readonly subcommands: readonly (Command<E, any> | Group<E>)[]
   readonly topLevel: TopLevelConfig
   definition(): RESTPostAPIApplicationCommandsJSONBody
+  /** @internal */
+  readonly [LOCALES]: Locales
 }
 
 export interface UserCommandConfig<E extends Env> extends TopLevelConfig {
   /** 1-32 characters, shown in the user context menu as is. */
   name: string
+  /** The name per locale. */
+  localizations?: Localizations<{ name?: string }>
   handler(c: UserCommandContext<E>, target: ResolvedUser): MaybePromise<Output>
 }
 
@@ -96,6 +140,8 @@ export interface UserCommand<E extends Env = Env> {
 export interface MessageCommandConfig<E extends Env> extends TopLevelConfig {
   /** 1-32 characters, shown in the message context menu as is. */
   name: string
+  /** The name per locale. */
+  localizations?: Localizations<{ name?: string }>
   handler(c: MessageCommandContext<E>, target: APIMessage): MaybePromise<Output>
 }
 
@@ -120,6 +166,7 @@ export function command<O extends Options = {}, E extends Env = Env>(config: Com
   checkLength(`${path} description`, description, 1, 100)
   checkOptions(path, options)
   const topLevel = pickTopLevel(config)
+  const locales = commandLocales(path, options, config.localizations)
   return {
     kind: "command",
     type: CommandType.ChatInput,
@@ -129,7 +176,15 @@ export function command<O extends Options = {}, E extends Env = Env>(config: Com
     topLevel,
     handler,
     definition: () =>
-      ({ type: CommandType.ChatInput, name, description, ...withOptions(optionDefinitions(options)), ...topLevelDefinition(topLevel) }) as RESTPostAPIApplicationCommandsJSONBody,
+      ({
+        type: CommandType.ChatInput,
+        name,
+        description,
+        ...locales.own,
+        ...withOptions(optionDefinitions(options, locales.options)),
+        ...topLevelDefinition(topLevel),
+      }) as RESTPostAPIApplicationCommandsJSONBody,
+    [LOCALES]: locales,
   }
 }
 
@@ -153,6 +208,7 @@ export function group<E extends Env = Env>(config: GroupConfig<E>): Group<E> {
     }
   }
   const topLevel = pickTopLevel(config)
+  const own = ownLocales(path, config.localizations, "chat")
   return {
     kind: "group",
     type: CommandType.ChatInput,
@@ -160,14 +216,22 @@ export function group<E extends Env = Env>(config: GroupConfig<E>): Group<E> {
     description,
     subcommands,
     topLevel,
+    [LOCALES]: { own, options: {} },
     definition: () =>
       ({
         type: CommandType.ChatInput,
         name,
         description,
+        ...own,
         options: subcommands.map((sub) =>
           sub.kind === "group"
-            ? { type: OptionType.SubcommandGroup, name: sub.name, description: sub.description, options: sub.subcommands.map((s) => subcommandDefinition(s as Command<E>)) }
+            ? {
+                type: OptionType.SubcommandGroup,
+                name: sub.name,
+                description: sub.description,
+                ...sub[LOCALES].own,
+                options: sub.subcommands.map((s) => subcommandDefinition(s as Command<E>)),
+              }
             : subcommandDefinition(sub),
         ),
         ...topLevelDefinition(topLevel),
@@ -180,13 +244,14 @@ export function userCommand<E extends Env = Env>(config: UserCommandConfig<E>): 
   const { name, handler } = config
   checkLength("User Command name", name, 1, 32)
   const topLevel = pickTopLevel(config)
+  const own = ownLocales(`User Command "${name}"`, config.localizations, "menu")
   return {
     kind: "user",
     type: CommandType.User,
     name,
     topLevel,
     handler,
-    definition: () => ({ type: CommandType.User, name, ...topLevelDefinition(topLevel) }) as RESTPostAPIApplicationCommandsJSONBody,
+    definition: () => ({ type: CommandType.User, name, ...own, ...topLevelDefinition(topLevel) }) as RESTPostAPIApplicationCommandsJSONBody,
   }
 }
 
@@ -195,23 +260,83 @@ export function messageCommand<E extends Env = Env>(config: MessageCommandConfig
   const { name, handler } = config
   checkLength("Message Command name", name, 1, 32)
   const topLevel = pickTopLevel(config)
+  const own = ownLocales(`Message Command "${name}"`, config.localizations, "menu")
   return {
     kind: "message",
     type: CommandType.Message,
     name,
     topLevel,
     handler,
-    definition: () => ({ type: CommandType.Message, name, ...topLevelDefinition(topLevel) }) as RESTPostAPIApplicationCommandsJSONBody,
+    definition: () => ({ type: CommandType.Message, name, ...own, ...topLevelDefinition(topLevel) }) as RESTPostAPIApplicationCommandsJSONBody,
   }
 }
 
 function subcommandDefinition(command: Command<any>): APIApplicationCommandSubcommandOption {
+  const locales = command[LOCALES]
   return {
     type: OptionType.Subcommand,
     name: command.name,
     description: command.description,
-    ...withOptions(optionDefinitions(command.options)),
+    ...locales.own,
+    ...withOptions(optionDefinitions(command.options, locales.options)),
   } as APIApplicationCommandSubcommandOption
+}
+
+/** A definition's own `name_localizations` and `description_localizations`. */
+interface OwnLocales {
+  name_localizations?: LocaleMap
+  description_localizations?: LocaleMap
+}
+
+/** @internal The checked Localizations of a Command or Group, as Discord takes them. */
+export interface Locales {
+  own: OwnLocales
+  options: Record<string, OptionLocales>
+}
+
+/** Checks one definition's own Localizations by its rules (`chat`: lowercase names; `menu`: any 1-32 characters). */
+function ownLocales(path: string, localizations: Localizations<{ name?: string; description?: string }> | undefined, kind: "chat" | "menu"): OwnLocales {
+  const own: OwnLocales = {}
+  for (const [locale, l] of Object.entries(localizations ?? {}) as [string, { name?: string; description?: string }][]) {
+    if (l.name !== undefined) {
+      if (kind === "chat") checkName(`${path} name (${locale})`, l.name)
+      else checkLength(`${path} name (${locale})`, l.name, 1, 32)
+      ;(own.name_localizations ??= {})[locale] = l.name
+    }
+    if (l.description !== undefined) {
+      if (kind === "menu") throw new AppConfigError(`${path} (${locale}): context menu Commands have no description`)
+      checkLength(`${path} description (${locale})`, l.description, 1, 100)
+      ;(own.description_localizations ??= {})[locale] = l.description
+    }
+  }
+  return own
+}
+
+/** Checks a Command's Localizations against its Options, naming anything that does not match. */
+function commandLocales(path: string, options: Options, localizations: Localizations<CommandLocalization> | undefined): Locales {
+  const out: Locales = { own: ownLocales(path, localizations, "chat"), options: {} }
+  for (const [locale, l] of Object.entries(localizations ?? {}) as [string, CommandLocalization][]) {
+    for (const [key, o] of Object.entries(l.options ?? {}) as [string, OptionLocalization][]) {
+      const at = `${path} option "${key}" (${locale})`
+      const option = options[key]
+      if (!option) throw new AppConfigError(`${path} (${locale}): localizes option "${key}", which it does not have`)
+      const target = (out.options[key] ??= {})
+      if (o.name !== undefined) {
+        checkName(`${at} name`, o.name)
+        ;(target.name ??= {})[locale] = o.name
+      }
+      if (o.description !== undefined) {
+        checkLength(`${at} description`, o.description, 1, 100)
+        ;(target.description ??= {})[locale] = o.description
+      }
+      for (const [value, name] of Object.entries(o.choices ?? {})) {
+        if (!option.spec.choices?.some((c) => String(c.value) === value)) throw new AppConfigError(`${at}: localizes choice "${value}", which it does not have`)
+        checkLength(`${at} choice "${value}"`, name, 1, 100)
+        ;((target.choices ??= {})[value] ??= {})[locale] = name
+      }
+    }
+  }
+  return out
 }
 
 function withOptions<T>(options: T[]): { options?: T[] } {
