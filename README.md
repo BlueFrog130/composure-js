@@ -4,15 +4,16 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 
 > Status: working so far:
 >
-> - Commands: typed Options, Groups, context menu Commands, inline autocomplete
-> - middleware
+> - Commands: typed Options, Groups, context menu Commands, inline autocomplete, Localizations
+> - middleware that also guards the buttons a Command renders (the Owning Route), `c.can(Permission.X)`
 > - every Components V2 and modal tag, checked against Discord's limits before sending
-> - Inline Handlers: `onClick={(c) => ..}` anywhere, compiled by `@composurejs/vite` (required)
+> - Inline Handlers: `onClick={(c) => ..}` anywhere, compiled by `@composurejs/vite` (required), with a Handler Lock that stops a deploy from breaking buttons already sent
+> - Forms: typed, parsed modal values
 > - file uploads
 > - nested Apps
 > - Cloudflare Workers, Node and Bun, built with `vite build` (Node and Bun get the Default Server, or your own entry)
-> - `c.defer` / `c.deferUpdate`
-> - REST Endpoints (Tier 1, typed from Discord's OpenAPI spec)
+> - `c.defer` / `c.deferUpdate`, and Auto Defer for handlers that turn out slow
+> - REST Endpoints (Tier 1, typed from Discord's OpenAPI spec; timeouts, retries, rate limit buckets)
 > - Webhook Events
 > - Sync: `composure sync` from `@composurejs/cli`
 > - the Dev Loop: `vite dev` serves the bot, tunnels to it, points your dev application at it, and syncs to a dev guild on every change
