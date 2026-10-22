@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import"],
+  "categories": { "correctness": "error" },
+  "ignorePatterns": ["packages/composurejs/src/rest/schema.d.ts"],
+  "overrides": [
+    {
+      // `(res?.x as T).y` in an assertion: a TypeError fails the test as well as a mismatch would.
+      "files": ["**/test/**"],
+      "rules": { "no-unsafe-optional-chaining": "off" }
+    }
+  ]
+}

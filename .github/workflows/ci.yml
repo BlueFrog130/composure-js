@@ -22,6 +22,8 @@ jobs:
       # The example builds and runs its Bun target when Bun is present.
       - uses: oven-sh/setup-bun@v2
       - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm fmt:check
       - run: pnpm typecheck
       # Builds the packages first: the example's vite configs import the built @composurejs/vite,
       # and test/build.test.ts builds and runs the example for every target.

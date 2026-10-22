@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "printWidth": 180,
+  "sortPackageJson": false,
+  "ignorePatterns": ["pnpm-lock.yaml", "**/*.md", ".changeset/**", "packages/composurejs/spec/**", "packages/composurejs/src/rest/schema.d.ts"]
+}

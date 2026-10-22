@@ -434,5 +434,5 @@ export function md(strings: TemplateStringsArray, ...values: unknown[]): string 
   return lines
     .map((l) => l.slice(Number.isFinite(indent) ? indent : 0))
     .join("\n")
-    .replace(/\u0000/g, () => String(values[i++]))
+    .replaceAll(HOLE, () => String(values[i++]))
 }

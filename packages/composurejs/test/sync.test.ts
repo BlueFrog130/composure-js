@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { App, command, group, messageCommand, option, type ScopedDefinition, userCommand } from "composurejs"
+import { App, command, group, messageCommand, option, type ScopedDefinition } from "composurejs"
 import { MockTransport } from "composurejs/testing"
 import { apply, configFromEnv, counts, formatPlan, hasChanges, plan, same, type SyncConfig, SyncError, targets } from "composurejs/sync"
 
