@@ -1,0 +1,28 @@
+{
+  "_710hj33": {
+    "where": "src/counter.tsx: Counter",
+    "captures": [
+      "owner",
+      "count",
+      "step"
+    ]
+  },
+  "_MlAe132": {
+    "where": "src/counter.tsx: Counter",
+    "captures": [
+      "owner"
+    ]
+  },
+  "_jtormvn": {
+    "where": "src/app.tsx: Feedback",
+    "captures": []
+  },
+  "poll-no": {
+    "where": "src/app.tsx: poll.handler",
+    "captures": []
+  },
+  "poll-yes": {
+    "where": "src/app.tsx: poll.handler",
+    "captures": []
+  }
+}

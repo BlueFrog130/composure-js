@@ -19,9 +19,18 @@ export class HandlerTransformError extends Error {
   }
 }
 
+/** One handler a module ships: its id, where it is, and what it captures (the Handler Lock records these). */
+export interface ShippedHandler {
+  id: string
+  where: string
+  captures: string[]
+}
+
 export interface TransformResult {
   code: string
   map: SourceMap
+  /** The module's handlers, in source order. */
+  handlers: ShippedHandler[]
 }
 
 const SKIP_KEYS = new Set(["type", "start", "end", "range", "loc", "typeAnnotation", "returnType", "typeParameters", "typeArguments", "decorators"])
@@ -371,7 +380,8 @@ export function transformHandlers(
   const header = `\nimport { __handler as __composure_handler } from "composurejs";\n${decls.join("\n")}\n`
   if (lastImport) s.appendLeft(lastImport.end, header)
   else s.prepend(header)
-  return { code: s.toString(), map: s.generateMap({ hires: true, source: id, includeContent: true }) }
+  const handlers = sites.map((site, i) => ({ id: ids[i]!, where: `${file}: ${site.owner}`, captures: site.locals }))
+  return { code: s.toString(), map: s.generateMap({ hires: true, source: id, includeContent: true }), handlers }
 }
 
 /**

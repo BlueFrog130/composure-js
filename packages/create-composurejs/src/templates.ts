@@ -234,5 +234,7 @@ A Discord bot built with [composurejs](https://github.com/BlueFrog130/composure-
 ${run}
 pnpm sync   # make Discord's global Commands match the code (asks before applying)
 \`\`\`
+
+\`pnpm build\` writes \`composure.handlers.json\`, the handler ids your buttons use: commit it. A build in CI fails when a change would make buttons already sent answer "This message is outdated.".
 `
 }

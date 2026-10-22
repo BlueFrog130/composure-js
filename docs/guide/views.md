@@ -85,7 +85,7 @@ export const Profile = async ({ id }: { id: string }) => {
 
 Messages stay in channels for months, so their buttons must keep working across deploys. A generated id is a hash of the file, the declaration around the handler (`Counter`), its position there, and what it captures. Editing the handler's body, or anything else in the file, keeps the id. Moving or renaming it, reordering handlers within one component, or capturing something new changes it. Old buttons then answer "This message is outdated.", never with the wrong handler.
 
-For messages meant to last, such as role menus or polls, give the handler a fixed id:
+The [Handler Lock](./deploying#the-handler-lock) catches such changes before they ship. For messages meant to last, such as role menus or polls, give the handler a fixed id:
 
 ```tsx twoslash
 import { Button, named, Row } from "composurejs"

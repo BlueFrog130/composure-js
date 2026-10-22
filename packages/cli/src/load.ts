@@ -18,7 +18,7 @@ const isApp = (value: unknown): value is LoadedApp => typeof (value as LoadedApp
 export async function loadApp(root: string, entry: string): Promise<LoadedApp> {
   const file = resolve(root, entry)
   if (!existsSync(file)) throw new SyncError(`${entry} does not exist; pass --app <file exporting the App>`)
-  const { module } = await runnerImport<Record<string, unknown>>(file, { root, plugins: [composure({ placement: false })], logLevel: "error" })
+  const { module } = await runnerImport<Record<string, unknown>>(file, { root, plugins: [composure({ placement: false, handlerLock: false })], logLevel: "error" })
   const app = [module.app, module.default].find(isApp)
   if (!app) throw new SyncError(`${entry} must export the App as \`app\` or as its default export`)
   return app
