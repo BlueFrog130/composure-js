@@ -29,6 +29,35 @@ export function splitFields(text: string): string[] | undefined {
   return out
 }
 
+/**
+ * The Owning Route key of a top-level Command (ADR 0026): 5 base-36 characters of an FNV-1a hash of
+ * its type and name, so it stays the same while the Command does.
+ */
+export function routeKey(type: number, name: string): string {
+  let hash = 0x811c9dc5
+  for (const ch of `${type}:${name}`) {
+    hash ^= ch.codePointAt(0)!
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return ((hash >>> 0) % 36 ** 5).toString(36).padStart(5, "0")
+}
+
+/** Splits the Owning Route off a handler's `custom_id`: `id~route:fields` → route and `id:fields`. */
+export function splitRoute(customId: string): { route: string | undefined; customId: string } {
+  const [id, rest] = prefixOf(customId)
+  const tilde = id.indexOf("~")
+  if (tilde === -1) return { route: undefined, customId }
+  return { route: id.slice(tilde + 1), customId: id.slice(0, tilde) + (rest === undefined ? "" : `:${rest}`) }
+}
+
+/** Marks a handler's `custom_id` with an Owning Route, unless it already has one. */
+export function withRoute(customId: string, route: string | undefined): string {
+  if (route === undefined) return customId
+  const [id, rest] = prefixOf(customId)
+  if (id.includes("~")) return customId
+  return `${id}~${route}${rest === undefined ? "" : `:${rest}`}`
+}
+
 /** The routing prefix of a `custom_id`: everything before the first `:`. */
 export function prefixOf(customId: string): [prefix: string, rest: string | undefined] {
   const i = customId.indexOf(":")

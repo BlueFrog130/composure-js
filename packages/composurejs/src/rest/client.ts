@@ -46,6 +46,8 @@ export interface RestOptions {
   apiBase?: string | undefined
   /** Longest wait for one attempt's response, in ms, before {@link RequestTimeoutError}. Default 10000. */
   timeout?: number | undefined
+  /** @internal The Owning Route Views sent through this client mark their handlers with (ADR 0026). */
+  route?: string | undefined
 }
 
 export interface RequestInit {
@@ -86,6 +88,8 @@ export class RestClient {
   readonly #logger: Logger
   readonly #base: string
   readonly #timeout: number
+  /** @internal The Owning Route of Views sent through this client. */
+  readonly route: string | undefined
 
   constructor(authorization: string | undefined, options: RestOptions = {}) {
     this.#authorization = authorization
@@ -94,6 +98,7 @@ export class RestClient {
     this.#logger = options.logger ?? consoleLogger
     this.#base = options.apiBase ?? DISCORD_API
     this.#timeout = options.timeout ?? 10_000
+    this.route = options.route
   }
 
   /** Sends one request to `route`, decoding the JSON response (`undefined` for 204). */

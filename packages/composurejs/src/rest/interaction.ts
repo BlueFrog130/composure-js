@@ -17,6 +17,7 @@ const ORIGINAL_RETRY_MS = [250, 500, 1000, 2000]
 export class InteractionClient {
   readonly #rest: RestClient
   readonly #params: { webhook_id: string; webhook_token: string }
+  readonly #route: string | undefined
 
   constructor(
     readonly applicationId: string,
@@ -25,6 +26,7 @@ export class InteractionClient {
     options: RestOptions = {},
   ) {
     this.#rest = new RestClient(undefined, options)
+    this.#route = options.route
     this.#params = { webhook_id: applicationId, webhook_token: token }
   }
 
@@ -37,7 +39,7 @@ export class InteractionClient {
    * Background Work can reach Discord before the deferred reply is registered (ADR 0007).
    */
   async editOriginal(message: MessageInput<EditBody>): Promise<ResponseBody<"update_original_webhook_message">> {
-    const { json, files } = await toMessageBody(message)
+    const { json, files } = await toMessageBody(message, { route: this.#route })
     for (let attempt = 0; ; attempt++) {
       try {
         return await this.#rest.request(ROUTES.editOriginalResponse, { params: this.#params, body: json, files })
@@ -55,7 +57,7 @@ export class InteractionClient {
 
   /** Sends a follow-up message; `Ephemeral(..)` makes it visible only to the invoking user. */
   async followup(message: MessageInput<RequestBody<"execute_webhook">>): Promise<Message> {
-    const { json, files } = await toMessageBody(message, { ephemeral: true })
+    const { json, files } = await toMessageBody(message, { ephemeral: true, route: this.#route })
     return this.#rest.request(ROUTES.executeWebhook, { params: this.#params, query: { wait: true }, body: json, files })
   }
 
@@ -64,7 +66,7 @@ export class InteractionClient {
   }
 
   async editFollowup(messageId: string, message: MessageInput<RequestBody<"update_webhook_message">>): Promise<Message> {
-    const { json, files } = await toMessageBody(message)
+    const { json, files } = await toMessageBody(message, { route: this.#route })
     return this.#rest.request(ROUTES.editFollowup, { params: { ...this.#params, message_id: messageId }, body: json, files })
   }
 

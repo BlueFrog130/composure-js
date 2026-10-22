@@ -48,6 +48,7 @@ abstract class InteractionBuilder<I extends Interaction> implements Buildable<I>
   #guildId: string | undefined = TEST_GUILD_ID
   #member: Partial<Member> = {}
   #locale = "en-US"
+  #appPermissions = PERMISSIONS
 
   protected abstract readonly type: number
   protected abstract data(): Data | undefined
@@ -69,6 +70,12 @@ abstract class InteractionBuilder<I extends Interaction> implements Buildable<I>
   inGuild(guildId: string = TEST_GUILD_ID, member: Partial<Member> = {}): this {
     this.#guildId = guildId
     this.#member = member
+    return this
+  }
+
+  /** The bot's permissions in the channel (`app_permissions`), as flags or Discord's decimal string. */
+  appPermissions(permissions: bigint | string): this {
+    this.#appPermissions = String(permissions)
     return this
   }
 
@@ -103,7 +110,7 @@ abstract class InteractionBuilder<I extends Interaction> implements Buildable<I>
       channel_id: TEST_CHANNEL_ID,
       token: "test-interaction-token",
       version: 1,
-      app_permissions: PERMISSIONS,
+      app_permissions: this.#appPermissions,
       locale: this.#locale,
       entitlements: [],
       authorizing_integration_owners: { "0": TEST_GUILD_ID },

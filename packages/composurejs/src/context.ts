@@ -5,7 +5,11 @@ import { CredentialsError } from "./errors.ts"
 import { deferredOutput, type DeferredOutput, Ephemeral, type EphemeralOutput, type Output, Reply } from "./response.ts"
 import { BotClient, type RestOptions } from "./rest/client.ts"
 import { InteractionClient } from "./rest/interaction.ts"
+import { hasPermissions } from "./permissions.ts"
 import type { BindingsOf, DataOf, Env, MaybePromise, Platform, VariablesOf } from "./types.ts"
+
+/** @internal Where the Owning Route of an Interaction is kept on its Context (ADR 0026). */
+export const ROUTE: unique symbol = Symbol("composurejs.route")
 
 export interface ContextInit<E extends Env, I extends Interaction> {
   interaction: I
@@ -31,7 +35,9 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
   readonly #credentials: Credentials
   readonly #rest: RestOptions
   #client: InteractionClient | undefined
-  #bot: BotClient | undefined
+  #bot: BotClient | undefined;
+  /** @internal The Owning Route: set by dispatch before middleware runs. */
+  [ROUTE]: string | undefined
 
   constructor(init: ContextInit<E, I>) {
     this.interaction = init.interaction
@@ -46,14 +52,14 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
   /** REST authorized by this Interaction's token: follow-ups and the original response. */
   get client(): InteractionClient {
     const { application_id, id, token } = this.interaction
-    return (this.#client ??= new InteractionClient(application_id, id, token, this.#rest))
+    return (this.#client ??= new InteractionClient(application_id, id, token, { ...this.#rest, route: this[ROUTE] }))
   }
 
   /** REST authorized by the bot token, for the Endpoints in `composurejs/rest`. Throws when the Credentials have none. */
   get bot(): BotClient {
     const { token } = this.#credentials
     if (!token) throw new CredentialsError("c.bot needs a bot token: set DISCORD_TOKEN (or Credentials.token)")
-    return (this.#bot ??= new BotClient(token, this.#rest))
+    return (this.#bot ??= new BotClient(token, { ...this.#rest, route: this[ROUTE] }))
   }
 
   /**
@@ -96,6 +102,19 @@ export class Context<E extends Env = Env, I extends Interaction = Interaction> {
   /** The invoking user's locale (not set on Ping). */
   get locale(): string | undefined {
     return (this.interaction as { locale?: string }).locale
+  }
+
+  /**
+   * Whether the invoking member has every one of `permissions` in this channel
+   * (`c.can(Permission.BanMembers)`). False outside a server; Administrator has them all.
+   */
+  can(...permissions: bigint[]): boolean {
+    return hasPermissions(this.member?.permissions, permissions)
+  }
+
+  /** Whether the bot has every one of `permissions` in this channel. Administrator has them all. */
+  appCan(...permissions: bigint[]): boolean {
+    return hasPermissions((this.interaction as { app_permissions?: string }).app_permissions, permissions)
   }
 
   get entitlements(): Entitlement[] {

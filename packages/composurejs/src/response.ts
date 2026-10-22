@@ -87,19 +87,19 @@ export interface Answer {
 }
 
 /** Turns an Output into the JSON Discord expects for an Interaction of `interactionType`, rendering and validating Views. */
-export async function toAnswer(output: Output | undefined | void, interactionType: number): Promise<Answer> {
+export async function toAnswer(output: Output | undefined | void, interactionType: number, route?: string): Promise<Answer> {
   if (typeof output === "string") {
     if (output === "") throw new ResponseError("A handler returned an empty string; Discord rejects empty messages")
     return { response: { type: ResponseType.ChannelMessageWithSource, data: { content: output } }, files: [] }
   }
-  if (output instanceof Promise) return toAnswer(await output, interactionType)
+  if (output instanceof Promise) return toAnswer(await output, interactionType, route)
   if (has(output, EPHEMERAL)) {
     const inner = output[EPHEMERAL]
     if (isDeferred(inner)) {
       if (inner[DEFER].kind === "update") throw new ResponseError("deferUpdate edits the component's message, which cannot become ephemeral")
-      return toAnswer(deferredOutput({ ...inner[DEFER], ephemeral: true }), interactionType)
+      return toAnswer(deferredOutput({ ...inner[DEFER], ephemeral: true }), interactionType, route)
     }
-    const answer = await toAnswer(output[EPHEMERAL], interactionType)
+    const answer = await toAnswer(output[EPHEMERAL], interactionType, route)
     const { response } = answer
     if (response.type !== ResponseType.ChannelMessageWithSource) throw new ResponseError("Ephemeral only applies to new messages, not to Update, modals or deferrals")
     const data = response.data ?? {}
@@ -116,9 +116,9 @@ export async function toAnswer(output: Output | undefined | void, interactionTyp
     const data = deferred.ephemeral ? { data: { flags: MessageFlags.Ephemeral } } : {}
     return { response: { type: ResponseType.DeferredChannelMessageWithSource, ...data }, files: [], deferred }
   }
-  if (has(output, REPLY)) return toAnswer(output[REPLY], interactionType)
+  if (has(output, REPLY)) return toAnswer(output[REPLY], interactionType, route)
   if (has(output, RERENDER)) {
-    const answer = await toAnswer(output[RERENDER], interactionType)
+    const answer = await toAnswer(output[RERENDER], interactionType, route)
     if (answer.response.type !== ResponseType.ChannelMessageWithSource) return answer
     return toAnswer(Update(answer.response), interactionType).then((a) => ({ ...answer, response: a.response }))
   }
@@ -126,14 +126,14 @@ export async function toAnswer(output: Output | undefined | void, interactionTyp
     if (interactionType !== InteractionType.MessageComponent && interactionType !== InteractionType.ModalSubmit) {
       throw new ResponseError("Update only answers component clicks and modal submits")
     }
-    const answer = await toAnswer(output[UPDATE], interactionType)
+    const answer = await toAnswer(output[UPDATE], interactionType, route)
     const { response } = answer
     if (response.type !== ResponseType.ChannelMessageWithSource) throw new ResponseError("Update takes a message, not a modal or deferral")
     if ((response.data?.flags ?? 0) & MessageFlags.Ephemeral) throw new ResponseError("Update cannot change whether a message is ephemeral")
     return { ...answer, response: { type: ResponseType.UpdateMessage, data: response.data ?? {} } }
   }
   if (isNode(output)) {
-    const rendered = await render(output)
+    const rendered = await render(output, { route })
     if (rendered.kind === "modal") {
       if (interactionType === InteractionType.ModalSubmit) throw new ResponseError("A modal submit cannot be answered with another <Modal>")
       return { response: { type: ResponseType.Modal, data: rendered.data }, files: [] }

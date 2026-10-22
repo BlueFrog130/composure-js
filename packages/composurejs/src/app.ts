@@ -2,6 +2,7 @@ import type { RESTPostAPIApplicationCommandsJSONBody } from "discord-api-types/v
 import type { AnyCommand } from "./command.ts"
 import type { Context } from "./context.ts"
 import { type Credentials, credentialsFromEnv } from "./credentials.ts"
+import { routeKey } from "./codec.ts"
 import { AppConfigError } from "./errors.ts"
 import type { EventHandler } from "./events.ts"
 import { consoleLogger, type Logger, serializeError } from "./log.ts"
@@ -45,12 +46,16 @@ export type Route<E extends Env = Env> = AnyCommand<E> | App<E>
 export interface RouteEntry<E extends Env = Env> {
   command: AnyCommand<E>
   chain: Middleware<E>[]
+  /** Its Owning Route key, carried in the `custom_id` of handlers its answers render (ADR 0026). */
+  route: string
 }
 
 /** The App tree flattened for dispatch. */
 export interface Built<E extends Env = Env> {
   /** Keyed by `${type}:${name}`. */
   commands: Map<string, RouteEntry<E>>
+  /** The same entries, keyed by Owning Route key. */
+  routes: Map<string, RouteEntry<E>>
   /** The root App's middleware: for Interactions no Command answers, and every component and modal submit. */
   middleware: Middleware<E>[]
   onError: ErrorRenderer<E> | undefined
@@ -188,6 +193,7 @@ export class App<E extends Env = Env> {
     const logger = this.#options.logger ?? consoleLogger
     const built: Built<E> = {
       commands: new Map(),
+      routes: new Map(),
       middleware: [...this.#middleware],
       onError: undefined,
       logger,
@@ -227,7 +233,11 @@ export class App<E extends Env = Env> {
         const first = seen.get(key)
         if (first) throw new AppConfigError(`${describe(route)} is listed twice: at ${first} and at ${at}`)
         seen.set(key, at)
-        built.commands.set(key, { command: route, chain })
+        const entry = { command: route, chain, route: routeKey(route.type, route.name) }
+        const clash = built.routes.get(entry.route)
+        if (clash) throw new AppConfigError(`${describe(clash.command)} and ${describe(route)} share an Owning Route key; rename one`)
+        built.commands.set(key, entry)
+        built.routes.set(entry.route, entry)
       })
       stack.delete(app)
     }

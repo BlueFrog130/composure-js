@@ -111,12 +111,12 @@ export const getMessage = (rest: RestClient, channelId: string, messageId: strin
 
 /** Sends a message: text, a View (rendered and checked like a response), or a raw body. */
 export async function createMessage(rest: RestClient, channelId: string, message: MessageInput<Body<"createMessage">>): Res<"createMessage"> {
-  const { json, files } = await toMessageBody(message)
+  const { json, files } = await toMessageBody(message, { route: rest.route })
   return rest.request(ROUTES.createMessage, { params: { channel_id: channelId }, body: json, files })
 }
 
 export async function editMessage(rest: RestClient, channelId: string, messageId: string, message: MessageInput<Body<"editMessage">>): Res<"editMessage"> {
-  const { json, files } = await toMessageBody(message)
+  const { json, files } = await toMessageBody(message, { route: rest.route })
   return rest.request(ROUTES.editMessage, { params: { channel_id: channelId, message_id: messageId }, body: json, files })
 }
 
@@ -229,7 +229,7 @@ export async function executeWebhook(
   message: MessageInput<Body<"executeWebhook">>,
   query: Q<"executeWebhook"> = {},
 ): Res<"executeWebhook"> {
-  const { json, files } = await toMessageBody(message)
+  const { json, files } = await toMessageBody(message, { route: rest.route })
   const withComponents = json.components !== undefined ? { with_components: true } : {}
   return rest.request(ROUTES.executeWebhook, { params: { webhook_id: webhookId, webhook_token: token }, query: { wait: true, ...withComponents, ...query }, body: json, files })
 }

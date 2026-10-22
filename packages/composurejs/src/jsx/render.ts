@@ -3,6 +3,7 @@
 import type { APIMessageTopLevelComponent, APIModalInteractionResponseCallbackData } from "discord-api-types/v10"
 import { type AllowedMentions, type Emoji, isUpload, type Upload } from "../components.ts"
 import { MessageFlags } from "../discord.ts"
+import { withRoute } from "../codec.ts"
 import { uncompiledHandler } from "../handlers.ts"
 import { RenderError } from "../errors.ts"
 import type { Choices } from "../options.ts"
@@ -67,7 +68,11 @@ class Walk {
   textLength = 0
   readonly customIds = new Map<string, string>()
   readonly files = new Map<string, Upload>()
-  constructor(readonly modal: boolean) {}
+  constructor(
+    readonly modal: boolean,
+    /** The Owning Route handlers rendered here are marked with. */
+    readonly route: string | undefined,
+  ) {}
 
   /** Counts a component toward the 40. */
   add<T extends Json>(json: T): T {
@@ -102,15 +107,20 @@ class Walk {
   }
 }
 
+export interface RenderOptions {
+  /** The Owning Route (ADR 0026): its key is added to the `custom_id` of every handler rendered. */
+  route?: string | undefined
+}
+
 /** Renders a View: a Components V2 message, or a modal when its root is `<Modal>`. */
-export async function render(view: Child): Promise<Rendered> {
+export async function render(view: Child, options: RenderOptions = {}): Promise<Rendered> {
   const roots = await flatten(view)
   const only = roots.length === 1 ? roots[0] : undefined
   if (typeof only === "object" && only.tag === "Modal") {
-    return { kind: "modal", data: await renderModal(only) }
+    return { kind: "modal", data: await renderModal(only, options.route) }
   }
 
-  const walk = new Walk(false)
+  const walk = new Walk(false, options.route)
   const message = typeof only === "object" && only.tag === "Message" ? only : undefined
   const children = message ? await flatten(message.props.children as Child) : roots
   const components = (await renderBlocks(children, undefined, walk)) as unknown as APIMessageTopLevelComponent[]
@@ -129,8 +139,8 @@ export async function render(view: Child): Promise<Rendered> {
 }
 
 /** Renders a View that must be a message. */
-export async function renderMessage(view: Child): Promise<RenderedMessage> {
-  const rendered = await render(view)
+export async function renderMessage(view: Child, options: RenderOptions = {}): Promise<RenderedMessage> {
+  const rendered = await render(view, options)
   if (rendered.kind !== "message") throw new RenderError("A <Modal> cannot be sent as a message")
   return rendered
 }
@@ -321,7 +331,7 @@ async function renderButton(node: ElementNode, walk: Walk): Promise<Json> {
     checkText("Button", "url", p.url, LIMITS.url, 1)
     Object.assign(json, { style: 5, url: p.url })
   } else {
-    Object.assign(json, { style: BUTTON_STYLES[p.style ?? "secondary"], custom_id: walk.customId(handlerId(node, "onClick"), "Button") })
+    Object.assign(json, { style: BUTTON_STYLES[p.style ?? "secondary"], custom_id: walk.customId(handlerId(node, "onClick", walk), "Button") })
   }
   if (label !== undefined) json.label = label
   if (p.emoji !== undefined) json.emoji = emoji(p.emoji)
@@ -350,7 +360,11 @@ async function renderSelect(node: ElementNode, walk: Walk): Promise<Json> {
     channelTypes?: number[]
     id?: number
   }
-  const json = walk.add({ type: SELECT_TYPES[node.tag], ...withId(p.id), custom_id: walk.customId(walk.modal ? inputName(node) : handlerId(node, "onSelect"), node.tag) } as Json)
+  const json = walk.add({
+    type: SELECT_TYPES[node.tag],
+    ...withId(p.id),
+    custom_id: walk.customId(walk.modal ? inputName(node) : handlerId(node, "onSelect", walk), node.tag),
+  } as Json)
   if (!walk.modal) check(node.props.name === undefined, `${tag(node.tag)} name only applies in a <Modal>; in a message use onSelect`)
   checkText(node.tag, "placeholder", p.placeholder, LIMITS.placeholder)
   if (p.placeholder !== undefined) json.placeholder = p.placeholder
@@ -474,12 +488,12 @@ function allowedMentions(a: AllowedMentions): Json {
 
 // ---- Modals --------------------------------------------------------------------------------
 
-async function renderModal(node: ElementNode): Promise<ModalData> {
-  const walk = new Walk(true)
+async function renderModal(node: ElementNode, route: string | undefined): Promise<ModalData> {
+  const walk = new Walk(true, route)
   const p = node.props as { title?: string; customId?: string }
   check(typeof p.title === "string", "<Modal> needs a title")
   checkText("Modal", "title", p.title, LIMITS.modalTitle, 1)
-  const customId = walk.customId(handlerId(node, "onSubmit"), "Modal", false)
+  const customId = walk.customId(handlerId(node, "onSubmit", walk), "Modal", false)
 
   const components: Json[] = []
   let text: string | undefined
@@ -572,13 +586,13 @@ async function renderInput(node: ElementNode, walk: Walk): Promise<Json> {
   throw misplaced(node, "Label")
 }
 
-/** `customId`, or the handler prop that stands for it (`onClick`, `onSelect`, `onSubmit`). */
-function handlerId(node: ElementNode, prop: string): unknown {
+/** `customId`, or the handler prop that stands for it (`onClick`, `onSelect`, `onSubmit`), marked with the Owning Route. */
+function handlerId(node: ElementNode, prop: string, walk: Walk): unknown {
   const { customId } = node.props
   const handler = node.props[prop]
   if (typeof handler === "function") throw uncompiledHandler(`<${node.tag} ${prop}>`)
   if (customId !== undefined && handler !== undefined) throw new RenderError(`${tag(node.tag)} takes customId or ${prop}, not both`)
-  return customId ?? handler
+  return typeof handler === "string" ? withRoute(handler, walk.route) : customId
 }
 
 /** A modal input's `name`: its `custom_id`, and its key in the submit handler's values. */

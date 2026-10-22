@@ -21,7 +21,7 @@ export interface MessageBody {
 }
 
 /** Renders a MessageInput into a JSON body (plus files). */
-export async function toMessageBody(input: MessageInput<object>, { ephemeral = false }: { ephemeral?: boolean } = {}): Promise<MessageBody> {
+export async function toMessageBody(input: MessageInput<object>, { ephemeral = false, route }: { ephemeral?: boolean; route?: string | undefined } = {}): Promise<MessageBody> {
   if (typeof input === "object" && input !== null && BODY in input) return input as MessageBody
   const [inner, isEphemeral] = unwrapEphemeral(input as never)
   if (isEphemeral && !ephemeral) throw new ResponseError("Ephemeral only applies to interaction follow-ups")
@@ -30,7 +30,7 @@ export async function toMessageBody(input: MessageInput<object>, { ephemeral = f
     if (inner === "") throw new ResponseError("Discord rejects empty messages")
     body = { json: { content: inner }, files: [] }
   } else if (inner instanceof Promise || isNode(inner)) {
-    const rendered = await renderMessage((await inner) as JSX.Element)
+    const rendered = await renderMessage((await inner) as JSX.Element, { route })
     body = { json: { ...rendered.data }, files: rendered.files }
   } else if (typeof inner === "object" && inner !== null) {
     if (Object.getOwnPropertySymbols(inner).length > 0) throw new ResponseError("Update and deferrals only answer Interactions; send a message, View or body")

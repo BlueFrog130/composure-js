@@ -9,10 +9,10 @@ import type {
 } from "discord-api-types/v10"
 import { type App, type Built, internals } from "./app.ts"
 import type { AnyCommand, Command, Group } from "./command.ts"
-import { Context } from "./context.ts"
+import { Context, ROUTE } from "./context.ts"
 import type { Credentials } from "./credentials.ts"
 import { type Interaction, type InteractionResponse, InteractionType, ResponseType } from "./discord.ts"
-import { FAIL } from "./codec.ts"
+import { FAIL, splitRoute } from "./codec.ts"
 import { DiscordApiError, InvalidOptionsError, ResponseError, UnknownCommandError, UserError } from "./errors.ts"
 import { decodeEvent, EventContext } from "./events.ts"
 import { dispatchHandler } from "./handlers.ts"
@@ -172,7 +172,7 @@ async function answerInteraction<E extends Env>(
     rest,
   })
   try {
-    return { answer: await toAnswer(await dispatch(built, c), interaction.type), c }
+    return { answer: await toAnswer(await dispatch(built, c), interaction.type, c[ROUTE]), c }
   } catch (error) {
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
       // A message is no answer to autocomplete; the user sees no suggestions.
@@ -196,12 +196,12 @@ async function runDeferred<E extends Env>(built: Built<E>, c: Context<E>, deferr
       throw new ResponseError("Ephemerality is decided when deferring, as Discord fixes it then: c.defer(work, { ephemeral: true })")
     }
     if (isDeferred(output)) throw new ResponseError("Deferred work cannot defer again")
-    await c.client.editOriginal(await toMessageBody(output))
+    await c.client.editOriginal(await toMessageBody(output, { route: c[ROUTE] }))
   } catch (error) {
     try {
       const [output] = unwrapEphemeral(await errorOutput(built, error, c))
       if (deferred.kind === "update") await c.client.followup(Ephemeral(output))
-      else await c.client.editOriginal(await toMessageBody(output as never))
+      else await c.client.editOriginal(await toMessageBody(output as never, { route: c[ROUTE] }))
     } catch (reportError) {
       built.logger.error({ msg: "Reporting failed deferred work failed", interactionId: c.interaction.id, error: serializeError(reportError) })
     }
@@ -218,6 +218,7 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
           throw new UnknownCommandError(interaction.data.name)
         })
       }
+      c[ROUTE] = entry.route
       return runChain(entry.chain, c, () => invokeCommand(entry.command, c as Context<E, APIApplicationCommandInteraction>))
     }
     case InteractionType.ApplicationCommandAutocomplete: {
@@ -228,11 +229,15 @@ function dispatch<E extends Env>(built: Built<E>, c: Context<E>): Promise<Output
     }
     case InteractionType.MessageComponent:
     case InteractionType.ModalSubmit: {
-      const customId = interaction.data.custom_id
-      return runChain(built.middleware, c, async () => {
-        const output = await dispatchHandler(c, customId)
+      // A click runs the middleware of the Command that rendered the handler, its Owning Route
+      // (ADR 0026); one that no longer exists gets the Fallback, never a shorter chain.
+      const { route, customId } = splitRoute(interaction.data.custom_id)
+      const entry = route === undefined ? undefined : built.routes.get(route)
+      if (entry) c[ROUTE] = entry.route
+      return runChain(entry?.chain ?? built.middleware, c, async () => {
+        const output = route !== undefined && !entry ? FAIL : await dispatchHandler(c, customId)
         if (output === FAIL) {
-          // An unknown handler id, or captures that no longer decode: the Fallback (ADR 0015).
+          // An unknown handler id or route, or captures that no longer decode: the Fallback (ADR 0015).
           built.logger.debug({ msg: "Fallback", handler: customId.split(":")[0], interactionId: interaction.id })
           return Ephemeral(OUTDATED_MESSAGE)
         }
@@ -339,7 +344,7 @@ function suggestions<E extends Env>(built: Built<E>, c: Context<E>, results: rea
 async function renderError<E extends Env>(built: Built<E>, error: unknown, c: Context<E>): Promise<Answer> {
   const output = await errorOutput(built, error, c)
   try {
-    return await toAnswer(Ephemeral(unwrapEphemeral(output)[0]), c.interaction.type)
+    return await toAnswer(Ephemeral(unwrapEphemeral(output)[0]), c.interaction.type, c[ROUTE])
   } catch (rendererError) {
     built.logger.error({ msg: "Error Renderer failed", interactionId: c.interaction.id, error: serializeError(rendererError) })
     return toAnswer(Ephemeral(defaultErrorOutput(error)), c.interaction.type)

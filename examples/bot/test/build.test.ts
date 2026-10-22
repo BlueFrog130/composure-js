@@ -33,8 +33,8 @@ async function clickThrough(send: (body: string) => Promise<{ status: number; js
   }
   const first = await ask(chatInput("counter"))
   expect(first.text).toBe("## Count: 0")
-  // A generated handler id, then owner (a snowflake, base 36), count and step.
-  expect(first.allComponents.find((c) => c.label === "+5")?.custom_id).toMatch(/^_[\w-]{7}:i[0-9a-z]+:n0:n5$/)
+  // A generated handler id and /counter's Owning Route, then owner (a snowflake, base 36), count and step.
+  expect(first.allComponents.find((c) => c.label === "+5")?.custom_id).toMatch(/^_[\w-]{7}~[0-9a-z]{5}:i[0-9a-z]+:n0:n5$/)
   const second = await ask(first.click("+5"))
   expect([second.type, second.text]).toEqual([7, "## Count: 5"])
   const stranger = await ask(first.click("+10").by({ id: "2" }))

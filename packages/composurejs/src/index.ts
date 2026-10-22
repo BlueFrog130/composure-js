@@ -72,3 +72,4 @@ export { decodeEvent, EventContext, type EventHandler, type WebhookEvent } from 
 export { DiscordApiError, RateLimitedError, RequestTimeoutError } from "./errors.ts"
 export type { Deferred, DeferredOutput } from "./response.ts"
 export type { BotClient, InteractionClient, RestOptions } from "./rest/index.ts"
+export { Permission } from "./permissions.ts"

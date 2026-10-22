@@ -385,6 +385,33 @@ export const cases: Case[] = [
     response: { type: 7, data: { flags: V2, components: [{ type: 1, components: [{ type: 2, style: 2, custom_id: "counter-inc:n2", label: "Count 2" }] }] } },
   },
   {
+    // 71ux6 is /ping's Owning Route key; were the hash to change, buttons already sent would break.
+    name: "click with an Owning Route, which the update keeps",
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000014",
+      type: 3,
+      data: { custom_id: "counter-inc~71ux6:n1", component_type: 2 },
+      message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: V2 },
+    }),
+    status: 200,
+    response: { type: 7, data: { flags: V2, components: [{ type: 1, components: [{ type: 2, style: 2, custom_id: "counter-inc~71ux6:n2", label: "Count 2" }] }] } },
+  },
+  {
+    name: "click whose Owning Route is gone goes to the Fallback",
+    body: json({
+      ...base,
+      ...inGuild,
+      id: "900000000000000015",
+      type: 3,
+      data: { custom_id: "counter-inc~zzzzz:n1", component_type: 2 },
+      message: { id: "500000000000000001", channel_id: CHANNEL, type: 0, content: "", components: [], flags: V2 },
+    }),
+    status: 200,
+    response: message("This message is outdated.", EPHEMERAL),
+  },
+  {
     name: "modal submit, values by input name",
     body: json({
       ...base,

@@ -129,14 +129,14 @@ describe("Inline Handlers", () => {
     expect((await answer(app, third.click("Reset"))).text).toBe("## Count: 0")
   })
 
-  test("custom_ids carry only the captured values, compactly: a snowflake in 13 characters", async () => {
+  test("custom_ids carry the Owning Route and the captured values, compactly: a snowflake in 13 characters", async () => {
     const res = await answer(app, chatInput("counter"))
     const ids = res.allComponents.filter((c) => c.type === 2).map((c) => c.custom_id as string)
-    // owner, count, step: in the order the handler reads them.
-    expect(ids[0]).toMatch(new RegExp(`^_[\\w-]{7}:i${BigInt(ALICE).toString(36)}:n0:n1$`))
+    // The route, then owner, count, step: in the order the handler reads them.
+    expect(ids[0]).toMatch(new RegExp(`^_[\\w-]{7}~[0-9a-z]{5}:i${BigInt(ALICE).toString(36)}:n0:n1$`))
     expect(ids[1]).toMatch(/:n5$/)
-    expect(ids[2]).toMatch(/^_[\w-]{7}:i[0-9a-z]+$/)
-    expect(Math.max(...ids.map((id) => id.length))).toBeLessThan(30)
+    expect(ids[2]).toMatch(/^_[\w-]{7}~[0-9a-z]{5}:i[0-9a-z]+$/)
+    expect(Math.max(...ids.map((id) => id.length))).toBeLessThan(36)
   })
 
   test("handlers read the clicking user; other answers are new messages", async () => {
@@ -340,7 +340,7 @@ describe("named()", () => {
     )
     const roles = new App().command(command({ name: "roles", description: "R", handler: () => <RoleMenu role="baker" /> }))
     const res = await answer(roles, chatInput("roles"))
-    expect(res.allComponents.find((c) => c.type === 2)?.custom_id).toBe("toggle-role:sbaker")
+    expect(res.allComponents.find((c) => c.type === 2)?.custom_id).toMatch(/^toggle-role~[0-9a-z]{5}:sbaker$/)
     expect((await answer(roles, click("toggle-role:sbaker"))).text).toBe("toggled baker")
   })
 
