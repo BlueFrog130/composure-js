@@ -1,0 +1,69 @@
+{
+  "name": "composurejs",
+  "version": "0.0.0",
+  "description": "Discord bots over HTTP interactions, on any fetch runtime",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "@composurejs/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "@composurejs/source": "./src/jsx-runtime.ts",
+      "types": "./dist/jsx-runtime.d.ts",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "@composurejs/source": "./src/jsx-dev-runtime.ts",
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "default": "./dist/jsx-dev-runtime.js"
+    },
+    "./components": {
+      "@composurejs/source": "./src/components.ts",
+      "types": "./dist/components.d.ts",
+      "default": "./dist/components.js"
+    },
+    "./testing": {
+      "@composurejs/source": "./src/testing/index.ts",
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    },
+    "./cloudflare": {
+      "@composurejs/source": "./src/adapters/cloudflare.ts",
+      "types": "./dist/adapters/cloudflare.d.ts",
+      "default": "./dist/adapters/cloudflare.js"
+    },
+    "./node": {
+      "@composurejs/source": "./src/adapters/node.ts",
+      "types": "./dist/adapters/node.d.ts",
+      "default": "./dist/adapters/node.js"
+    },
+    "./bun": {
+      "@composurejs/source": "./src/adapters/bun.ts",
+      "types": "./dist/adapters/bun.d.ts",
+      "default": "./dist/adapters/bun.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json"
+  },
+  "dependencies": {
+    "discord-api-types": "^0.38.57"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

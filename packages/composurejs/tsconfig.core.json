@@ -1,0 +1,10 @@
+{
+  // Core must run on every platform: no Node types outside the Node-only Adapters.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["src/adapters/node.ts", "src/adapters/bun.ts", "src/adapters/shutdown.ts"]
+}
