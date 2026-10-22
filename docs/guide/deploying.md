@@ -7,8 +7,8 @@
 | Target | Output | Run |
 |---|---|---|
 | `cloudflare` (with `cloudflare()` from `@cloudflare/vite-plugin`) | a minified Worker and its `wrangler.json` in `dist/` | `wrangler deploy` |
-| `node` | `dist/index.js`, self-contained: dependencies bundled | `node dist/index.js` |
-| `bun` | `dist/index.js`, self-contained | `bun dist/index.js` |
+| `node` | `dist/index.js`, the [Default Server](./platforms#node-and-bun) or your `entry`, self-contained: dependencies bundled | `node dist/index.js` |
+| `bun` | `dist/index.js`, likewise | `bun dist/index.js` |
 
 ```ts
 // vite.config.ts for Workers

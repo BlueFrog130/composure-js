@@ -1,8 +1,8 @@
 import { request as httpRequest } from "node:http"
 import { env, regressionApp, replayFixtures } from "../../composurejs/test/replay.ts"
-import { serve } from "../src/index.ts"
+import { serve } from "../src/server.ts"
 
-replayFixtures("node", async (request) => {
+replayFixtures("default server", async (request) => {
   const server = await serve(regressionApp, { port: 0, hostname: "127.0.0.1", env, handleSignals: false })
   try {
     return await overHttp(new URL(new URL(request.url).pathname, server.url), request)

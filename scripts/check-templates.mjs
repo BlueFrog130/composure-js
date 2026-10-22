@@ -21,8 +21,6 @@ for (const template of templates) {
     composurejs: link("composurejs"),
     cli: link("cli"),
     vitePlugin: link("vite"),
-    adapterNode: link("adapter-node"),
-    adapterBun: link("adapter-bun"),
     vite: "^8.3.5",
   })
   for (const [path, content] of Object.entries(files)) {

@@ -10,16 +10,20 @@ Framework for Discord bots that only receive HTTP Interactions (no gateway) and 
 One inbound request from Discord (ping, command invocation, component click, autocomplete, modal submit).
 _Avoid_: Event, request (when meaning the Discord payload)
 
-**Adapter**:
-The platform integration (`@composurejs/adapter-cloudflare`, `adapter-node`, `adapter-bun`, ...) that turns a platform call into `app.fetch(request, env, platform)`: it supplies the env, a way to run Background Work, and the platform's entry point. It maps nothing itself; the pipeline is core's.
-_Avoid_: Runtime, driver, server
+**Entry**:
+The module a platform runs, which turns its call into `app.fetch(request, env, platform)`: it supplies the env, a way to run Background Work, and the export the platform expects. On Workers it is `export default app`; on Node and Bun it is the Default Server unless the plugin's `entry` names your own. It maps nothing itself; the pipeline is core's.
+_Avoid_: Adapter (there are no adapter packages; ADR 0024), driver
+
+**Default Server**:
+The `node:http` server `@composurejs/vite` builds around the App for the `node` and `bun` targets (`serve` from `@composurejs/vite/server`): `PORT`, `process.env` as the env, tracked Background Work, graceful shutdown, `GET /health`.
+_Avoid_: Adapter, Node Adapter
 
 **Platform**:
-What an Adapter hands core per request beyond the env: `waitUntil` for Background Work, when the platform has one.
-_Avoid_: Runtime, environment, execution context (outside the Cloudflare Adapter)
+What the Entry hands core per request beyond the env: `waitUntil` for Background Work, when the platform has one.
+_Avoid_: Runtime, environment, execution context (outside Workers)
 
 **Env**:
-The platform's bindings, secrets and vars as the Adapter receives them (`env` on Workers, `process.env` on Node); reachable as `c.env`.
+The platform's bindings, secrets and vars as the Entry receives them (`env` on Workers, `process.env` on Node); reachable as `c.env`.
 _Avoid_: State, config
 
 **Credentials**:
@@ -27,7 +31,7 @@ What identifies and authorizes the Discord application: its public key (required
 _Avoid_: Config, settings
 
 **Bot Data**:
-The bot author's own typed configuration and resources, built once per isolate and reachable as `c.data` on every Adapter.
+The bot author's own typed configuration and resources, built once per isolate and reachable as `c.data` on every platform.
 _Avoid_: App data, user data, vars (those are middleware Variables)
 
 **Variables**:

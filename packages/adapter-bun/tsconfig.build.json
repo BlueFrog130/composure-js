@@ -1,5 +1,0 @@
-{
-  // Declarations for dist: src only (tests import composurejs's fixtures by path).
-  "extends": "./tsconfig.json",
-  "include": ["src"]
-}

@@ -1,4 +1,4 @@
-// The example's App, shared by every platform entry (src/node.ts, src/worker.ts, src/bun.ts).
+// The example's App: the Worker entry (src/worker.ts) and the Default Server (node, bun) serve it.
 import {
   App,
   Button,

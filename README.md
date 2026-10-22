@@ -1,6 +1,6 @@
 # composurejs
 
-Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhere `fetch(Request) => Response` runs: Cloudflare Workers, Bun, Node (Deno, Vercel, Netlify and Lambda later). Hono for Discord bots: a small core built on Web Standards, one `app.fetch`, a thin Adapter per platform, a typed context, and JSX Views for responses.
+Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhere `fetch(Request) => Response` runs: Cloudflare Workers, Bun, Node (Deno, Vercel, Netlify and Lambda later). Hono for Discord bots: a small core built on Web Standards, one `app.fetch` that Workers serves as is and a built-in server runs on Node and Bun, a typed context, and JSX Views for responses.
 
 > Status: working so far:
 >
@@ -10,7 +10,7 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 > - Inline Handlers: `onClick={(c) => ..}` anywhere, compiled by `@composurejs/vite` (required)
 > - file uploads
 > - nested Apps
-> - the Cloudflare, Node and Bun Adapters, built with `vite build`
+> - Cloudflare Workers, Node and Bun, built with `vite build` (Node and Bun get the Default Server, or your own entry)
 > - `c.defer` / `c.deferUpdate`
 > - REST Endpoints (Tier 1, typed from Discord's OpenAPI spec)
 > - Webhook Events
@@ -85,16 +85,6 @@ const app = new App().command(cookie).command(hello)
 export default app // Workers: reads DISCORD_PUBLIC_KEY from env
 ```
 
-```ts
-// Node
-import { serve } from "@composurejs/adapter-node"
-await serve(app, { port: 3000 })
-
-// Bun
-import { handle } from "@composurejs/adapter-bun"
-export default handle(app)
-```
-
 Build with Vite (required); the plugin compiles Inline Handlers and sets up the target:
 
 ```ts
@@ -105,8 +95,9 @@ import { defineConfig } from "vite"
 
 export default defineConfig({ plugins: [composure({ target: "cloudflare" }), cloudflare()] })
 
-// Node or Bun: one self-contained dist/index.js
-// export default defineConfig({ plugins: [composure({ target: "node", entry: "src/node.ts" })] })
+// Node or Bun: the Default Server around src/app.tsx, one self-contained dist/index.js
+// (`entry: "src/server.ts"` builds your own server instead)
+// export default defineConfig({ plugins: [composure({ target: "node" })] })
 ```
 
 Develop against Discord with one command. Put `DISCORD_PUBLIC_KEY`, `DISCORD_TOKEN`, `COMPOSURE_DEV_APPLICATION_ID` (your *dev* application, the only one it will repoint) and `COMPOSURE_DEV_GUILD` in `.env`, then `vite dev`: it opens a tunnel, sets the dev application's Interactions Endpoint URL, syncs Commands to the dev guild, and re-syncs on save.
@@ -118,7 +109,7 @@ DISCORD_TOKEN=... pnpm exec composure sync            # global; scope "dev" goes
 pnpm exec composure sync --guild 798662131062931547  # everything to one guild, to try it out
 ```
 
-Tests run the App the way an Adapter does, with real signatures:
+Tests run the App the way a platform does, with real signatures:
 
 ```ts
 import { answer, command } from "composurejs/testing"
@@ -136,17 +127,17 @@ expect(res.text).toBe("## Hello, Bob")
 - **Explicit Apps that nest.** The same list drives both dispatch and Sync, and modules own their own lists ([ADR 0001](docs/adr/0001-explicit-registration.md)).
 - **Limits are checked before Discord sees the message.** Render validates placement and Discord's limits, and throws an error naming the broken rule, so you never get a silent "This interaction failed" ([ADR 0004](docs/adr/0004-jsx-runtime.md)).
 - **A Vite dev loop.** `vite dev` opens a tunnel, points the dev application at it, and syncs commands to a dev guild whenever they change.
-- **Multi-runtime Adapters** over one shared pipeline ([ADR 0007](docs/adr/0007-adapters-and-background-work.md)).
+- **Any fetch runtime** over one shared pipeline, with no adapter packages ([ADR 0024](docs/adr/0024-default-server.md)).
 - **First-class testing.** `composurejs/testing` provides signed requests, Interaction builders and Background Work that runs on demand.
 
 ## Repository
 
 | Path | What |
 |---|---|
-| `packages/composurejs` | Core and subpaths: `/jsx-runtime`, `/components`, `/testing`, `/cloudflare`, `/node`, `/bun` |
+| `packages/composurejs` | Core and subpaths: `/jsx-runtime`, `/components`, `/testing`, `/rest`, `/sync`, `/placement` |
 | `packages/create-composurejs` | `pnpm create composurejs`: one template generator for every target; `scripts/check-templates.mjs` installs, tests and builds each |
 | `packages/cli` | `@composurejs/cli`: `composure sync`, the Sync Plan and applying it (also a library) |
-| `packages/vite` | `@composurejs/vite`: compiles Inline Handlers and sets up `vite build` per target (the dev loop comes later) |
+| `packages/vite` | `@composurejs/vite`: compiles Inline Handlers, sets up `vite build` per target, the Default Server (`/server`) and the Dev Loop |
 | `packages/eslint-plugin` | `@composurejs/eslint-plugin`: flags tags placed where Discord does not allow them, in ESLint or oxlint |
 | `examples/bot` | One App built for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`), Node (`pnpm build:node && pnpm start:node`) and Bun (`pnpm build:bun && bun dist/bun/index.js`) |
 | `docs` | The guide (`pnpm -C docs dev`) and the ADRs, as a VitePress site |

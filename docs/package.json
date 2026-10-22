@@ -8,8 +8,6 @@
     "preview": "vitepress preview"
   },
   "devDependencies": {
-    "@composurejs/adapter-bun": "workspace:*",
-    "@composurejs/adapter-node": "workspace:*",
     "@composurejs/vite": "workspace:*",
     "@shikijs/vitepress-twoslash": "^4.5.0",
     "@types/node": "^26.6.5",

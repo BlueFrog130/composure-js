@@ -1,7 +1,7 @@
 {
   "name": "@composurejs/vite",
   "version": "0.0.0",
-  "description": "Vite plugin for composurejs: Inline Handler hoisting (and later the dev loop)",
+  "description": "Vite plugin for composurejs: Inline Handler hoisting, build targets, the Default Server and the Dev Loop",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -28,6 +28,11 @@
       "@composurejs/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./server": {
+      "@composurejs/source": "./src/server.ts",
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
     }
   },
   "scripts": {
@@ -45,7 +50,6 @@
     "untun": "^0.2.2"
   },
   "devDependencies": {
-    "@composurejs/adapter-node": "workspace:*",
     "@types/node": "^26.6.5",
     "tsdown": "^0.23.1",
     "typescript": "^7.0.2",

@@ -1,10 +1,10 @@
 import { defineConfig } from "tsdown"
 
 export default defineConfig({
-  entry: { index: "src/index.ts" },
+  entry: { index: "src/index.ts", server: "src/server.ts" },
   format: "esm",
   platform: "node",
   // .js/.d.ts, matching package.json exports (platform node defaults to .mjs).
   fixedExtension: false,
-  dts: true,
+  dts: { tsconfig: "tsconfig.build.json" },
 })

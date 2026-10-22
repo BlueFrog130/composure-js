@@ -1,9 +1,12 @@
-// Node Adapter (ADR 0007): node:http in Web Request/Response, tracked Background Work, graceful
-// shutdown, GET /health.
+// The Default Server (ADR 0024): node:http in Web Request/Response, tracked Background Work,
+// graceful shutdown, GET /health. Runs on Node and Bun. `vite build` for `node` / `bun` wraps the
+// App in it unless the plugin's `entry` names a server entry of your own, which can import these.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { type App, type BindingsOf, createTracker, type Env, MAX_BODY_BYTES, type Tracker } from "composurejs"
-import { onShutdown, SHUTDOWN_GRACE_MS } from "./shutdown.ts"
+
+/** Default time Background Work gets to finish on shutdown (ADR 0007). */
+export const SHUTDOWN_GRACE_MS = 30_000
 
 export interface ServeOptions<E extends Env> {
   /** Default `PORT` from the environment, else 3000; 0 picks a free port. */
@@ -19,7 +22,7 @@ export interface ServeOptions<E extends Env> {
   healthPath?: string | false
 }
 
-export interface NodeServer {
+export interface RunningServer {
   readonly server: Server
   /** Where the server listens, e.g. `http://127.0.0.1:3000`. */
   readonly url: string
@@ -29,7 +32,7 @@ export interface NodeServer {
 }
 
 /** Serves an App over node:http. Resolves once listening. */
-export async function serve<E extends Env>(app: App<E>, options: ServeOptions<E> = {}): Promise<NodeServer> {
+export async function serve<E extends Env>(app: App<E>, options: ServeOptions<E> = {}): Promise<RunningServer> {
   const {
     port = Number(process.env.PORT ?? 3000),
     hostname,
@@ -94,4 +97,26 @@ export async function send(res: ServerResponse, response: Response): Promise<voi
   response.headers.forEach((value, name) => (headers[name] = value))
   res.writeHead(response.status, headers)
   res.end(Buffer.from(await response.arrayBuffer()))
+}
+
+/**
+ * Runs `close` on the first SIGTERM or SIGINT, then re-raises the signal so the process ends
+ * as it would have. Returns a function removing the listeners.
+ */
+export function onShutdown(close: () => Promise<void>): () => void {
+  const signals = ["SIGTERM", "SIGINT"] as const
+  const handler = (signal: NodeJS.Signals) => {
+    remove()
+    void close().finally(() => process.kill(process.pid, signal))
+  }
+  const remove = () => signals.forEach((s) => process.off(s, handler))
+  signals.forEach((s) => process.once(s, handler))
+  return remove
+}
+
+/** The App a module exports as `app` or default. */
+export function appOf<A extends { fetch: unknown; definitions: unknown }>(module: Record<string, unknown>, file: string): A {
+  const app = [module.app, module.default].find((v) => typeof (v as A | undefined)?.fetch === "function" && typeof (v as A).definitions === "function")
+  if (!app) throw new Error(`${file} must export the App as \`app\` or as its default export`)
+  return app as A
 }

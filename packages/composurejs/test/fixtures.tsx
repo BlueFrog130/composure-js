@@ -1,5 +1,5 @@
 // Signed regression fixtures: Interaction shapes as Discord sends them, each with the status
-// and JSON the regression App must answer with. Replayed against every Adapter over its entry.
+// and JSON the regression App must answer with. Replayed over app.fetch and the Default Server.
 import { App, Button, command, Container, File, group, Label, messageCommand, named, Modal, option, Row, Text, TextInput, upload, userCommand, UserError } from "composurejs"
 import { TestKey } from "composurejs/testing"
 

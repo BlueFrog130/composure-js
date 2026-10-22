@@ -16,8 +16,6 @@ export interface Versions {
   vite: string
   cli: string
   vitePlugin: string
-  adapterNode: string
-  adapterBun: string
 }
 
 export type Files = Record<string, string>
@@ -86,8 +84,6 @@ function packageJson(template: Template, name: string, v: Versions) {
   if (template === "cloudflare") Object.assign(devDependencies, { "@cloudflare/vite-plugin": "^1.64.0", wrangler: "^4.151.3" })
   else devDependencies["@types/node"] = "^26.6.5"
   const dependencies: Record<string, string> = { composurejs: v.composurejs }
-  if (template === "node") dependencies["@composurejs/adapter-node"] = v.adapterNode
-  if (template === "bun") dependencies["@composurejs/adapter-bun"] = v.adapterBun
   return { name, private: true, type: "module", scripts, dependencies, devDependencies }
 }
 
@@ -103,51 +99,33 @@ export default defineConfig({
 })
 `
   }
-  return `// vite dev: the bot with the Dev Loop (tunnel, dev Sync). vite build: one self-contained dist/index.js.
+  return `// vite dev: the bot with the Dev Loop (tunnel, dev Sync). vite build: one self-contained dist/index.js
+// serving src/app.tsx. For a server of your own, write it and pass \`entry: "src/server.ts"\`.
 import composure from "@composurejs/vite"
 import { defineConfig } from "vite"
 
 export default defineConfig({
-  plugins: [composure({ target: "${template}", entry: "src/${template}.ts" })],
+  plugins: [composure({ target: "${template}" })],
 })
 `
 }
 
 function entry(template: Template, name: string): Files {
-  switch (template) {
-    case "cloudflare":
-      return {
-        "src/worker.ts": `// Workers calls fetch(request, env, ctx): the App fits as is.
+  // node and bun: the plugin builds the Default Server around src/app.tsx.
+  if (template !== "cloudflare") return {}
+  return {
+    "src/worker.ts": `// Workers calls fetch(request, env, ctx): the App fits as is.
 import { app } from "./app.tsx"
 
 export default app
 `,
-        "wrangler.jsonc": json({
-          $schema: "node_modules/wrangler/config-schema.json",
-          name,
-          main: "src/worker.ts",
-          compatibility_date: "2026-10-01",
-          observability: { enabled: true },
-        }),
-      }
-    case "node":
-      return {
-        "src/node.ts": `import { serve } from "@composurejs/adapter-node"
-import { app } from "./app.tsx"
-
-const server = await serve(app)
-console.info({ msg: "Listening", url: server.url })
-`,
-      }
-    case "bun":
-      return {
-        "src/bun.ts": `// \`bun dist/index.js\`: Bun serves the default export.
-import { handle } from "@composurejs/adapter-bun"
-import { app } from "./app.tsx"
-
-export default handle(app, { port: Number(process.env.PORT ?? 3000) })
-`,
-      }
+    "wrangler.jsonc": json({
+      $schema: "node_modules/wrangler/config-schema.json",
+      name,
+      main: "src/worker.ts",
+      compatibility_date: "2026-10-01",
+      observability: { enabled: true },
+    }),
   }
 }
 

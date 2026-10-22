@@ -1,4 +1,4 @@
-// The request pipeline every Adapter shares (ADR 0007). Adapters only map platform calls to it.
+// The request pipeline every platform shares (ADR 0007). An entry only maps a platform call to it.
 import type {
   APIApplicationCommandAutocompleteInteraction,
   APIApplicationCommandInteractionDataBasicOption,

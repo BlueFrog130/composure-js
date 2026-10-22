@@ -8,7 +8,7 @@ import { defineConfig } from "vite"
 // ---cut---
 // vite.config.ts (Node; for Workers add cloudflare() from @cloudflare/vite-plugin)
 export default defineConfig({
-  plugins: [composure({ target: "node", entry: "src/node.ts" })],
+  plugins: [composure({ target: "node" })],
 })
 ```
 

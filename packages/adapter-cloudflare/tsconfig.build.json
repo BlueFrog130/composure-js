@@ -1,6 +1,0 @@
-{
-  // Declarations for dist, and the check that src needs no Node types.
-  "extends": "./tsconfig.json",
-  "compilerOptions": { "types": [] },
-  "include": ["src"]
-}

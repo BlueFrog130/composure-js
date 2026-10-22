@@ -1,14 +1,12 @@
 // The Dev Loop (ADR 0017): `vite dev` serves the App (node/bun; Workers via @cloudflare/vite-plugin),
 // opens a tunnel, points the *dev* application's interactions endpoint at it, and syncs Commands to a
 // dev guild on start and whenever the code changes.
-import { existsSync } from "node:fs"
 import type { AddressInfo } from "node:net"
-import { resolve } from "node:path"
-import { send, toRequest } from "@composurejs/adapter-node"
 import { createTracker, type ScopedDefinition, type Transport } from "composurejs"
 import { BotClient, editCurrentApplication } from "composurejs/rest"
 import { apply, configFromEnv, plan, summary, type SyncConfig } from "composurejs/sync"
 import { isRunnableDevEnvironment, loadEnv, type Plugin, runnerImport, type ViteDevServer } from "vite"
+import { appOf, send, toRequest } from "./server.ts"
 
 export interface Tunnel {
   url: string
@@ -16,8 +14,6 @@ export interface Tunnel {
 }
 
 export interface DevOptions {
-  /** The module exporting the App as `app` or default. Default: `src/app.tsx`, `src/app.ts`, ... */
-  app?: string
   /**
    * Open a public tunnel to `vite dev` and point the dev application's interactions endpoint at
    * it. Default: when `COMPOSURE_DEV_APPLICATION_ID` is set. Uses a cloudflared quick tunnel
@@ -35,20 +31,18 @@ export interface DevOptions {
 export const DEV_APPLICATION_VAR = "COMPOSURE_DEV_APPLICATION_ID"
 export const DEV_GUILD_VAR = "COMPOSURE_DEV_GUILD"
 
-const ENTRIES = ["src/app.tsx", "src/app.ts", "src/index.tsx", "src/index.ts"]
-
 /**
- * Sets the Dev Loop up on a dev server. `serveApp`: this plugin serves the App (node, bun), not
- * another one (Workers). `hoist` makes the plugin dev Sync loads the App with.
+ * Sets the Dev Loop up on a dev server. `appFile`: the module exporting the App. `serveApp`: this
+ * plugin serves the App (node, bun), not another one (Workers). `hoist` makes the plugin dev Sync
+ * loads the App with.
  */
-export function setupDevLoop(server: ViteDevServer, options: DevOptions, serveApp: boolean, hoist: () => Plugin): void {
+export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile: string, serveApp: boolean, hoist: () => Plugin): void {
   const root = server.config.root
   const logger = server.config.logger
   const tag = "\x1b[36m[composure]\x1b[0m"
   const info = (msg: string) => logger.info(`${tag} ${msg}`, { timestamp: true })
   const warn = (msg: string) => logger.warn(`${tag} ${msg}`, { timestamp: true })
   const env: Record<string, string | undefined> = { ...loadEnv(server.config.mode, server.config.envDir === false ? root : (server.config.envDir ?? root), ""), ...process.env }
-  const appFile = resolve(root, options.app ?? ENTRIES.find((e) => existsSync(resolve(root, e))) ?? ENTRIES[0]!)
   const rest = options.transport ? { transport: options.transport } : {}
 
   if (serveApp) {
@@ -59,7 +53,7 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, serveAp
       void (async () => {
         const ssr = server.environments.ssr
         if (!isRunnableDevEnvironment(ssr)) throw new Error("The ssr environment is not runnable in this process")
-        const app = appOf(await ssr.runner.import(appFile), appFile)
+        const app = appOf<LoadedApp>(await ssr.runner.import(appFile), appFile)
         const request = await toRequest(req)
         await send(res, request ? await app.fetch(request, env, platform) : new Response("Payload Too Large", { status: 413 }))
       })().catch((error: unknown) => {
@@ -94,7 +88,7 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, serveAp
         if (!devGuild) return warn(`dev Sync needs ${DEV_GUILD_VAR}: the guild to sync Commands to while developing.`)
         try {
           const { module } = await runnerImport<Record<string, unknown>>(appFile, { root, plugins: [hoist()], logLevel: "error" })
-          const definitions = appOf(module, appFile).definitions()
+          const definitions = appOf<LoadedApp>(module, appFile).definitions()
           const key = JSON.stringify(definitions)
           if (key === last) return
           const planned = await plan(definitions, { ...cfg, guild: devGuild }, rest)
@@ -146,12 +140,6 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, serveAp
 interface LoadedApp {
   fetch(request: Request, env?: unknown, platform?: unknown): Promise<Response>
   definitions(): ScopedDefinition[]
-}
-
-function appOf(module: Record<string, unknown>, file: string): LoadedApp {
-  const app = [module.app, module.default].find((v) => typeof (v as LoadedApp | undefined)?.fetch === "function" && typeof (v as LoadedApp).definitions === "function")
-  if (!app) throw new Error(`${file} must export the App as \`app\` or as its default export`)
-  return app as LoadedApp
 }
 
 async function cloudflared(port: number): Promise<Tunnel> {

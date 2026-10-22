@@ -224,12 +224,6 @@ importers:
 
   docs:
     devDependencies:
-      '@composurejs/adapter-bun':
-        specifier: workspace:*
-        version: link:../packages/adapter-bun
-      '@composurejs/adapter-node':
-        specifier: workspace:*
-        version: link:../packages/adapter-node
       '@composurejs/vite':
         specifier: workspace:*
         version: link:../packages/vite
@@ -260,12 +254,6 @@ importers:
 
   examples/bot:
     dependencies:
-      '@composurejs/adapter-bun':
-        specifier: workspace:*
-        version: link:../../packages/adapter-bun
-      '@composurejs/adapter-node':
-        specifier: workspace:*
-        version: link:../../packages/adapter-node
       composurejs:
         specifier: workspace:*
         version: link:../../packages/composurejs
@@ -288,72 +276,6 @@ importers:
       wrangler:
         specifier: ^4.151.3
         version: 4.151.3(@types/node@26.6.5)
-
-  packages/adapter-bun:
-    dependencies:
-      composurejs:
-        specifier: workspace:^
-        version: link:../composurejs
-    devDependencies:
-      '@types/node':
-        specifier: ^26.6.5
-        version: 26.6.5
-      tsdown:
-        specifier: ^0.23.1
-        version: 0.23.1(@vue/language-core@3.3.13)(tsx@4.23.15)(typescript@7.0.2)
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vite:
-        specifier: ^8.3.5
-        version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/adapter-cloudflare:
-    dependencies:
-      composurejs:
-        specifier: workspace:^
-        version: link:../composurejs
-    devDependencies:
-      '@types/node':
-        specifier: ^26.6.5
-        version: 26.6.5
-      tsdown:
-        specifier: ^0.23.1
-        version: 0.23.1(@vue/language-core@3.3.13)(tsx@4.23.15)(typescript@7.0.2)
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vite:
-        specifier: ^8.3.5
-        version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/adapter-node:
-    dependencies:
-      composurejs:
-        specifier: workspace:^
-        version: link:../composurejs
-    devDependencies:
-      '@types/node':
-        specifier: ^26.6.5
-        version: 26.6.5
-      tsdown:
-        specifier: ^0.23.1
-        version: 0.23.1(@vue/language-core@3.3.13)(tsx@4.23.15)(typescript@7.0.2)
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vite:
-        specifier: ^8.3.5
-        version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/cli:
     dependencies:
@@ -470,9 +392,6 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
     devDependencies:
-      '@composurejs/adapter-node':
-        specifier: workspace:*
-        version: link:../adapter-node
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5

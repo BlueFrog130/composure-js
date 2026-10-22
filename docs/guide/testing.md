@@ -1,6 +1,6 @@
 # Testing
 
-`composurejs/testing` runs your App the way an Adapter does. Each Interaction is signed with a real Ed25519 key and goes through the full pipeline, while Discord is replaced by a recording transport. Tests never reach Discord.
+`composurejs/testing` runs your App the way a platform does. Each Interaction is signed with a real Ed25519 key and goes through the full pipeline, while Discord is replaced by a recording transport. Tests never reach Discord.
 
 ```tsx twoslash
 // @filename: app.tsx

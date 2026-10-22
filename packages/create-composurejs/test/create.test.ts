@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { type Env, main } from "../src/create.ts"
 import { generate, type Template } from "../src/templates.ts"
 
-const VERSIONS = { composurejs: "^1.2.3", cli: "^1.0.0", vitePlugin: "^1.1.0", adapterNode: "^1.0.1", adapterBun: "^1.0.2", vite: "^8.3.5" }
+const VERSIONS = { composurejs: "^1.2.3", cli: "^1.0.0", vitePlugin: "^1.1.0", vite: "^8.3.5" }
 const tmp = fileURLToPath(new URL("./.tmp/", import.meta.url))
 
 function env(overrides: Partial<Env> = {}) {
@@ -58,9 +58,13 @@ describe("generate", () => {
     expect(JSON.parse(cf["wrangler.jsonc"]!)).toMatchObject({ name: "cf-bot", main: "src/worker.ts" })
     expect(JSON.parse(cf["package.json"]!).scripts.deploy).toBe("vite build && wrangler deploy")
     expect(JSON.parse(generate("node", "n", VERSIONS)["package.json"]!).scripts.start).toBe("node --env-file-if-exists=.env dist/index.js")
-    expect(generate("bun", "b", VERSIONS)["src/bun.ts"]).toContain(`import { handle } from "@composurejs/adapter-bun"`)
-    expect(JSON.parse(generate("node", "n", VERSIONS)["package.json"]!).dependencies).toMatchObject({ "@composurejs/adapter-node": "^1.0.1" })
-    expect(JSON.parse(generate("bun", "b", VERSIONS)["package.json"]!).dependencies).toMatchObject({ "@composurejs/adapter-bun": "^1.0.2" })
+    for (const template of ["node", "bun"] as const) {
+      const files = generate(template, "s", VERSIONS)
+      // The plugin builds the Default Server around src/app.tsx: no entry file, no extra dependency.
+      expect(Object.keys(files).filter((f) => f.startsWith("src/"))).toEqual(["src/app.tsx", "src/counter.tsx"])
+      expect(files["vite.config.ts"]).toContain(`composure({ target: "${template}" })`)
+      expect(JSON.parse(files["package.json"]!).dependencies).toEqual({ composurejs: "^1.2.3" })
+    }
     expect(JSON.parse(cf["package.json"]!).dependencies).toEqual({ composurejs: "^1.2.3" })
   })
 })
@@ -70,7 +74,7 @@ describe("create-composurejs", () => {
     const t = env()
     expect(await main(["my-bot", "--template", "node"], t.env)).toBe(0)
     expect(JSON.parse(readFileSync(`${tmp}my-bot/package.json`, "utf8")).name).toBe("my-bot")
-    expect(existsSync(`${tmp}my-bot/src/node.ts`)).toBe(true)
+    expect(existsSync(`${tmp}my-bot/src/app.tsx`)).toBe(true)
     expect(t.installs).toHaveLength(1)
     expect(t.installs[0]).toMatch(/^pnpm .*my-bot$/)
   })

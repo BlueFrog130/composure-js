@@ -36,7 +36,7 @@ export interface AnswerOptions<E extends Env> {
 
 let sharedKey: Promise<TestKey> | undefined
 
-/** Runs the App on `interaction` the way an Adapter does: signed request, full pipeline. */
+/** Runs the App on `interaction` the way a platform does: signed request, full pipeline. */
 export async function answer<E extends Env>(app: App<E>, interaction: Interaction | Buildable, options: AnswerOptions<E> = {}): Promise<TestResponse> {
   const key = await (sharedKey ??= TestKey.generate())
   const env = (options.env ?? {}) as BindingsOf<E>

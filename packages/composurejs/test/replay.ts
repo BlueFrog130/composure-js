@@ -1,5 +1,5 @@
-// Replays the signed fixtures against one entry point: core's here (regression.test.ts), each
-// Adapter's in its package's test/regression.test.ts.
+// Replays the signed fixtures against one entry point: core's here (regression.test.ts), the
+// Default Server's in packages/vite/test/server.test.ts.
 import { describe, expect, test, vi } from "vitest"
 import { cases, requestFor } from "./fixtures.tsx"
 

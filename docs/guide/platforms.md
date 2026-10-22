@@ -1,6 +1,6 @@
 # Platforms
 
-An App answers `fetch(request, env, platform)`. An Adapter is the few lines connecting that to a platform, each its own package: `@composurejs/adapter-cloudflare`, `@composurejs/adapter-node`, `@composurejs/adapter-bun`. The App is the same on every one.
+An App answers `fetch(request, env, platform)`, so anything that can call a Web fetch handler can run it. The App is the same on every platform; there are no adapter packages.
 
 ## Cloudflare Workers
 
@@ -17,40 +17,64 @@ export default app // Workers calls fetch(request, env, ctx): it fits as is
 
 Secrets and bindings are `c.env`. Background Work uses `ctx.waitUntil`. Build with `@cloudflare/vite-plugin` ([Deploying](./deploying)).
 
-## Node
+## Node and Bun
 
-`pnpm add @composurejs/adapter-node`
+`composure({ target: "node" })` (or `"bun"`) builds the **Default Server** around your App (`src/app.tsx`, exported as `app`): no entry file to write.
+
+```ts twoslash
+import composure from "@composurejs/vite"
+import { defineConfig } from "vite"
+// ---cut---
+export default defineConfig({
+  plugins: [composure({ target: "node" })], // vite build → dist/index.js: node dist/index.js
+})
+```
+
+It listens on `PORT` (or 3000), passes `process.env` as the env, answers `GET /health` and caps bodies at 1 MiB. Background Work runs on tracked promises. On SIGTERM it stops accepting requests and waits up to 30 seconds for that work. It runs on Node and on Bun.
+
+## Your own server
+
+To change any of that, write the entry yourself and point `entry` at it. `@composurejs/vite/server` exports the pieces of the Default Server: `serve` with options, and `toRequest`/`send` to mount the App in a `node:http` server you already have.
 
 ```ts twoslash
 // @filename: app.ts
 import { App } from "composurejs"
 export const app = new App()
-// @filename: node.ts
+// @filename: server.ts
 // ---cut---
-import { serve } from "@composurejs/adapter-node"
+import { serve } from "@composurejs/vite/server"
 import { app } from "./app.ts"
 
-const server = await serve(app) // PORT, or 3000
+const server = await serve(app, { port: 8080, healthPath: "/healthz", shutdownGrace: 10_000 })
 console.info({ msg: "Listening", url: server.url })
 ```
 
-`serve` answers `GET /health` and caps bodies at 1 MiB. Background Work runs on tracked promises. On SIGTERM it stops accepting requests and waits up to 30 seconds for that work.
+```ts twoslash
+import composure from "@composurejs/vite"
+import { defineConfig } from "vite"
+// ---cut---
+export default defineConfig({
+  plugins: [composure({ target: "node", entry: "src/server.ts" })],
+})
+```
 
-## Bun
-
-`pnpm add @composurejs/adapter-bun`
+The entry can skip `@composurejs/vite/server` entirely and call `app.fetch` from anything that speaks Web `Request`/`Response`: `Bun.serve`, Deno, Hono, a serverless handler. Pass the env, and a platform with `waitUntil` if the host keeps running after the response; without one, Background Work finishes before the response is sent ([Deferring](./deferring)).
 
 ```ts twoslash
 // @filename: app.ts
 import { App } from "composurejs"
 export const app = new App()
 // @filename: bun.ts
+declare const Bun: { serve(options: { port: number; fetch(request: Request): Promise<Response> }): unknown }
 // ---cut---
-import { handle } from "@composurejs/adapter-bun"
+import { createTracker } from "composurejs"
 import { app } from "./app.ts"
 
-export default handle(app) // Bun serves the default export
+const platform = createTracker() // waitUntil; platform.settle() on shutdown
+Bun.serve({ port: 3000, fetch: (request) => app.fetch(request, process.env, platform) })
 ```
+
+`vite dev` serves the App itself for the Node and Bun targets, so a custom entry applies to the build only.
 
 ## Credentials and Bot Data
 

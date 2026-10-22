@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 // The `create-composurejs` executable: `pnpm create composurejs [dir]`.
-import adapterBun from "../../adapter-bun/package.json" with { type: "json" }
-import adapterNode from "../../adapter-node/package.json" with { type: "json" }
 import cli from "../../cli/package.json" with { type: "json" }
 import core from "../../composurejs/package.json" with { type: "json" }
 import vitePlugin from "../../vite/package.json" with { type: "json" }
@@ -12,8 +10,6 @@ const versions = {
   composurejs: `^${core.version}`,
   cli: `^${cli.version}`,
   vitePlugin: `^${vitePlugin.version}`,
-  adapterNode: `^${adapterNode.version}`,
-  adapterBun: `^${adapterBun.version}`,
   vite: "^8.3.5",
 }
 
