@@ -47,7 +47,19 @@ export class DiscordApiError extends Error {
   }
 }
 
-/** A 429 asked to wait longer than the client's cap (ADR 0006). */
+/** Discord did not answer a REST request within the client's timeout (ADR 0006). `route` is the template. */
+export class RequestTimeoutError extends Error {
+  override name = "RequestTimeoutError"
+  constructor(
+    readonly route: string,
+    /** The timeout, in ms. */
+    readonly timeout: number,
+  ) {
+    super(`${route}: no response within ${timeout}ms`)
+  }
+}
+
+/** A 429, or a used-up rate limit bucket, asked to wait longer than the client's cap (ADR 0006). */
 export class RateLimitedError extends Error {
   override name = "RateLimitedError"
   constructor(

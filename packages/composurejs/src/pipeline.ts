@@ -59,7 +59,7 @@ export async function handleInteraction<E extends Env>(app: App<E>, request: Req
   const interaction = read
   if (!isInteraction(interaction)) return notAnInteraction()
 
-  const rest: RestOptions = { transport: options.transport ?? built.transport, logger: built.logger, maxRateLimitWait: built.maxRateLimitWait }
+  const rest = restOptions(built, options)
   const { answer, c } = await answerInteraction(built, interaction, options, rest)
   const client = () => c?.client ?? new InteractionClient(interaction.application_id, interaction.id, interaction.token, rest)
 
@@ -77,6 +77,10 @@ export async function handleInteraction<E extends Env>(app: App<E>, request: Req
     return sent
   }
   return Response.json(answer.response)
+}
+
+function restOptions<E extends Env>(built: Built<E>, options: HandleOptions<E>): RestOptions {
+  return { transport: options.transport ?? built.transport, logger: built.logger, maxRateLimitWait: built.maxRateLimitWait, timeout: built.requestTimeout }
 }
 
 /** Verifies and parses a signed request; a Response when it must be rejected. */
@@ -117,7 +121,7 @@ export async function handleEvent<E extends Env>(app: App<E>, request: Request, 
     platform: options.platform,
     logger: built.logger,
     credentials: options.credentials,
-    rest: { transport: options.transport ?? built.transport, logger: built.logger, maxRateLimitWait: built.maxRateLimitWait },
+    rest: restOptions(built, options),
   })
   const handler = built.events
   const work = (async () => {

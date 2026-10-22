@@ -1,7 +1,9 @@
-// REST over an injectable Transport (ADR 0006). Rate limits are reactive only: a 429 is waited
-// out when Discord asks for less than `maxRateLimitWait`, otherwise it is thrown.
+// REST over an injectable Transport (ADR 0006). Rate limits: each bucket's remaining count is
+// tracked per isolate from Discord's headers, so a request waits before it would be limited, and a
+// 429 is still waited out; a wait longer than `maxRateLimitWait` throws instead. Requests that are
+// safe to repeat (not POST) are retried on network errors, timeouts and 5xx.
 import type { Upload } from "../components.ts"
-import { DiscordApiError, RateLimitedError } from "../errors.ts"
+import { DiscordApiError, RateLimitedError, RequestTimeoutError } from "../errors.ts"
 import { type Logger, consoleLogger } from "../log.ts"
 import { DISCORD_API, fetchTransport, formData, type Transport } from "../transport.ts"
 import type { operations } from "./schema.d.ts"
@@ -42,6 +44,8 @@ export interface RestOptions {
   logger?: Logger | undefined
   /** Default `https://discord.com/api/v10`. */
   apiBase?: string | undefined
+  /** Longest wait for one attempt's response, in ms, before {@link RequestTimeoutError}. Default 10000. */
+  timeout?: number | undefined
 }
 
 export interface RequestInit {
@@ -58,8 +62,21 @@ export interface RequestInit {
   multipart?: FormData | undefined
 }
 
-const USER_AGENT = "DiscordBot (https://github.com/BlueFrog130/composure-js, 0.0.0)"
-const MAX_ATTEMPTS = 3
+declare const __COMPOSURE_VERSION__: string | undefined
+const VERSION = typeof __COMPOSURE_VERSION__ === "string" ? __COMPOSURE_VERSION__ : "dev"
+const USER_AGENT = `DiscordBot (https://github.com/BlueFrog130/composure-js, ${VERSION})`
+/** 429s waited out per request before giving up. */
+const MAX_LIMITED = 2
+/** Delays before retrying a request that is safe to repeat, after a network error, timeout or 5xx. */
+const RETRY_DELAYS = [250, 1000]
+const RETRY_STATUS = new Set([500, 502, 503, 504])
+/** Path parameters that give a route its own rate limit bucket. */
+const MAJOR_PARAMS = ["channel_id", "guild_id", "webhook_id", "webhook_token"]
+
+// Per isolate: the bucket each route is in, and each bucket's state (ADR 0006).
+const bucketOfRoute = new Map<string, string>()
+const buckets = new Map<string, { remaining: number; resetAt: number }>()
+const MAX_TRACKED = 500
 
 /** Sends requests to Discord; the Bot and Interaction Clients build on it. */
 export class RestClient {
@@ -68,6 +85,7 @@ export class RestClient {
   readonly #maxWait: number
   readonly #logger: Logger
   readonly #base: string
+  readonly #timeout: number
 
   constructor(authorization: string | undefined, options: RestOptions = {}) {
     this.#authorization = authorization
@@ -75,14 +93,29 @@ export class RestClient {
     this.#maxWait = options.maxRateLimitWait ?? 2000
     this.#logger = options.logger ?? consoleLogger
     this.#base = options.apiBase ?? DISCORD_API
+    this.#timeout = options.timeout ?? 10_000
   }
 
   /** Sends one request to `route`, decoding the JSON response (`undefined` for 204). */
   async request<O extends Op>(route: Route<O>, init: RequestInit = {}): Promise<ResponseBody<O>> {
     const template = `${route.method} ${route.path}`
     const url = this.#base + fillPath(route.path, init.params ?? {}) + queryString(init.query)
+    const repeatable = route.method !== "POST"
+    const auth = this.#authorization ?? "-"
+    const routeKey = `${auth} ${template}`
+    const major = MAJOR_PARAMS.map((name) => init.params?.[name] ?? "").join("/")
+    const bucketKey = () => `${auth} ${bucketOfRoute.get(routeKey) ?? template} ${major}`
+    let limited = 0
+    let retries = 0
 
-    for (let attempt = 1; ; attempt++) {
+    for (;;) {
+      const wait = waitFor(bucketKey())
+      if (wait > this.#maxWait) {
+        this.#logger.warn({ msg: "Rate limit bucket used up; giving up", route: template, retryAfter: wait / 1000 })
+        throw new RateLimitedError(template, wait / 1000, false)
+      }
+      if (wait > 0) await sleep(wait)
+
       const headers = new Headers({ "User-Agent": USER_AGENT })
       if (this.#authorization) headers.set("Authorization", this.#authorization)
       if (init.reason) headers.set("X-Audit-Log-Reason", encodeURIComponent(init.reason))
@@ -94,14 +127,33 @@ export class RestClient {
         body = JSON.stringify(init.body)
       }
 
-      const response = await this.#transport(new Request(url, { method: route.method, headers, ...(body !== undefined && { body }) }))
+      let response: Response
+      try {
+        response = await this.#send(url, { method: route.method, headers, ...(body !== undefined && { body }) }, template)
+      } catch (error) {
+        const delay = RETRY_DELAYS[retries]
+        if (!repeatable || delay === undefined) throw error
+        retries++
+        this.#logger.debug({ msg: "REST request failed; retrying", route: template, error: (error as Error).message })
+        await sleep(delay)
+        continue
+      }
       this.#logger.debug({ msg: "REST response", route: template, status: response.status })
+      track(routeKey, bucketKey, response.headers)
 
+      const delay = RETRY_DELAYS[retries]
+      if (RETRY_STATUS.has(response.status) && repeatable && delay !== undefined) {
+        retries++
+        await response.body?.cancel()
+        this.#logger.debug({ msg: "Discord answered 5xx; retrying", route: template, status: response.status })
+        await sleep(delay)
+        continue
+      }
       if (response.status === 429) {
         const limit = (await readJson(response)) as { retry_after?: number; global?: boolean } | undefined
         const retryAfter = limit?.retry_after ?? Number(response.headers.get("Retry-After") ?? 1)
         const global = limit?.global ?? false
-        if (retryAfter * 1000 > this.#maxWait || attempt >= MAX_ATTEMPTS) {
+        if (retryAfter * 1000 > this.#maxWait || ++limited > MAX_LIMITED) {
           this.#logger.warn({ msg: "Rate limited; giving up", route: template, retryAfter, global })
           throw new RateLimitedError(template, retryAfter, global)
         }
@@ -116,6 +168,44 @@ export class RestClient {
       return (response.status === 204 ? undefined : await readJson(response)) as ResponseBody<O>
     }
   }
+
+  /** One attempt, bounded by the timeout. The signal aborts `fetch`; the race covers Transports that ignore it. */
+  async #send(url: string, init: globalThis.RequestInit, template: string): Promise<Response> {
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort()
+        reject(new RequestTimeoutError(template, this.#timeout))
+      }, this.#timeout)
+    })
+    try {
+      return await Promise.race([this.#transport(new Request(url, { ...init, signal: controller.signal })), timedOut])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
+
+/** How long a request must wait for its bucket, in ms: 0 unless the bucket is used up. */
+function waitFor(key: string): number {
+  const state = buckets.get(key)
+  if (!state || state.remaining > 0) return 0
+  return Math.max(0, state.resetAt - Date.now())
+}
+
+/** Records a response's `X-RateLimit-*` headers for its bucket. */
+function track(routeKey: string, bucketKey: () => string, headers: Headers): void {
+  const bucket = headers.get("X-RateLimit-Bucket")
+  if (bucket) bucketOfRoute.set(routeKey, bucket)
+  const remaining = headers.get("X-RateLimit-Remaining")
+  const resetAfter = headers.get("X-RateLimit-Reset-After")
+  if (remaining === null || resetAfter === null) return
+  const now = Date.now()
+  buckets.set(bucketKey(), { remaining: Number(remaining), resetAt: now + Number(resetAfter) * 1000 })
+  // Interaction tokens make many short-lived buckets on a long-running server: forget expired ones.
+  if (buckets.size > MAX_TRACKED) for (const [key, state] of buckets) if (state.resetAt <= now) buckets.delete(key)
+  if (bucketOfRoute.size > MAX_TRACKED) bucketOfRoute.clear()
 }
 
 /** REST authorized by the bot token: `c.bot`. */

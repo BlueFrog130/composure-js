@@ -23,6 +23,8 @@ export interface AppOptions<E extends Env> {
   transport?: Transport
   /** Longest 429 wait at runtime, in ms, before throwing. Default 2000. */
   maxRateLimitWait?: number
+  /** Longest wait for one REST response, in ms. Default 10000. */
+  requestTimeout?: number
   /** Path Webhook Events arrive at. Default `/events`. */
   eventsPath?: string
 }
@@ -56,6 +58,7 @@ export interface Built<E extends Env = Env> {
   maxSignatureAge: number
   transport: Transport
   maxRateLimitWait: number
+  requestTimeout: number
   events: EventHandler<E> | undefined
   eventsPath: string
 }
@@ -191,6 +194,7 @@ export class App<E extends Env = Env> {
       maxSignatureAge: this.#options.maxSignatureAge ?? 300,
       transport: this.#options.transport ?? fetchTransport,
       maxRateLimitWait: this.#options.maxRateLimitWait ?? 2000,
+      requestTimeout: this.#options.requestTimeout ?? 10_000,
       events: undefined,
       eventsPath: this.#options.eventsPath ?? "/events",
     }

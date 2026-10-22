@@ -28,10 +28,27 @@ export const verify = command({
 
 Message bodies take a View, which is rendered and checked like a response, files included. They also take text or a raw JSON body. Request and response types come from Discord's OpenAPI spec: hover a call to see them.
 
-## Errors and rate limits
+## Errors, retries and rate limits
 
 - A failed request throws `DiscordApiError` with `status`, Discord's `code` (50013 is Missing Permissions) and the route template. It never contains the URL, which can hold a token.
-- A 429 asking to wait under 2 seconds is waited out; anything longer throws `RateLimitedError`.
+- Each attempt waits up to 10 seconds for an answer, then throws `RequestTimeoutError` (`new App({ requestTimeout })`, or `timeout` on a client built by hand).
+- Requests that are safe to repeat (everything but POST) are retried twice on a network error, a timeout or a 5xx. A POST is never retried, since it could send a message twice.
+- Discord's rate limit headers are tracked per bucket, so a request whose bucket is used up waits for it to reset instead of being refused. A 429 is waited out too. Either wait, when longer than 2 seconds (`maxRateLimitWait`), throws `RateLimitedError` instead: do slow work deferred.
+
+## Endpoints that aren't wrapped
+
+Any route in Discord's API works through `route` and `request`, typed from the spec by its operationId:
+
+```ts twoslash
+import { BotClient, route } from "composurejs/rest"
+declare const bot: BotClient
+// ---cut---
+const getEmojis = route("GET", "/guilds/{guild_id}/emojis", "list_guild_emojis")
+
+const emojis = await bot.request(getEmojis, { params: { guild_id: "123456789012345678" } })
+```
+
+Copy the path and operationId from the [spec](https://github.com/discord/discord-api-spec); the response type follows from the operationId.
 
 ## Outside a handler
 

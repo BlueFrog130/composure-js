@@ -22,12 +22,24 @@ export interface RecordedRequest {
 /** A Transport that records requests and answers from a queue (204 when it is empty). Never touches the network. */
 export class MockTransport {
   readonly requests: RecordedRequest[] = []
-  readonly #queue: Response[] = []
+  readonly #queue: (Response | Error | "hang")[] = []
 
   /** Queues the answer to the next unanswered request. */
   reply(status = 200, body?: unknown, headers: Record<string, string> = {}): this {
     const init = { status, headers: body === undefined ? headers : { "content-type": "application/json", ...headers } }
     this.#queue.push(new Response(body === undefined ? null : JSON.stringify(body), init))
+    return this
+  }
+
+  /** Fails the next unanswered request as a network error would. */
+  fail(error: Error = new TypeError("fetch failed")): this {
+    this.#queue.push(error)
+    return this
+  }
+
+  /** Never answers the next unanswered request, until it is aborted (a timeout). */
+  hang(): this {
+    this.#queue.push("hang")
     return this
   }
 
@@ -54,6 +66,11 @@ export class MockTransport {
       recorded.json = await request.json()
     }
     this.requests.push(recorded)
-    return this.#queue.shift() ?? new Response(null, { status: 204 })
+    const next = this.#queue.shift() ?? new Response(null, { status: 204 })
+    if (next instanceof Error) throw next
+    if (next === "hang") {
+      return new Promise<Response>((_, reject) => request.signal.addEventListener("abort", () => reject(request.signal.reason as Error)))
+    }
+    return next
   }
 }

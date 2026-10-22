@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { App, command, CredentialsError, DiscordApiError, File, type Logger, RateLimitedError, Text, upload } from "composurejs"
+import { App, command, CredentialsError, DiscordApiError, File, type Logger, RateLimitedError, RequestTimeoutError, Text, upload } from "composurejs"
 import { addMemberRole, BotClient, createMessage, executeWebhook, getMessages, kickMember } from "composurejs/rest"
 import { answer, chatInput, MockTransport, TestKey } from "composurejs/testing"
 
@@ -73,6 +73,66 @@ describe("BotClient", () => {
       const waiting = createMessage(bot(patient, 60_000), "1", "x")
       await vi.advanceTimersByTimeAsync(30_000)
       await expect(waiting).resolves.toEqual({})
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("requests safe to repeat are retried on network errors, timeouts and 5xx; POSTs are not", async () => {
+    vi.useFakeTimers()
+    try {
+      const flaky = new MockTransport()
+        .fail()
+        .reply(503)
+        .reply(200, [{ id: "m" }])
+      const pending = getMessages(bot(flaky), "9")
+      await vi.advanceTimersByTimeAsync(1250)
+      expect(await pending).toEqual([{ id: "m" }])
+      expect(flaky.requests).toHaveLength(3)
+
+      const down = new MockTransport().reply(502).reply(502).reply(502)
+      const failing = getMessages(bot(down), "9").catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(1250)
+      expect(await failing).toMatchObject({ status: 502 })
+      expect(down.requests).toHaveLength(3)
+
+      const post = new MockTransport().fail()
+      await expect(createMessage(bot(post), "1", "x")).rejects.toThrow("fetch failed")
+      expect(post.requests).toHaveLength(1)
+
+      const slow = new MockTransport().hang()
+      const timing = createMessage(new BotClient("t", { transport: slow.fetch, logger: quiet, timeout: 500 }), "1", "x").catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(500)
+      const error = await timing
+      expect(error).toBeInstanceOf(RequestTimeoutError)
+      expect(error).toMatchObject({ route: "POST /channels/{channel_id}/messages", timeout: 500 })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("a used-up bucket waits before sending, or throws when the wait is too long", async () => {
+    vi.useFakeTimers()
+    try {
+      const headers = (remaining: number, resetAfter: number) => ({
+        "X-RateLimit-Bucket": "abc",
+        "X-RateLimit-Remaining": String(remaining),
+        "X-RateLimit-Reset-After": String(resetAfter),
+      })
+      const transport = new MockTransport().reply(200, [], headers(0, 1)).reply(200, [], headers(0, 30))
+      const client = new BotClient("bucket-token", { transport: transport.fetch, logger: quiet })
+      await getMessages(client, "77")
+      const waiting = getMessages(client, "77")
+      await vi.advanceTimersByTimeAsync(999)
+      expect(transport.requests).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await waiting
+      expect(transport.requests).toHaveLength(2)
+      // Another channel is another bucket.
+      await getMessages(client, "78")
+      expect(transport.requests).toHaveLength(3)
+      await expect(getMessages(client, "77")).rejects.toThrow(RateLimitedError)
+      expect(transport.requests).toHaveLength(3)
     } finally {
       vi.useRealTimers()
     }

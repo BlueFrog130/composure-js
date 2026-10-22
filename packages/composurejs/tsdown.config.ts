@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs"
 import { defineConfig } from "tsdown"
+
+const { version } = JSON.parse(readFileSync(new URL("package.json", import.meta.url), "utf8")) as { version: string }
 
 export default defineConfig({
   entry: {
@@ -15,4 +18,6 @@ export default defineConfig({
   platform: "neutral",
   dts: { tsconfig: "tsconfig.build.json" },
   external: [/^node:/, /^discord-api-types/],
+  // The User-Agent names the published version.
+  define: { __COMPOSURE_VERSION__: JSON.stringify(version) },
 })
