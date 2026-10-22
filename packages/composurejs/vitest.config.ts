@@ -4,7 +4,8 @@ import { defineProject } from "vitest/config"
 import composure from "../vite/src/index.ts"
 
 export default defineProject({
-  plugins: [composure()],
+  // render.test.tsx misplaces tags on purpose: the walk is what it tests.
+  plugins: [composure({ placement: false })],
   // Resolve workspace packages to their TypeScript source, not dist.
   ssr: { resolve: { conditions: ["@composurejs/source", ...defaultServerConditions] } },
   test: {

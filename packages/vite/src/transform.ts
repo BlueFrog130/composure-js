@@ -238,6 +238,12 @@ interface Site {
   locals: string[]
 }
 
+/** The module's ESTree program; undefined when it does not parse (the real compiler reports it). */
+export function parseModule(code: string, id: string): Node | undefined {
+  const { program, errors } = parseSync(id, code)
+  return errors.length > 0 ? undefined : (program as unknown as Node)
+}
+
 export interface TransformOptions {
   /** Generated ids hash the module path relative to this (Vite's root). */
   root?: string
@@ -249,10 +255,10 @@ export interface TransformOptions {
  * `__composure_handler(id, captures, make)`, and its site becomes `ref.bind([captured values])`.
  * Undefined when the module has none.
  */
-export function transformHandlers(code: string, id: string, options: TransformOptions = {}): TransformResult | undefined {
+export function transformHandlers(code: string, id: string, options: TransformOptions = {}, parse: () => Node | undefined = () => parseModule(code, id)): TransformResult | undefined {
   if (!/\bon(?:Click|Select|Submit)\b|\bnamed\s*\(/.test(code)) return undefined
-  const { program, errors } = parseSync(id, code)
-  if (errors.length > 0) return undefined // let the real compiler report it
+  const program = parse()
+  if (!program) return undefined
 
   const namedLocals = new Set<string>()
   const namespaces = new Set<string>()
@@ -272,7 +278,7 @@ export function transformHandlers(code: string, id: string, options: TransformOp
       (node.callee.type === "MemberExpression" && !node.callee.computed && node.callee.object.type === "Identifier" && namespaces.has(node.callee.object.name) && node.callee.property.name === "named"))
 
   const sites: Site[] = []
-  walk(program as unknown as Node, {
+  walk(program, {
     enter(node, parents, scopes) {
       if (node.type === "JSXAttribute" && node.name.type === "JSXIdentifier" && HANDLER_ATTRS.has(node.name.name) && node.value?.type === "JSXExpressionContainer") {
         const expr: Node = node.value.expression
@@ -338,7 +344,7 @@ function ownerOf(parents: Node[]): string {
   return names.join(".") || "(module)"
 }
 
-function relativePath(id: string, root: string | undefined): string {
+export function relativePath(id: string, root: string | undefined): string {
   const file = id.replace(/\\/g, "/")
   const base = root?.replace(/\\/g, "/").replace(/\/?$/, "/")
   return base && file.startsWith(base) ? file.slice(base.length) : file

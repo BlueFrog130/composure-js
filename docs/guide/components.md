@@ -102,3 +102,38 @@ Discord rejects a message that breaks its rules with a bare "This interaction fa
 - `<Button> label is 81 characters; the limit is 80`
 - `A message can hold at most 40 components`, and `at most 4000 characters of text`
 - `Upload name "my file.txt" in <File> may only use letters, digits, "_", "-" and "."`
+
+Call `await render(view)` in a test to run the same checks before deploying.
+
+## Placement
+
+TypeScript can't check where a tag goes, because it gives every JSX expression the same type. So placement is checked twice before render: by the Vite plugin when it builds, and by a lint rule in your editor. Both report a built-in tag written directly inside a parent that can't hold it. They follow children through fragments, `&&`, `? :`, arrays and `.map(..)`. A tag passed through your own component or a variable is still caught when the View renders.
+
+`vite dev` and `vite build` warn with the file and line:
+
+```
+[plugin composurejs] src/views/shop.tsx:12:7: <Button> cannot go inside <Container>
+```
+
+Turn it off with `composure({ placement: false })`.
+
+For editor feedback, add `@composurejs/eslint-plugin`. With ESLint:
+
+```js
+// eslint.config.js
+import composure from "@composurejs/eslint-plugin"
+
+export default [composure.configs.recommended]
+```
+
+ESLint needs a TypeScript parser (such as `typescript-eslint`) for `.tsx` files. oxlint parses them itself and loads the same plugin:
+
+```json
+// .oxlintrc.json
+{
+  "jsPlugins": ["@composurejs/eslint-plugin"],
+  "rules": { "@composurejs/placement": "error" }
+}
+```
+
+The lint rule, the build warnings and render share one set of rules from `composurejs`, so they report the same mistakes with the same message.

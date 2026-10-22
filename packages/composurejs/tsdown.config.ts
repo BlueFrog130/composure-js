@@ -6,6 +6,7 @@ export default defineConfig({
     "jsx-runtime": "src/jsx-runtime.ts",
     "jsx-dev-runtime": "src/jsx-dev-runtime.ts",
     components: "src/components.ts",
+    placement: "src/placement.ts",
     "rest/index": "src/rest/index.ts",
     sync: "src/sync.ts",
     "testing/index": "src/testing/index.ts",

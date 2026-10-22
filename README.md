@@ -147,6 +147,7 @@ expect(res.text).toBe("## Hello, Bob")
 | `packages/create-composurejs` | `pnpm create composurejs`: one template generator for every target; `scripts/check-templates.mjs` installs, tests and builds each |
 | `packages/cli` | `@composurejs/cli`: `composure sync`, the Sync Plan and applying it (also a library) |
 | `packages/vite` | `@composurejs/vite`: compiles Inline Handlers and sets up `vite build` per target (the dev loop comes later) |
+| `packages/eslint-plugin` | `@composurejs/eslint-plugin`: flags tags placed where Discord does not allow them, in ESLint or oxlint |
 | `examples/bot` | One App built for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`), Node (`pnpm build:node && pnpm start:node`) and Bun (`pnpm build:bun && bun dist/bun/index.js`) |
 | `docs` | The guide (`pnpm -C docs dev`) and the ADRs, as a VitePress site |
 | `CONTEXT.md` | Glossary. Use these words. |

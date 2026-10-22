@@ -39,6 +39,7 @@
     "vite": "^8.0.0"
   },
   "dependencies": {
+    "composurejs": "workspace:^",
     "magic-string": "^1.4.3",
     "oxc-parser": "^0.155.0",
     "untun": "^0.2.2"
@@ -46,7 +47,6 @@
   "devDependencies": {
     "@composurejs/adapter-node": "workspace:*",
     "@types/node": "^26.6.5",
-    "composurejs": "workspace:*",
     "tsdown": "^0.23.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",

@@ -6,6 +6,7 @@ import { MessageFlags } from "../discord.ts"
 import { uncompiledHandler } from "../handlers.ts"
 import { RenderError } from "../errors.ts"
 import type { Choices } from "../options.ts"
+import { INPUTS, SELECTS } from "../placement.ts"
 import { type Child, type ElementNode, isNode } from "./node.ts"
 
 /** Discord's limits, checked before it sees a message. */
@@ -57,8 +58,6 @@ export type Rendered = RenderedMessage | RenderedModal
 type Json = Record<string, unknown>
 type Flat = ElementNode | string
 
-const SELECTS = ["StringSelect", "UserSelect", "RoleSelect", "MentionableSelect", "ChannelSelect"]
-const INPUTS = [...SELECTS, "TextInput", "RadioGroup", "CheckboxGroup", "Checkbox", "FileUpload"]
 const UPLOAD_NAME = /^[\w.-]+$/
 
 const tag = (name: string) => `<${name}>`
@@ -172,7 +171,7 @@ async function textOf(node: ElementNode, field = "children"): Promise<string> {
   for (const child of await flatten(node.props[field] as Child)) {
     if (typeof child === "string") out += child
     else if (child.tag === "br") out += "\n"
-    else throw new RenderError(`${tag(child.tag)} cannot go inside ${tag(node.tag)}`)
+    else throw misplaced(child, node.tag)
   }
   return out
 }

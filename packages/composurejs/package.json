@@ -45,6 +45,11 @@
       "types": "./dist/components.d.ts",
       "default": "./dist/components.js"
     },
+    "./placement": {
+      "@composurejs/source": "./src/placement.ts",
+      "types": "./dist/placement.d.ts",
+      "default": "./dist/placement.js"
+    },
     "./rest": {
       "@composurejs/source": "./src/rest/index.ts",
       "types": "./dist/rest/index.d.ts",
