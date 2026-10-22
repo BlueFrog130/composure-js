@@ -2,11 +2,27 @@
   "name": "composurejs",
   "version": "0.0.0",
   "description": "Discord bots over HTTP interactions, on any fetch runtime",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlueFrog130/composure-js.git",
+    "directory": "packages/composurejs"
+  },
+  "homepage": "https://bluefrog130.github.io/composure-js/",
+  "bugs": "https://github.com/BlueFrog130/composure-js/issues",
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "interactions",
+    "cloudflare-workers",
+    "vite",
+    "jsx"
+  ],
   "type": "module",
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -62,7 +78,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
   },
   "dependencies": {
     "discord-api-types": "^0.38.57"
@@ -75,5 +92,8 @@
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
+  },
+  "publishConfig": {
+    "provenance": true
   }
 }

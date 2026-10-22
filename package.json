@@ -11,9 +11,13 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm build && vitest run",
     "test:watch": "vitest",
-    "size": "pnpm -C examples/bot build && size-limit"
+    "size": "pnpm -C examples/bot build && size-limit",
+    "changeset": "changeset",
+    "release": "pnpm build && changeset publish",
+    "version-packages": "changeset version"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@size-limit/esbuild": "^14.2.0",
     "@size-limit/file": "^14.2.0",
     "@types/node": "^26.6.5",

@@ -22,8 +22,7 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 > - size budgets in CI (core 13.5 kB, the example Worker 16.2 kB, brotli) and a cold-start benchmark on workerd
 >
 > - the guide (`docs/`, VitePress): every snippet type-checked in CI
->
-> Next: releases.
+> - releases with Changesets (per-package versions, npm provenance)
 
 ```sh
 pnpm create composurejs my-bot   # Cloudflare Workers, Node or Bun; then: cp .env.example .env && pnpm dev
@@ -163,3 +162,5 @@ pnpm -C examples/bot coldstart   # cold start on workerd vs. an empty Worker
 ```
 
 Bots run on Node 20.19+; developing this repo needs Node 22.18+ and pnpm.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for checks and releases. Licensed under Apache-2.0.

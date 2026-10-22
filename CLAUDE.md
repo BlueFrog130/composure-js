@@ -21,6 +21,8 @@ The example's Vite configs import the built `@composurejs/vite` (dist), as a bot
 
 REST: `spec/openapi.json` is Discord's spec at the commit in `spec/PINNED`; `node packages/composurejs/scripts/update-spec.mjs [sha]` refreshes it and regenerates `src/rest/schema.d.ts` (via TypeScript 5.9 in `pnpm dlx`; openapi-typescript cannot run on TypeScript 7). A new Endpoint goes in `ROUTES` with the spec's exact path and operationId; `PRINT_UNIMPLEMENTED=1 pnpm vitest run rest-spec` lists the rest.
 
+Releases: Changesets (`pnpm changeset` for any change to composurejs, @composurejs/vite, @composurejs/cli, create-composurejs; never bump versions by hand). `.github/workflows/release.yml` opens the Version Packages PR and publishes on merge (NPM_TOKEN). Packages ship `dist` + LICENSE (copied in `prepack`).
+
 Use pnpm only. pnpm 12 blocks dependency build scripts unless they're listed in `allowBuilds` in `pnpm-workspace.yaml`.
 
 ## Layout
