@@ -28,3 +28,8 @@ jobs:
       - run: pnpm test
       # Every create-composurejs template, generated, installed, typechecked, tested and built.
       - run: node scripts/check-templates.mjs
+      # Bundle budgets (.size-limit.json): fail when an entry point or the example Worker grows past its limit.
+      - run: pnpm size
+      # Cold start on workerd against an empty Worker: a report, since timings vary between machines.
+      - run: pnpm -C examples/bot coldstart
+        continue-on-error: true

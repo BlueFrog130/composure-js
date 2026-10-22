@@ -19,7 +19,9 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 >
 > - `pnpm create composurejs`: starter templates for Cloudflare Workers, Node and Bun
 >
-> Next: size and cold-start budgets, the docs site, releases.
+> - size budgets in CI (core 13.5 kB, the example Worker 16.2 kB, brotli) and a cold-start benchmark on workerd
+>
+> Next: the docs site, releases.
 
 ```sh
 pnpm create composurejs my-bot   # Cloudflare Workers, Node or Bun; then: cp .env.example .env && pnpm dev
@@ -153,6 +155,8 @@ pnpm install
 pnpm test        # builds the packages, then all workspace tests (incl. building and running the example per target)
 pnpm typecheck   # includes a Node-free check of core
 pnpm build       # tsdown → packages/*/dist
+pnpm size        # bundle budgets (size-limit)
+pnpm -C examples/bot coldstart   # cold start on workerd vs. an empty Worker
 ```
 
 Bots run on Node 20.19+; developing this repo needs Node 22.18+ and pnpm.

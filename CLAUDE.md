@@ -11,6 +11,8 @@ pnpm vitest run -t "signed fixtures"   # one test by name (run pnpm build once f
 pnpm typecheck                 # per package; composurejs also runs tsconfig.core.json (no Node types)
 pnpm build                     # tsdown (declarations from tsconfig.build.json: src only)
 pnpm -C examples/bot build     # vite build → Worker in dist/ (minified); build:node / build:bun → dist/node, dist/bun
+pnpm size                      # builds examples/bot, then size-limit (.size-limit.json): CI fails past a limit
+pnpm -C examples/bot coldstart # workerd cold start vs. an empty Worker (report only)
 pnpm -C examples/bot dev       # vite dev on workerd; needs DISCORD_PUBLIC_KEY in examples/bot/.dev.vars
 ```
 
