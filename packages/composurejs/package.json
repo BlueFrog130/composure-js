@@ -34,6 +34,11 @@
       "types": "./dist/rest/index.d.ts",
       "default": "./dist/rest/index.js"
     },
+    "./sync": {
+      "@composurejs/source": "./src/sync.ts",
+      "types": "./dist/sync.d.ts",
+      "default": "./dist/sync.js"
+    },
     "./testing": {
       "@composurejs/source": "./src/testing/index.ts",
       "types": "./dist/testing/index.d.ts",

@@ -23,7 +23,7 @@ export {
   type TargetPlan,
   targets,
   TOKEN_VAR,
-} from "./sync.ts"
+} from "composurejs/sync"
 export { main, sync, type Io, type SyncOptions } from "./cli.ts"
 export { clackUi, recordingUi, type Ui } from "./ui.ts"
-export { type PlanStyle, summary } from "./sync.ts"
+export { type PlanStyle, summary } from "composurejs/sync"

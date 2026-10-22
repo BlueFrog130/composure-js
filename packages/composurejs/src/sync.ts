@@ -2,8 +2,9 @@
 // composure_sync). Each target (global, or one guild) gets every Command whose Scope maps to it;
 // targets with changes are overwritten with one bulk request each, the others are left alone.
 import type { RESTPostAPIApplicationCommandsJSONBody } from "discord-api-types/v10"
-import type { ScopedDefinition } from "composurejs"
-import { bulkOverwriteGlobalCommands, bulkOverwriteGuildCommands, BotClient, getGlobalCommands, getGuildCommands, type RestOptions } from "composurejs/rest"
+import type { ScopedDefinition } from "./app.ts"
+import { BotClient, type RestOptions } from "./rest/client.ts"
+import { bulkOverwriteGlobalCommands, bulkOverwriteGuildCommands, getGlobalCommands, getGuildCommands } from "./rest/endpoints.ts"
 
 export type Definition = RESTPostAPIApplicationCommandsJSONBody
 

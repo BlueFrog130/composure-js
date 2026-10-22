@@ -1,7 +1,7 @@
 // What the CLI shows, behind one interface: @clack/prompts in a terminal, a recorder in tests.
 import { cancel, confirm, intro, isCancel, log, note, outro, spinner } from "@clack/prompts"
 import { styleText } from "node:util"
-import type { PlanStyle } from "./sync.ts"
+import type { PlanStyle } from "composurejs/sync"
 
 export interface Ui {
   intro(title: string): void

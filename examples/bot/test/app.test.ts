@@ -52,8 +52,8 @@ test("/feedback opens a modal; its submit gets values by input name", async () =
   const opened = await answer(app, command("feedback"))
   expect(opened.type).toBe(9)
   const thanks = await answer(app, opened.submit({ mood: "great", notes: "Love it", followUp: true }))
-  expect(thanks.text).toBe("Thanks! Mood: great, notes: Love it (we'll be in touch)")
-  expect((await answer(app, opened.submit({ mood: "meh" }))).text).toBe("Thanks! Mood: meh")
+  expect([thanks.text, thanks.isEphemeral]).toEqual(["### Thanks for your feedback!\nMood: great\nNotes: Love it\nWe'll be in touch!", true])
+  expect((await answer(app, opened.submit({ mood: "meh" }))).text).toBe("### Thanks for your feedback!\nMood: meh")
 })
 
 test("High five is a user context menu Command", async () => {

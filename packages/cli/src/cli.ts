@@ -7,7 +7,7 @@ import type { Transport } from "composurejs"
 import { loadEnv } from "vite"
 import pkg from "../package.json" with { type: "json" }
 import { defaultEntry, loadApp } from "./load.ts"
-import { apply, configFromEnv, counts, formatPlan, hasChanges, plan, SCOPE_VAR_PREFIX, summary, SyncError } from "./sync.ts"
+import { apply, configFromEnv, counts, formatPlan, hasChanges, plan, SCOPE_VAR_PREFIX, summary, SyncError } from "composurejs/sync"
 import type { Ui } from "./ui.ts"
 
 export interface Io {
@@ -18,6 +18,8 @@ export interface Io {
   err(text: string): void
   /** For tests: where REST requests go. */
   transport?: Transport | undefined
+  /** Read .env files and .dev.vars under the root (default true); tests turn it off. */
+  readEnvFiles?: boolean | undefined
 }
 
 export interface SyncOptions {
@@ -82,7 +84,7 @@ export async function sync(options: SyncOptions, io: Io): Promise<number> {
   ui.intro("composure sync")
   try {
     const root = resolve(options.root)
-    const config = configFromEnv(projectEnv(root, options.mode, io.env))
+    const config = configFromEnv(io.readEnvFiles === false ? io.env : projectEnv(root, options.mode, io.env))
     if (options.guild) config.guild = options.guild
     const entry = options.app ?? defaultEntry(root)
     const rest = io.transport ? { transport: io.transport } : {}

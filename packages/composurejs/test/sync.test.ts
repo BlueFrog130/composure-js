@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import { App, command, group, messageCommand, option, type ScopedDefinition, userCommand } from "composurejs"
 import { MockTransport } from "composurejs/testing"
-import { apply, configFromEnv, counts, formatPlan, hasChanges, plan, same, type SyncConfig, SyncError, targets } from "../src/sync.ts"
+import { apply, configFromEnv, counts, formatPlan, hasChanges, plan, same, type SyncConfig, SyncError, targets } from "composurejs/sync"
 
 const APP_ID = "1052322265397739523"
 const DEV_GUILD = "798662131062931547"

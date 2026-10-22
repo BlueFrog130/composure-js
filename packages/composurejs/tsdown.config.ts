@@ -7,6 +7,7 @@ export default defineConfig({
     "jsx-dev-runtime": "src/jsx-dev-runtime.ts",
     components: "src/components.ts",
     "rest/index": "src/rest/index.ts",
+    sync: "src/sync.ts",
     "testing/index": "src/testing/index.ts",
     "adapters/cloudflare": "src/adapters/cloudflare.ts",
     "adapters/node": "src/adapters/node.ts",

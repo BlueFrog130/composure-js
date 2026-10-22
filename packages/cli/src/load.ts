@@ -6,7 +6,7 @@ import { resolve } from "node:path"
 import composure from "@composurejs/vite"
 import type { ScopedDefinition } from "composurejs"
 import { runnerImport } from "vite"
-import { SyncError } from "./sync.ts"
+import { SyncError } from "composurejs/sync"
 
 export interface LoadedApp {
   definitions(): ScopedDefinition[]

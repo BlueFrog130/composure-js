@@ -21,6 +21,8 @@ function run(options: { env?: Record<string, string>; confirm?: boolean; stored?
     out: (text) => out.push(text),
     err: (text) => err.push(text),
     transport: transport.fetch,
+    // Never the developer's real .env.
+    readEnvFiles: false,
   }
   return { io, ui, out, err, transport, main: (...args: string[]) => main(args, io) }
 }
