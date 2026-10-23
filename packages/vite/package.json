@@ -46,8 +46,7 @@
   },
   "dependencies": {
     "magic-string": "^1.4.3",
-    "oxc-parser": "^0.155.0",
-    "untun": "^0.2.2"
+    "oxc-parser": "^0.155.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

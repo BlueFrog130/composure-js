@@ -2,7 +2,8 @@
 // leaves the machine.
 import { spawn } from "node:child_process"
 import { describe, expect, test } from "vitest"
-import { routeProblem, type SpawnCloudflared } from "../src/named-tunnel.ts"
+import type { SpawnCloudflared } from "../src/cloudflared.ts"
+import { routeProblem } from "../src/named-tunnel.ts"
 import { openTunnel } from "../src/tunnel.ts"
 
 const HOST = "bot-dev.example.com"
@@ -31,7 +32,7 @@ describe("named tunnel", { timeout: 15_000 }, () => {
     const warnings: string[] = []
     const tunnel = await openTunnel(
       { name: "bot-dev", hostname: HOST },
-      { port: 5173, warn: (m) => warnings.push(m), spawn: fake([{ hostname: HOST, service: "http://localhost:5173" }], calls) },
+      { port: 5173, root: ".", info: () => {}, warn: (m) => warnings.push(m), spawn: fake([{ hostname: HOST, service: "http://localhost:5173" }], calls) },
     )
     expect(tunnel.url).toBe(URL_)
     expect(calls.map((c) => c.args)).toEqual([
@@ -46,7 +47,10 @@ describe("named tunnel", { timeout: 15_000 }, () => {
 
   test("CLOUDFLARE_TUNNEL_TOKEN: runs the tunnel with it, without fetching one", async () => {
     const calls: { args: string[]; env: Record<string, string> }[] = []
-    const tunnel = await openTunnel({ name: "bot-dev", hostname: HOST }, { port: 5173, tunnelToken: "secret-token", warn: () => {}, spawn: fake([], calls) })
+    const tunnel = await openTunnel(
+      { name: "bot-dev", hostname: HOST },
+      { port: 5173, root: ".", info: () => {}, tunnelToken: "secret-token", warn: () => {}, spawn: fake([], calls) },
+    )
     expect(tunnel.url).toBe(URL_)
     expect(calls.map((c) => c.args)).toEqual([["tunnel", "--no-autoupdate", "--url", "http://localhost:5173", "run"]])
     expect(calls[0]!.env).toEqual({ TUNNEL_TOKEN: "secret-token" })
@@ -59,6 +63,8 @@ describe("named tunnel", { timeout: 15_000 }, () => {
       { name: "bot-dev", hostname: HOST },
       {
         port: 5173,
+        root: ".",
+        info: () => {},
         tunnelToken: "secret-token",
         warn: (m) => warnings.push(m),
         spawn: fake([{ hostname: HOST, service: "http://localhost:8787" }, { service: "http_status:404" }]),
@@ -70,22 +76,22 @@ describe("named tunnel", { timeout: 15_000 }, () => {
   })
 
   test("a token that cannot be fetched says how to log in", async () => {
-    await expect(openTunnel({ name: "nope", hostname: HOST }, { port: 5173, warn: () => {}, spawn: fake([]) })).rejects.toThrow(
+    await expect(openTunnel({ name: "nope", hostname: HOST }, { port: 5173, root: ".", info: () => {}, warn: () => {}, spawn: fake([]) })).rejects.toThrow(
       "cloudflared tunnel token nope failed (ERR unknown tunnel): run `cloudflared tunnel login`, or set CLOUDFLARE_TUNNEL_TOKEN",
     )
   })
 
   test("cloudflared exiting before it connects fails with its last line", async () => {
-    await expect(openTunnel({ name: "bot-dev", hostname: HOST }, { port: 5173, tunnelToken: "wrong", warn: () => {}, spawn: fake([]) })).rejects.toThrow(
+    await expect(openTunnel({ name: "bot-dev", hostname: HOST }, { port: 5173, root: ".", info: () => {}, tunnelToken: "wrong", warn: () => {}, spawn: fake([]) })).rejects.toThrow(
       "before connecting tunnel bot-dev: ERR bad token",
     )
   })
 
   test("cloudflared not installed says so", async () => {
     const missing: SpawnCloudflared = () => spawn("composure-no-such-cloudflared", [], { stdio: ["ignore", "pipe", "pipe"] })
-    await expect(openTunnel({ name: "bot-dev", hostname: HOST }, { port: 5173, tunnelToken: "secret-token", warn: () => {}, spawn: missing })).rejects.toThrow(
-      "cloudflared is not installed",
-    )
+    await expect(
+      openTunnel({ name: "bot-dev", hostname: HOST }, { port: 5173, root: ".", info: () => {}, tunnelToken: "secret-token", warn: () => {}, spawn: missing }),
+    ).rejects.toThrow("cloudflared is not installed")
   })
 })
 
