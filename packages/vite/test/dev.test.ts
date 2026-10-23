@@ -332,7 +332,9 @@ describe("vite dev", { timeout: 30_000 }, () => {
     const logs: string[] = [];
     const port = await start({ guild: GUILD, tunnel: false, transport }, logs);
     const bye = `.command(command({ name: "bye", description: "Bye", handler: () => "bye" }))`;
-    // A synced change first: the watcher is known to be live before the edit under test.
+    // The start Sync first, or it may read the edit below and leave the change nothing to send.
+    await until(() => calls.some((c) => c.method === "PUT"));
+    // A synced change next: the watcher is known to be live before the edit under test.
     await edit(appSource("v1", bye), () => calls.filter((c) => c.method === "PUT").length === 2);
     await settle(1000);
     const before = calls.length;
