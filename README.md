@@ -1,33 +1,27 @@
-# composurejs
+<h1 align="center">composurejs</h1>
 
-Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhere `fetch(Request) => Response` runs: Cloudflare Workers, Bun, Node (Deno, Vercel, Netlify and Lambda later). Hono for Discord bots: a small core built on Web Standards, one `app.fetch` that Workers serves as is and a built-in server runs on Node and Bun, a typed context, and JSX Views for responses.
+<p align="center">
+  Discord bots over HTTP Interactions, on any runtime that speaks <code>fetch</code>.<br>
+  Typed Commands, JSX messages, and button handlers written where the button is.
+</p>
 
-> Status: working so far:
->
-> - Commands: typed Options, Groups, context menu Commands, inline autocomplete, Localizations
-> - middleware that also guards the buttons a Command renders (the Owning Route), `c.can(Permission.X)`
-> - every Components V2 and modal tag, checked against Discord's limits before sending
-> - Inline Handlers: `onClick={(c) => ..}` anywhere, compiled by `@composurejs/vite` (required), with a Handler Lock that stops a deploy from breaking buttons already sent
-> - Forms: typed, parsed modal values
-> - file uploads
-> - nested Apps
-> - Cloudflare Workers, Node and Bun, built with `vite build` (Node and Bun get the Default Server, or your own entry)
-> - `c.defer` / `c.deferUpdate`, and Auto Defer for handlers that turn out slow
-> - REST Endpoints (Tier 1, typed from Discord's OpenAPI spec; timeouts, retries, rate limit buckets)
-> - Webhook Events
-> - Sync: `composure sync` from `@composurejs/cli`
-> - the Dev Loop: `vite dev` serves the bot, tunnels to it, points your dev application at it, and syncs to a dev guild on every change
->
-> - `pnpm create composurejs`: starter templates for Cloudflare Workers, Node and Bun
->
-> - size budgets in CI (core 15 kB, the example Worker 18 kB, brotli; [ADR 0019](docs/adr/0019-budgets.md)) and a cold-start benchmark on workerd
->
-> - the guide (`docs/`, VitePress): every snippet type-checked in CI
-> - releases with Changesets (per-package versions, npm provenance)
+<p align="center">
+  <a href="https://www.npmjs.com/package/composurejs"><img src="https://img.shields.io/npm/v/composurejs?color=5865f2&label=npm" alt="npm version"></a>
+  <a href="https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml"><img src="https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://bluefrog130.github.io/composure-js/"><img src="https://img.shields.io/badge/docs-guide-5865f2" alt="Guide"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/npm/l/composurejs?color=blue" alt="License: Apache-2.0"></a>
+</p>
 
-```sh
-pnpm create composurejs my-bot   # Cloudflare Workers, Node or Bun; then: cp .env.example .env.local && pnpm dev
-```
+<p align="center">
+  <a href="https://bluefrog130.github.io/composure-js/guide/getting-started">Getting started</a> ·
+  <a href="https://bluefrog130.github.io/composure-js/">Guide</a> ·
+  <a href="docs/adr">Design decisions</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+---
+
+A composurejs bot is a function from `Request` to `Response`. There is no gateway connection to keep alive, so the same App runs on Cloudflare Workers, Node and Bun, and you test it by calling it.
 
 ```tsx
 import { App, Button, command, Container, Row, Text } from "composurejs"
@@ -36,125 +30,126 @@ const Counter = ({ count, owner }: { count: number; owner: string }) => (
   <Container>
     <Text>## Count: {count}</Text>
     <Row>
-      <Button onClick={(c) => (c.user.id === owner ? <Counter count={count + 1} owner={owner} /> : c.ephemeral("Not yours"))}>+1</Button>
+      <Button onClick={(c) => (c.user.id === owner ? <Counter count={count + 1} owner={owner} /> : c.ephemeral("Not yours"))}>
+        +1
+      </Button>
     </Row>
   </Container>
 )
-// The click updates the message with the markup it returns. No ids to choose, nothing to register:
-// the plugin hoists the handler, and count and owner travel in its custom_id.
 
-const app = new App().command(command({ name: "counter", description: "A counter", handler: (c) => <Counter count={0} owner={c.user.id} /> }))
-
-// Deferred work and REST (Endpoints are functions, so a bundle keeps only those it calls):
-import { createMessage } from "composurejs/rest"
-const report = command({
-  name: "report",
-  description: "Slow report",
-  handler: (c) => c.defer(async () => {
-    await createMessage(c.bot, LOG_CHANNEL, `Report requested by ${c.user.username}`)
-    return <Text>Done</Text>
-  }),
-})
+export default new App().command(
+  command({ name: "counter", description: "A counter", handler: (c) => <Counter count={0} owner={c.user.id} /> }),
+)
 ```
 
-```tsx
-import { App, command, Container, option, Text } from "composurejs"
+That's the whole bot. The click handler lives on the button. There are no custom ids to invent and nothing to register: the Vite plugin hoists the handler, `count` and `owner` travel in the button's `custom_id`, and the markup the handler returns replaces the message.
 
-const cookie = command({
-  name: "cookie",
-  description: "Give someone a cookie",
-  options: {
-    user: option.user("Who gets it"),
-    count: option.integer("How many", { min: 1, max: 12 }).optional(),
-  },
-  // { user: ResolvedUser; count?: number }, inferred from `options`
-  handler: (c, { user, count = 1 }) => `${user.displayName} gets ${count} 🍪`,
-})
+## Quick start
 
-const hello = command({
-  name: "hello",
-  description: "Say hello",
-  handler: (c) => (
-    <Container accentColor={0x5865f2}>
-      <Text>## Hello, {c.user.global_name}</Text>
-    </Container>
-  ),
-})
-
-const app = new App().command(cookie).command(hello)
-
-export default app // Workers: reads DISCORD_PUBLIC_KEY from env
+```sh
+pnpm create composurejs my-bot
 ```
 
-Build with Vite (required): `composure()` compiles Inline Handlers; the other plugins decide what is built:
+Pick Cloudflare Workers, Node or Bun, give it your development application and a test server, then `pnpm dev`. It serves the bot, opens a tunnel, points the application at it and syncs your Commands. Type `/counter` in Discord.
+
+The [getting started guide](https://bluefrog130.github.io/composure-js/guide/getting-started) walks through it.
+
+## Features
+
+- **Commands typed from their definition.** A Command's options type its handler's arguments, so the definition Discord sees and the code that runs can't drift apart. Subcommands, groups, context menu Commands, autocomplete and localizations included.
+- **JSX for messages.** Every Components V2 and modal tag, checked against Discord's limits when it renders. A message that breaks a rule throws an error naming the rule, instead of Discord's "This interaction failed".
+- **Handlers inline.** `onClick`, `onSelect` and `onSubmit` take a function wherever the component is. A Handler Lock catches a deploy that would break buttons already sent.
+- **Typed forms.** Declare fields once, get parsed and typed modal values back.
+- **Middleware that guards buttons too.** A Command's middleware also runs for the components it rendered. `c.can(Permission.ManageMessages)` for permission checks.
+- **Deferred responses.** `c.defer(async () => ...)` for slow work, and Auto Defer for handlers that turn out slow.
+- **REST client.** Endpoints typed from Discord's OpenAPI spec, with timeouts, retries and rate limit buckets. Each Endpoint is a function, so a bundle only keeps the ones it calls.
+- **One-command dev loop.** `vite dev` tunnels to your machine, repoints your dev application, and re-syncs Commands to a test server on every save.
+- **Testing built in.** `composurejs/testing` sends signed Interactions through the real pipeline and records what would have gone to Discord.
+- **Small.** About 18 kB minified and brotlied for a Worker with Commands and JSX, zero runtime dependencies. CI fails the build past its size budget.
+
+## Runs on
+
+| Runtime | How |
+|---|---|
+| Cloudflare Workers | `export default app`, built with `@cloudflare/vite-plugin` |
+| Node 22.12+ | `server()` from `@composurejs/vite` builds a self-contained server |
+| Bun | the same server build |
 
 ```ts
-// vite.config.ts: Cloudflare Workers (`vite dev` runs on workerd; `vite build && wrangler deploy`)
+// vite.config.ts
 import { cloudflare } from "@cloudflare/vite-plugin"
 import composure from "@composurejs/vite"
 import { defineConfig } from "vite"
 
-export default defineConfig({ plugins: [composure(), cloudflare()], build: { minify: true } })
-
-// Node or Bun: the Default Server around src/app.tsx, one self-contained dist/index.js
-// (`server({ entry: "src/server.ts" })` builds your own server instead)
-// import composure, { server } from "@composurejs/vite"
-// export default defineConfig({ plugins: [composure(), server()] })
+export default defineConfig({ plugins: [composure(), cloudflare()] })
+// Node or Bun: plugins: [composure(), server()]
 ```
 
-Develop against Discord with one command. Name your Dev Application (the only one it will repoint) and a test server in the config, `composure({ dev: { application: "<id>", guild: "<id>" } })`, put its `DISCORD_PUBLIC_KEY` and `DISCORD_TOKEN` in `.env.local` (production's go in `.env.production.local`), then `vite dev`: it opens a quick tunnel, sets the Dev Application's Interactions Endpoint URL, syncs Commands to the test server, and re-syncs on save.
-
-Sync the Commands to Discord (shows the plan, asks, then applies; `--check` for CI):
-
-```sh
-DISCORD_TOKEN=... pnpm exec composure sync            # global; scope "dev" goes to COMPOSURE_SCOPE_DEV guilds
-pnpm exec composure sync --guild 798662131062931547  # everything to one guild, to try it out
-```
-
-Tests run the App the way a platform does, with real signatures:
+## Testing
 
 ```ts
 import { answer, chatInput } from "composurejs/testing"
 
-const res = await answer(app, chatInput("hello").by({ id: "1", global_name: "Bob" }))
-expect(res.text).toBe("## Hello, Bob")
+test("the button counts", async () => {
+  const first = await answer(app, chatInput("counter"))
+  const next = await answer(app, first.click("+1"))
+  expect(next.text).toContain("Count: 1")
+})
 ```
 
-## How it differs from discord-hono
+Every request is signed with a real Ed25519 key and goes through the same pipeline as production. Nothing reaches Discord.
+
+## Packages
+
+| Package | Version | |
+|---|---|---|
+| [`composurejs`](packages/composurejs) | [![npm](https://img.shields.io/npm/v/composurejs?color=5865f2&label=)](https://www.npmjs.com/package/composurejs) | The framework: App, Commands, JSX, REST, testing |
+| [`@composurejs/vite`](packages/vite) | [![npm](https://img.shields.io/npm/v/@composurejs/vite?color=5865f2&label=)](https://www.npmjs.com/package/@composurejs/vite) | Compiles inline handlers, builds for each runtime, runs the dev loop |
+| [`@composurejs/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@composurejs/cli?color=5865f2&label=)](https://www.npmjs.com/package/@composurejs/cli) | `composure sync`: puts your Commands on Discord |
+| [`@composurejs/eslint-plugin`](packages/eslint-plugin) | [![npm](https://img.shields.io/npm/v/@composurejs/eslint-plugin?color=5865f2&label=)](https://www.npmjs.com/package/@composurejs/eslint-plugin) | Flags components placed where Discord won't accept them, for ESLint and oxlint |
+| [`create-composurejs`](packages/create-composurejs) | [![npm](https://img.shields.io/npm/v/create-composurejs?color=5865f2&label=)](https://www.npmjs.com/package/create-composurejs) | `pnpm create composurejs` |
+
+## Compared to discord-hono
 
 [discord-hono](https://github.com/luisfun/discord-hono) is also a Hono-like framework for Discord bots on Workers. composurejs differs in these ways:
 
-- **JSX with handlers inline, like React.** Responses are JSX, and `onClick={(c) => <Counter count={count + 1} />}` is written where the button is. The Vite plugin hoists it, each `custom_id` carries only what the handler captures, and returned markup updates the message ([ADR 0015](docs/adr/0015-inline-handlers-everywhere.md)).
-- **One definition per Command.** A Command's options type its handler's arguments, so the Command Definition and the handler signature can't drift apart.
-- **Explicit Apps that nest.** The same list drives both dispatch and Sync, and modules own their own lists ([ADR 0001](docs/adr/0001-explicit-registration.md)).
-- **Limits are checked before Discord sees the message.** Render validates placement and Discord's limits, and throws an error naming the broken rule, so you never get a silent "This interaction failed" ([ADR 0004](docs/adr/0004-jsx-runtime.md)).
-- **A Vite dev loop.** `vite dev` opens a tunnel, points the dev application at it, and syncs commands to a dev guild whenever they change.
-- **Any fetch runtime** over one shared pipeline, with no adapter packages ([ADR 0024](docs/adr/0024-default-server.md)).
-- **First-class testing.** `composurejs/testing` provides signed requests, Interaction builders and Background Work that runs on demand.
+- **JSX with inline handlers**, compiled by a Vite plugin ([ADR 0015](docs/adr/0015-inline-handlers-everywhere.md)).
+- **One definition per Command** types its handler and drives Sync.
+- **Explicit Apps that nest**, so modules own their Commands ([ADR 0001](docs/adr/0001-explicit-registration.md)).
+- **Limits checked at render** with errors that name the rule ([ADR 0004](docs/adr/0004-jsx-runtime.md)).
+- **A dev loop** that tunnels, repoints and syncs.
+- **Workers, Node and Bun** over one pipeline, with no adapter packages ([ADR 0024](docs/adr/0024-default-server.md)).
 
-## Repository
+## Status
+
+composurejs is 0.x. It runs in production (this repo deploys [its own bot](bots/composure)), but the API may still change between minor versions. Changes are listed in each package's CHANGELOG and on the [releases page](https://github.com/BlueFrog130/composure-js/releases).
+
+It is a TypeScript port of the ideas in [composure-rs](https://github.com/BlueFrog130/composure-rs).
+
+## Developing this repo
 
 | Path | What |
 |---|---|
 | `packages/composurejs` | Core and subpaths: `/jsx-runtime`, `/components`, `/testing`, `/rest`, `/sync`, `/placement` |
-| `packages/create-composurejs` | `pnpm create composurejs`: one template generator for every target; `scripts/check-templates.mjs` installs, tests and builds each |
-| `packages/cli` | `@composurejs/cli`: `composure sync`, the Sync Plan and applying it (also a library) |
-| `packages/vite` | `@composurejs/vite`: `composure()` (Inline Handlers, the Dev Loop), `server()` (builds the Default Server, `/server`) |
-| `packages/eslint-plugin` | `@composurejs/eslint-plugin`: flags tags placed where Discord does not allow them, in ESLint or oxlint |
-| `examples/bot` | One App for Workers (`pnpm dev`, `pnpm build`, `pnpm deploy`); its build test also builds it with `server()` and runs it on Node and Bun |
-| `docs` | The guide (`pnpm -C docs dev`) and the ADRs, as a VitePress site |
-| `CONTEXT.md` | Glossary. Use these words. |
-| `docs/adr/` | Decisions and why |
+| `packages/vite` | `composure()` (inline handlers, the dev loop), `server()` (the Default Server) |
+| `packages/cli` | `composure sync` (also a library) |
+| `packages/eslint-plugin` | The `placement` rule |
+| `packages/create-composurejs` | One template generator for every runtime |
+| `examples/bot` | One App, built and run on workerd, Node and Bun by its tests |
+| `bots/composure` | composurejs's own bot, deployed to Workers |
+| `docs` | The guide and the ADRs (VitePress) |
+| `CONTEXT.md` | The glossary |
 
 ```sh
 pnpm install
-pnpm test        # builds the packages, then all workspace tests (incl. building and running the example on workerd, Node and Bun)
+pnpm test        # builds the packages, then every workspace test
 pnpm typecheck   # includes a Node-free check of core
-pnpm build       # tsdown → packages/*/dist
-pnpm size        # bundle budgets (size-limit)
-pnpm -C examples/bot coldstart   # cold start on workerd vs. an empty Worker
+pnpm size        # bundle budgets
+pnpm -C docs dev # the guide
 ```
 
-Bots run on Node 22.12+ (or Bun, or Workers); developing this repo needs Node 22.18+ and pnpm.
+Developing needs Node 22.18+ and pnpm. See [CONTRIBUTING.md](CONTRIBUTING.md) for checks and releases.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for checks and releases. Licensed under Apache-2.0.
+## License
+
+[Apache-2.0](LICENSE)
