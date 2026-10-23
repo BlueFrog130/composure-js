@@ -1,7 +1,5 @@
 // The `composure` command: commander parses, @clack/prompts shows (through Ui, so tests can record it).
-import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { parseEnv } from "node:util"
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander"
 import type { Transport } from "composurejs"
 import { loadEnv } from "vite"
@@ -18,7 +16,7 @@ export interface Io {
   err(text: string): void
   /** For tests: where REST requests go. */
   transport?: Transport | undefined
-  /** Read .env files and .dev.vars under the root (default true); tests turn it off. */
+  /** Read the .env files under the root (default true); tests turn it off. */
   readEnvFiles?: boolean | undefined
 }
 
@@ -33,10 +31,15 @@ export interface SyncOptions {
 }
 
 const ENV_HELP = `
-Environment (also read from .env files, as Vite loads them, and .dev.vars):
+Environment (the process env wins over the root's env files, which Vite loads for --mode):
   DISCORD_TOKEN                   the bot token
   DISCORD_APPLICATION_ID          the application id (default: read from the token)
   ${SCOPE_VAR_PREFIX}<NAME>        guild ids for Commands with scope "<name>", comma-separated
+
+Env files:
+  .env.local                      the Dev Application's secrets (sync it with --mode development)
+  .env.production.local           production's; read in production mode only (the default),
+                                  where it wins over .env.local
 
 Exit status: 0 synced or up to date, 1 failed or cancelled, 2 out of date (--check).`
 
@@ -136,9 +139,7 @@ export async function sync(options: SyncOptions, io: Io): Promise<number> {
   }
 }
 
-/** The process env over Vite's .env files over .dev.vars (wrangler's secrets file). */
+/** The process env over the root's .env files for the mode, as Vite loads them (ADR 0031). */
 function projectEnv(root: string, mode: string, env: Record<string, string | undefined>): Record<string, string | undefined> {
-  const devVarsFile = resolve(root, ".dev.vars")
-  const devVars = existsSync(devVarsFile) ? parseEnv(readFileSync(devVarsFile, "utf8")) : {}
-  return { ...devVars, ...loadEnv(mode, root, ""), ...env }
+  return { ...loadEnv(mode, root, ""), ...env }
 }
