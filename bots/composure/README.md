@@ -32,6 +32,7 @@ Both bots run in the home server and offer the same Commands. Where their names 
 | Announcement channel | `#rust-releases` | `#js-releases` | One per bot, since following is per channel. Distinct names keep the follower webhooks Discord creates (`Composure #rust-releases`) apart in a server's Integrations. `/notify` only lists and removes followers whose source is its own channel, so neither bot touches the other's. |
 | Feedback and install-log channels | may be shared | may be shared | Each post's author is the bot that sent it. Separate channels work as well: they are vars. |
 | Accent color | rust orange `0xd34516` | TypeScript blue `0x3178c6` | Tells the two announcements apart at a glance. |
+| Footer | `-# composure-rs · Rust` | `-# composurejs · TypeScript` | Under every panel: names the bot where the accent color does not show (notification previews, colorblind readers). |
 | Worker | `composure-bot` | `composurejs-bot` | Both in one Cloudflare account. |
 | KV namespace | its own | `composurejs-bot` | Keys (`releases`, `announced`) are the same, so they must never share one. |
 | CI secrets | composure-rs's repository | this repository | Each `DISCORD_TOKEN` is its own application's. |

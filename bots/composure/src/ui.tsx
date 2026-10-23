@@ -2,9 +2,9 @@
 //
 //   <ui.Success title="Saved"><Text>Announcements will appear in {channel}</Text></ui.Success>
 //
-// Each sets its accent color from the consts below, so replies, deferred edits and messages sent
-// through REST (announcements, feedback, the install log) look the same. Handler errors use
-// `renderError`, the App's Error Renderer, in the same style.
+// Each sets its accent color from the consts below and ends with `FOOTER`, so replies, deferred
+// edits and messages sent through REST (announcements, feedback, the install log) look the same.
+// Handler errors use `renderError`, the App's Error Renderer, in the same style.
 import { Container, type ContainerProps, GENERIC_ERROR_MESSAGE, Text, UserError } from "composurejs"
 
 /** TypeScript's blue: tells this bot's messages from composure-rs's rust orange ones in the shared server. */
@@ -17,6 +17,8 @@ export const SUCCESS = 0x57f287
 export const WARNING = 0xfee75c
 /** Discord's red. */
 export const ERROR = 0xed4245
+/** Under every panel: names the bot where the accent color doesn't show (notifications, colorblind readers). */
+export const FOOTER = "-# composurejs · TypeScript"
 
 interface ToneProps {
   /** Shown as a `###` heading above the children. */
@@ -28,6 +30,7 @@ const Panel = ({ accent, title, children }: ToneProps & { accent: number }) => (
   <Container accentColor={accent}>
     {title !== undefined && <Text>### {title}</Text>}
     {children}
+    <Text>{FOOTER}</Text>
   </Container>
 )
 

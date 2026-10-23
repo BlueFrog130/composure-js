@@ -21,7 +21,7 @@ import {
 import { COMPOSURE_VERSION } from "../src/about.tsx"
 import { app } from "../src/app.tsx"
 import { ANNOUNCED_KEY, announceNew } from "../src/notify.tsx"
-import { ERROR, PRIMARY, SECONDARY } from "../src/ui.tsx"
+import { ERROR, FOOTER, PRIMARY, SECONDARY } from "../src/ui.tsx"
 import { ANNOUNCE, FEEDBACK, follower, LOG, message, NEWS, POSTED, World } from "./world.ts"
 
 const COMPONENTS_V2 = 1 << 15
@@ -186,6 +186,7 @@ test("/notify preview shows the announcement", async () => {
   expect(accent(res)).toBe(PRIMARY)
   expect(res.text).toContain("## composurejs v0.1.2 is out")
   expect(res.text).toContain("Released 2026-10-20")
+  expect(res.text).toContain(FOOTER)
   expect(res.allComponents.filter((c) => c.type === 2).map((c) => c.url)).toEqual([
     "https://github.com/BlueFrog130/composure-js/releases/tag/composurejs%400.1.2",
     "https://www.npmjs.com/package/composurejs/v/0.1.2",
