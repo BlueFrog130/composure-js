@@ -69,8 +69,14 @@ async function run(strategy) {
   const lines = (s) =>
     createInterface({ input: s }).on("line", (line) => {
       const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(line)
-      if (m && !url) ((url = m[0]), (marks.urlPrinted = t()))
-      if (!registered && line.includes("Registered tunnel connection")) ((registered = true), (marks.registered = t()))
+      if (m && !url) {
+        url = m[0]
+        marks.urlPrinted = t()
+      }
+      if (!registered && line.includes("Registered tunnel connection")) {
+        registered = true
+        marks.registered = t()
+      }
     })
   lines(child.stdout)
   lines(child.stderr)
