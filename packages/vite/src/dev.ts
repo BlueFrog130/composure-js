@@ -9,7 +9,7 @@ import { type Plugin, runnerImport, type ViteDevServer } from "vite"
 import { pointEndpoint } from "./endpoint.ts"
 import { type Secrets, secretsOf, viteEnv } from "./env.ts"
 import { appOf } from "./server.ts"
-import { describeFailure, elapsed, withinLimit } from "./stage.ts"
+import { describeFailure, elapsed } from "./stage.ts"
 import { openTunnel, type Tunnel, type TunnelOption } from "./tunnel.ts"
 
 /**
@@ -32,8 +32,6 @@ export interface DevOptions {
 }
 
 const TAG = "\x1b[36m[composure]\x1b[0m"
-/** The tunnel must connect within this. */
-const CONNECT_LIMIT = 30_000
 
 /**
  * Sets the Tunnel, Endpoint and dev Sync up on a dev server. `appFile`: the module exporting the
@@ -56,13 +54,7 @@ export function setupDevLoop(server: ViteDevServer, dev: DevOptions, appFile: st
     const since = Date.now()
     void (async () => {
       const { port } = server.httpServer!.address() as AddressInfo
-      tunnel = await withinLimit(
-        "tunnel",
-        CONNECT_LIMIT,
-        "connection",
-        () => openTunnel(option, { port, tunnelToken: secrets.tunnelToken, warn }),
-        (late) => void late.close(),
-      )
+      tunnel = await openTunnel(option, { port, root: server.config.root, tunnelToken: secrets.tunnelToken, info, warn })
       if (closed) return void tunnel.close()
       info(`tunnel connected ${tunnel.url} (${elapsed(since)})`)
       await pointEndpoint({ tunnel, application: dev.application, token: secrets.token, publicKey: secrets.publicKey, transport: dev.transport, info, warn, since })

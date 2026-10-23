@@ -1,15 +1,9 @@
 // A named Cloudflare Tunnel (`dev.tunnel: { name, hostname }`, ADR 0031): `cloudflared tunnel run`
 // with the tunnel's token, from `CLOUDFLARE_TUNNEL_TOKEN` or else `cloudflared tunnel token <name>`
 // (after `cloudflared tunnel login`).
-import { type ChildProcess, spawn } from "node:child_process"
 import { createInterface } from "node:readline"
+import type { SpawnCloudflared } from "./cloudflared.ts"
 import type { Tunnel } from "./tunnel.ts"
-
-/** Starts cloudflared with these arguments and extra environment (tests swap in a stand-in). */
-export type SpawnCloudflared = (args: string[], env: Record<string, string>) => ChildProcess
-
-const spawnCloudflared: SpawnCloudflared = (args, env) =>
-  spawn(process.env.CLOUDFLARED_PATH || "cloudflared", args, { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env } })
 
 export interface NamedTunnelOptions {
   /** The tunnel's name, to fetch its token with. */
@@ -21,7 +15,8 @@ export interface NamedTunnelOptions {
   /** The tunnel's token (`CLOUDFLARE_TUNNEL_TOKEN`; Cloudflare dashboard → the tunnel → install command); skips the fetch. */
   token?: string | undefined
   warn(message: string): void
-  spawn?: SpawnCloudflared | undefined
+  /** Starts the resolved cloudflared (tests swap in a stand-in). */
+  spawn: SpawnCloudflared
   /** How long to wait for cloudflared's first connection, in ms. */
   timeout?: number
 }
@@ -30,7 +25,7 @@ export interface NamedTunnelOptions {
 export async function startNamedTunnel(options: NamedTunnelOptions): Promise<Tunnel> {
   const { name: label, port, warn, timeout = 30_000 } = options
   const url = `https://${options.hostname}`
-  const run = options.spawn ?? spawnCloudflared
+  const run = options.spawn
   const token = options.token ?? (await tunnelToken(run, label))
   // The token goes through the environment: an argument would show in the process list.
   const child = run(["tunnel", "--no-autoupdate", "--url", `http://localhost:${port}`, "run"], { TUNNEL_TOKEN: token })

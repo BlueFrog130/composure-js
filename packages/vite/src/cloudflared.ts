@@ -1,4 +1,5 @@
-// Finding the cloudflared binary for the Dev Loop's Tunnels (ADR 0031).
+// Finding the cloudflared binary for the Dev Loop's Tunnels (ADR 0031), and starting it.
+import { type ChildProcess, spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import { accessSync, constants, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs"
 import { delimiter, dirname, join } from "node:path"
@@ -22,6 +23,15 @@ export interface CloudflaredOptions {
 }
 
 export { CLOUDFLARED_RELEASE, type CloudflaredRelease }
+
+/** Starts cloudflared with these arguments and extra environment (tests swap in a stand-in). */
+export type SpawnCloudflared = (args: string[], env: Record<string, string>) => ChildProcess
+
+/** Starts `binary` (from {@link resolveCloudflared}), its output piped. */
+export const spawnCloudflared =
+  (binary: string): SpawnCloudflared =>
+  (args, env) =>
+    spawn(binary, args, { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env } })
 
 /** The cloudflared to run: `CLOUDFLARED_PATH`, else `cloudflared` on `PATH`, else the pinned release (cached, or downloaded and verified). */
 export async function resolveCloudflared(options: CloudflaredOptions): Promise<string> {
