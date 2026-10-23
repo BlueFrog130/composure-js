@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.wrangler/
+.dev.vars
+.env
+.env.local
+.env.*.local
+*.log
+.tmp/
+.vitepress/cache/
+packages/*/LICENSE

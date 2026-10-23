@@ -1,0 +1,5 @@
+{
+  // Declarations for dist: src only (tests import other packages' sources).
+  "extends": "./tsconfig.json",
+  "include": ["src"]
+}

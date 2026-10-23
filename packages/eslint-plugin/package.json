@@ -1,0 +1,64 @@
+{
+  "name": "@composurejs/eslint-plugin",
+  "version": "0.0.0",
+  "description": "ESLint and oxlint rules for composurejs: built-in tags placed where Discord does not allow them",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlueFrog130/composure-js.git",
+    "directory": "packages/eslint-plugin"
+  },
+  "homepage": "https://bluefrog130.github.io/composure-js/",
+  "bugs": "https://github.com/BlueFrog130/composure-js/issues",
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "oxlint",
+    "jsx"
+  ],
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "@composurejs/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+  },
+  "peerDependencies": {
+    "composurejs": "workspace:^",
+    "eslint": "^9.0.0 || ^10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "composurejs": "workspace:^",
+    "eslint": "^10.13.0",
+    "oxlint": "^1.89.0",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

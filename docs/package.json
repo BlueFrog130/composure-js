@@ -1,0 +1,21 @@
+{
+  "name": "@composurejs/docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "@composurejs/vite": "workspace:*",
+    "@shikijs/vitepress-twoslash": "^4.5.0",
+    "@types/node": "^26.6.5",
+    "composurejs": "workspace:*",
+    "typescript": "5.9.3",
+    "vite": "^8.3.5",
+    "vitepress": "1.6.4",
+    "vitest": "^5.0.5",
+    "vue": "^3.5.44"
+  }
+}

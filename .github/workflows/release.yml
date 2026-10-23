@@ -1,0 +1,42 @@
+name: Release
+
+# On main: opens (or updates) a "Version Packages" PR from the pending changesets; merging it
+# publishes the bumped packages to npm with provenance and creates one GitHub release per
+# published package (tag `<name>@<version>`, notes from that package's CHANGELOG.md).
+# Needs the NPM_TOKEN secret, and "Allow GitHub Actions to create and approve pull requests"
+# in Settings > Actions > General.
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - uses: changesets/action@v2
+        with:
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          pr-title: Version Packages
+          commit-message: Version Packages
+          create-github-releases: true
+        env:
+          # @changesets/changelog-github reads it to link each entry to its PR and author.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

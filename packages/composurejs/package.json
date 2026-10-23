@@ -1,0 +1,89 @@
+{
+  "name": "composurejs",
+  "version": "0.0.0",
+  "description": "Discord bots over HTTP interactions, on any fetch runtime",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlueFrog130/composure-js.git",
+    "directory": "packages/composurejs"
+  },
+  "homepage": "https://bluefrog130.github.io/composure-js/",
+  "bugs": "https://github.com/BlueFrog130/composure-js/issues",
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "interactions",
+    "cloudflare-workers",
+    "vite",
+    "jsx"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "@composurejs/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "@composurejs/source": "./src/jsx-runtime.ts",
+      "types": "./dist/jsx-runtime.d.ts",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "@composurejs/source": "./src/jsx-dev-runtime.ts",
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "default": "./dist/jsx-dev-runtime.js"
+    },
+    "./components": {
+      "@composurejs/source": "./src/components.ts",
+      "types": "./dist/components.d.ts",
+      "default": "./dist/components.js"
+    },
+    "./placement": {
+      "@composurejs/source": "./src/placement.ts",
+      "types": "./dist/placement.d.ts",
+      "default": "./dist/placement.js"
+    },
+    "./rest": {
+      "@composurejs/source": "./src/rest/index.ts",
+      "types": "./dist/rest/index.d.ts",
+      "default": "./dist/rest/index.js"
+    },
+    "./sync": {
+      "@composurejs/source": "./src/sync.ts",
+      "types": "./dist/sync.d.ts",
+      "default": "./dist/sync.js"
+    },
+    "./testing": {
+      "@composurejs/source": "./src/testing/index.ts",
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+  },
+  "dependencies": {
+    "discord-api-types": "^0.38.57"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "provenance": true
+  }
+}

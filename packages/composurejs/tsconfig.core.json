@@ -1,0 +1,9 @@
+{
+  // Core must run on every platform: no Node types (the Default Server lives in @composurejs/vite).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": []
+  },
+  "include": ["src"]
+}

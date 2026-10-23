@@ -1,0 +1,48 @@
+// Two environments, each with its own Discord application and home-server channels. The top level
+// is dev: it only runs locally with `vite dev`. `production` is deployed as the Worker
+// `composurejs-bot`: `vite build` selects it (.env.production sets CLOUDFLARE_ENV), then
+// `wrangler deploy`. `vars` and `kv_namespaces` are not inherited, so production lists its own.
+//
+// Secrets: `npx wrangler secret put <NAME> --env production`, and `.dev.vars` for dev:
+// - DISCORD_PUBLIC_KEY (required), DISCORD_TOKEN (every REST call)
+// - GITHUB_TOKEN: fine-grained, read-only "Contents" on the repository; without it GitHub
+//   allows 60 requests an hour per IP, shared with every Worker on that IP
+//
+// The home server also runs composure-rs's bot (the Worker `composure-bot`). Every name here
+// differs from its: Worker, KV namespace, Discord application, announcement channel (README.md).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "composurejs-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Workers Logs: the structured objects the bot logs
+  "observability": { "enabled": true },
+  // scheduled() checks GitHub for new releases every 15 minutes (inherited by production)
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    "DISCORD_APPLICATION_ID": "1100146565504565411",
+    "ANNOUNCE_CHANNEL_ID": "1562169589515681832",
+    "FEEDBACK_CHANNEL_ID": "1562169639239164054",
+    "LOG_CHANNEL_ID": "1562169852527906989",
+    "GITHUB_REPO": "BlueFrog130/composure-js",
+  },
+  // Releases, the last version announced, and npm stats (10-minute TTL). Dev's is simulated
+  // locally (in .wrangler/), so it has no id and never touches production's.
+  "kv_namespaces": [{ "binding": "KV" }],
+  "env": {
+    "production": {
+      // Without it wrangler appends the env: `composurejs-bot-production`
+      "name": "composurejs-bot",
+      "vars": {
+        "DISCORD_APPLICATION_ID": "1562278701016809502",
+        "ANNOUNCE_CHANNEL_ID": "1562278383138902097",
+        "FEEDBACK_CHANNEL_ID": "1562278533152112691",
+        "LOG_CHANNEL_ID": "1562278174015103010",
+        "GITHUB_REPO": "BlueFrog130/composure-js",
+      },
+      // `npx wrangler kv namespace create composurejs-bot`, then add its "id" here (composure-rs's
+      // bot has its own namespace; they never share one)
+      "kv_namespaces": [{ "binding": "KV" }],
+    },
+  },
+}

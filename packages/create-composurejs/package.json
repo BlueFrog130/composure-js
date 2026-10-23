@@ -1,0 +1,57 @@
+{
+  "name": "create-composurejs",
+  "version": "0.0.0",
+  "description": "Create a composurejs Discord bot: pnpm create composurejs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlueFrog130/composure-js.git",
+    "directory": "packages/create-composurejs"
+  },
+  "homepage": "https://bluefrog130.github.io/composure-js/",
+  "bugs": "https://github.com/BlueFrog130/composure-js/issues",
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "interactions",
+    "cloudflare-workers",
+    "vite",
+    "jsx"
+  ],
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "bin": {
+    "create-composurejs": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "@composurejs/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "provenance": true
+  }
+}

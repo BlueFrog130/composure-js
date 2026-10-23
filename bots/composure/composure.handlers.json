@@ -1,0 +1,32 @@
+{
+  "_4XS-2SK": {
+    "where": "src/changelog.tsx: Changelog",
+    "captures": [
+      "owner",
+      "from",
+      "to"
+    ]
+  },
+  "_IiMVWBA": {
+    "where": "src/changelog.tsx: Changelog",
+    "captures": [
+      "owner",
+      "from",
+      "to",
+      "newer"
+    ]
+  },
+  "_WD6nO4G": {
+    "where": "src/changelog.tsx: Changelog",
+    "captures": [
+      "owner",
+      "from",
+      "to",
+      "older"
+    ]
+  },
+  "_tHpuxl3": {
+    "where": "src/feedback.tsx: FeedbackForm",
+    "captures": []
+  }
+}
