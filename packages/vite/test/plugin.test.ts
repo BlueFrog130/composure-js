@@ -44,5 +44,6 @@ describe("server()", () => {
     expect(config(composure(), {}, build)).toBeUndefined()
     expect(config(composure(), {}, serve)).toEqual({ server: { allowedHosts: [".trycloudflare.com"] } })
     expect(config(composure({ dev: { tunnel: false } }), {}, serve)).toBeUndefined()
+    expect(config(composure({ dev: { tunnelUrl: "https://bot-dev.example.com" } }), {}, serve)).toEqual({ server: { allowedHosts: ["bot-dev.example.com"] } })
   })
 })

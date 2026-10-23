@@ -28,6 +28,25 @@ It reads `.env` (and the process environment):
 | `COMPOSURE_DEV_GUILD` | turns dev Sync on, to this guild |
 | `COMPOSURE_DEV_TUNNEL_URL` | optional: your own tunnel's public URL, used instead of a quick tunnel |
 
+The same settings can go in the Vite config, where they win over the environment. The token stays in `.env`:
+
+```ts twoslash
+import composure from "@composurejs/vite"
+import { defineConfig } from "vite"
+// ---cut---
+export default defineConfig({
+  plugins: [
+    composure({
+      dev: {
+        applicationId: "1100146565504565411", // the dev application
+        guild: "798662131062931547", // dev Sync's guild
+        tunnelUrl: process.env.MY_TUNNEL, // your own tunnel; unset: a quick tunnel
+      },
+    }),
+  ],
+})
+```
+
 ::: warning Use a separate dev application
 The endpoint is only changed when `COMPOSURE_DEV_APPLICATION_ID` equals the token's application. A production token in `.env`, or a mismatch, never repoints anything; the URL to set by hand is printed instead.
 :::

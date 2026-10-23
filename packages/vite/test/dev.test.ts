@@ -207,6 +207,16 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(server!.config.server.allowedHosts).toContain("localhost")
   })
 
+  test("the same settings from the Vite config: applicationId, guild, tunnelUrl", async () => {
+    const { calls, transport } = discord()
+    const port = await freePort()
+    project({ DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, COMPOSURE_DEV_GUILD: "1111111111111111111" })
+    await start({ transport, applicationId: APP_ID, guild: GUILD, tunnelUrl: `http://localhost:${port}` }, [], port)
+    await until(() => calls.some((c) => c.method === "PATCH") && calls.some((c) => c.method === "PUT"))
+    expect(calls.find((c) => c.method === "PATCH")!.body).toEqual({ interactions_endpoint_url: `http://localhost:${port}/interactions` })
+    expect(calls.find((c) => c.method === "PUT")!.path).toBe(`/applications/${APP_ID}/guilds/${GUILD}/commands`)
+  })
+
   test("COMPOSURE_DEV_TUNNEL_URL's host passes Vite's host check", async () => {
     project({ COMPOSURE_DEV_TUNNEL_URL: "https://bot-dev.example.com" })
     const port = await start({})

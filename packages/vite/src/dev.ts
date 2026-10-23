@@ -13,16 +13,32 @@ export interface Tunnel {
   close(): Promise<void>
 }
 
+/**
+ * The Dev Loop's settings. Each value here wins over its environment variable (`.env` files for the
+ * mode, then the process environment); the bot token is only ever read from the environment.
+ */
 export interface DevOptions {
   /**
    * Open a public tunnel to `vite dev` and point the dev application's interactions endpoint at
-   * it. Default: when `COMPOSURE_DEV_APPLICATION_ID` is set. Uses `COMPOSURE_DEV_TUNNEL_URL` when
-   * set (a tunnel you run, forwarding to this server), else `startTunnel`, else a cloudflared quick
-   * tunnel (downloaded on first use, under Cloudflare's terms).
+   * it. Default: when `applicationId` or `tunnelUrl` is set. Uses `tunnelUrl` when set, else
+   * `startTunnel`, else a cloudflared quick tunnel (downloaded on first use, under Cloudflare's terms).
    */
   tunnel?: boolean
-  /** Sync Commands to `COMPOSURE_DEV_GUILD` on start and on every change. Default: when it is set. */
+  /**
+   * The dev application: the only one whose interactions endpoint is repointed, and only when it
+   * is the token's. Default: `COMPOSURE_DEV_APPLICATION_ID`.
+   */
+  applicationId?: string
+  /**
+   * A tunnel you already run, forwarding to this server (a named Cloudflare Tunnel, an ngrok
+   * domain): its public URL, used instead of a quick tunnel, and its host allowed by Vite.
+   * Default: `COMPOSURE_DEV_TUNNEL_URL`.
+   */
+  tunnelUrl?: string
+  /** Sync Commands to `guild` on start and on every change. Default: when `guild` is set. */
   sync?: boolean
+  /** The guild dev Sync syncs Commands to. Default: `COMPOSURE_DEV_GUILD`, else `DISCORD_GUILD_ID`. */
+  guild?: string
   /**
    * Another tunnel (ngrok, a fixed hostname, ...): given the local port, resolves to its public URL.
    * Add its hostname to Vite's `server.allowedHosts`, or Vite blocks its requests.
@@ -40,6 +56,11 @@ export const DEV_TUNNEL_URL_VAR = "COMPOSURE_DEV_TUNNEL_URL"
 const TAG = "\x1b[36m[composure]\x1b[0m"
 /** Waits between attempts to point the dev application at an endpoint Discord cannot verify yet: past a 60s DNS negative cache. */
 const ENDPOINT_RETRY_DELAYS = [2000, 4000, 8000, 16000, 30000]
+
+/** `dev.tunnelUrl`, else `COMPOSURE_DEV_TUNNEL_URL`; an empty value is none. */
+export function tunnelUrlOf(options: DevOptions, env: Record<string, string | undefined>): string | undefined {
+  return (options.tunnelUrl ?? env[DEV_TUNNEL_URL_VAR]) || undefined
+}
 
 /** `.env` files for the mode, then the process environment. */
 function devEnv(server: ViteDevServer): Record<string, string | undefined> {
@@ -94,7 +115,7 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
   }
 
   // Dev Sync: definitions are read through Vite like the build, compared with what was last synced.
-  const devGuild = env[DEV_GUILD_VAR] ?? env.DISCORD_GUILD_ID
+  const devGuild = options.guild ?? env[DEV_GUILD_VAR] ?? env.DISCORD_GUILD_ID
   if (options.sync ?? devGuild !== undefined) {
     let last = ""
     let running: Promise<void> = Promise.resolve()
@@ -102,7 +123,7 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
       (running = running.then(async () => {
         const cfg = discord()
         if (!cfg) return
-        if (!devGuild) return warn(`dev Sync needs ${DEV_GUILD_VAR}: the guild to sync Commands to while developing.`)
+        if (!devGuild) return warn(`dev Sync needs ${DEV_GUILD_VAR} (or dev.guild): the guild to sync Commands to while developing.`)
         try {
           const { module } = await runnerImport<Record<string, unknown>>(appFile, { root, plugins: [hoist()], logLevel: "error" })
           const definitions = appOf<LoadedApp>(module, appFile).definitions()
@@ -126,8 +147,8 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
   }
 
   // Tunnel: only once the server listens, because Discord PINGs a new endpoint before accepting it.
-  const devApp = env[DEV_APPLICATION_VAR]
-  const ownTunnel = env[DEV_TUNNEL_URL_VAR] || undefined
+  const devApp = options.applicationId ?? env[DEV_APPLICATION_VAR]
+  const ownTunnel = tunnelUrlOf(options, env)
   if (options.tunnel ?? (devApp !== undefined || ownTunnel !== undefined)) {
     let tunnel: Tunnel | undefined
     server.httpServer?.once("listening", () => {
@@ -142,8 +163,8 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
         if (devApp !== cfg.applicationId) {
           warn(
             devApp
-              ? `${DEV_APPLICATION_VAR} (${devApp}) is not the token's application (${cfg.applicationId}); not changing its endpoint. Set the Interactions Endpoint URL by hand: ${endpoint}`
-              : `Set ${DEV_APPLICATION_VAR}=${cfg.applicationId} to point this (dev!) application at the tunnel, or set its Interactions Endpoint URL by hand: ${endpoint}`,
+              ? `The dev application (${devApp}) is not the token's application (${cfg.applicationId}); not changing its endpoint. Set the Interactions Endpoint URL by hand: ${endpoint}`
+              : `Set ${DEV_APPLICATION_VAR}=${cfg.applicationId} (or dev.applicationId) to point this (dev!) application at the tunnel, or set its Interactions Endpoint URL by hand: ${endpoint}`,
           )
           return
         }

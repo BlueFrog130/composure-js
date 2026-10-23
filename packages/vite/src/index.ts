@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 import { checkPlacement } from "composurejs/placement"
 import { loadEnv, normalizePath, type Plugin } from "vite"
-import { DEV_TUNNEL_URL_VAR, type DevOptions, setupDevLoop } from "./dev.ts"
+import { type DevOptions, setupDevLoop, tunnelUrlOf } from "./dev.ts"
 import { describeBreaks, diffLock, type HandlerLock, inCi, LOCK_FILE, lockOf, readLock, writeLock } from "./lock.ts"
 import { HandlerTransformError, parseModule, relativePath, type ShippedHandler, transformHandlers } from "./transform.ts"
 
@@ -70,7 +70,7 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
     config(config, env) {
       if (env.command !== "serve" || options.dev?.tunnel === false) return undefined
       const dir = resolve(config.root ?? ".")
-      const own = { ...loadEnv(env.mode, config.envDir === false ? dir : resolve(dir, config.envDir ?? ""), ""), ...process.env }[DEV_TUNNEL_URL_VAR]
+      const own = tunnelUrlOf(options.dev ?? {}, { ...loadEnv(env.mode, config.envDir === false ? dir : resolve(dir, config.envDir ?? ""), ""), ...process.env })
       if (own) return { server: { allowedHosts: [new URL(own).hostname] } }
       return options.dev?.startTunnel ? undefined : { server: { allowedHosts: [".trycloudflare.com"] } }
     },
