@@ -1,14 +1,12 @@
 name: Release
 
 # On main: with pending changesets, opens (or updates) a "Version Packages" PR. Once it is merged,
-# stages every package whose version npm lacks (`pnpm stage publish -r`, with provenance), then
-# `changeset git-tag` tags each and the publish action pushes the tags and creates one GitHub
-# release per package (notes from its CHANGELOG.md). A maintainer approves each staged version
-# with 2FA, on the package's Staged Packages tab or with `npm stage approve <stage-id>`; until
-# then a push to main stages it again (tags and releases are made once).
-# Auth: npm trusted publishing (OIDC), a stage-only publisher per package for this workflow.
-# Also needs "Allow GitHub Actions to create and approve pull requests" in Settings > Actions >
-# General.
+# `changeset publish` publishes every package whose version npm lacks, with provenance, and the
+# action pushes a tag and creates one GitHub release per published package (notes from its
+# CHANGELOG.md).
+# Auth: npm trusted publishing (OIDC), a publisher per package for this workflow with "allow
+# publish" on. Also needs "Allow GitHub Actions to create and approve pull requests" in
+# Settings > Actions > General.
 on:
   push:
     branches: [main]
@@ -31,26 +29,16 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Builds every package, so the stage step ships fresh dist.
+      # Builds every package, so the publish ships fresh dist.
       - run: pnpm test
-      - uses: changesets/action/select-mode@v2
-        id: mode
-      - if: steps.mode.outputs.mode == 'version'
-        uses: changesets/action/version@v2
+      - uses: changesets/action@v2
         with:
-          script: pnpm version-packages
+          version-script: pnpm version-packages
+          publish-script: pnpm changeset publish
           pr-title: Version Packages
           commit-message: Version Packages
+          create-github-releases: true
         env:
           # @changesets/changelog-github reads it to link each entry to its PR and author.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - if: steps.mode.outputs.mode == 'publish'
-        run: pnpm stage publish -r
-        env:
           NPM_CONFIG_PROVENANCE: true
-      # `changeset publish` cannot stage (changesets/changesets#2025); git-tag reports the tags it
-      # creates to the action, which pushes them and makes the releases.
-      - if: steps.mode.outputs.mode == 'publish'
-        uses: changesets/action/publish@v2
-        with:
-          script: pnpm changeset git-tag
