@@ -12,7 +12,6 @@
     "test:watch": "vitest",
     "size": "pnpm -C examples/bot build && size-limit",
     "changeset": "changeset",
-    "release": "pnpm build && changeset publish",
     "version-packages": "changeset version"
   },
   "devDependencies": {
