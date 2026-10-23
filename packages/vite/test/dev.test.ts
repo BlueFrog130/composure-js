@@ -107,6 +107,13 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(logs.join("\n")).not.toMatch(/dev Sync|tunnel/)
   })
 
+  test("allows requests through a quick tunnel's hostname", async () => {
+    project({})
+    const port = await start({})
+    expect((await post(port, "{}", { host: "bosnia-settled-trades-width.trycloudflare.com" })).status).toBe(401)
+    expect((await post(port, "{}", { host: "evil.example.com" })).status).toBe(403)
+  })
+
   test("serves the App with its handlers compiled, and picks up edits without a restart", async () => {
     project({})
     const port = await start({ tunnel: false, sync: false, transport: discord().transport })

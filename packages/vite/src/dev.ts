@@ -22,7 +22,10 @@ export interface DevOptions {
   tunnel?: boolean
   /** Sync Commands to `COMPOSURE_DEV_GUILD` on start and on every change. Default: when it is set. */
   sync?: boolean
-  /** Another tunnel (ngrok, a fixed hostname, ...): given the local port, resolves to its public URL. */
+  /**
+   * Another tunnel (ngrok, a fixed hostname, ...): given the local port, resolves to its public URL.
+   * Add its hostname to Vite's `server.allowedHosts`, or Vite blocks its requests.
+   */
   startTunnel?: (port: number) => Promise<Tunnel>
   /** REST requests to Discord (tests). Default `fetch`. */
   transport?: Transport

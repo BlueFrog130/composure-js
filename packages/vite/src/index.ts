@@ -65,6 +65,13 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
     enforce: "pre",
     api: { appFile: () => appFile },
 
+    // Vite freezes `server.allowedHosts` when the server starts, before the quick tunnel's hostname
+    // is known, so the whole domain is allowed (its names resolve to Cloudflare, never to this machine).
+    config(_, env) {
+      if (env.command !== "serve" || options.dev?.tunnel === false || options.dev?.startTunnel) return undefined
+      return { server: { allowedHosts: [".trycloudflare.com"] } }
+    },
+
     configResolved(config) {
       root = config.root
       command = config.command
