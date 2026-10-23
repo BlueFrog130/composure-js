@@ -161,6 +161,24 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(closed).toBe(true)
   })
 
+  test("tunnel: retries the endpoint until Discord can reach it", async () => {
+    const { calls, transport } = discord()
+    let failures = 1
+    const flaky = async (request: Request) => {
+      if (request.method === "PATCH" && failures-- > 0) {
+        calls.push({ method: "PATCH", path: "failed", body: undefined })
+        return Response.json({ code: 50035, message: "Invalid Form Body" }, { status: 400 })
+      }
+      return transport(request)
+    }
+    project({ DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, COMPOSURE_DEV_APPLICATION_ID: APP_ID })
+    const logs: string[] = []
+    await start({ transport: flaky, sync: false, startTunnel: async () => ({ url: "https://slow.trycloudflare.com", close: async () => {} }) }, logs)
+    await until(() => logs.some((l) => l.includes("interactions endpoint of application")))
+    expect(calls.filter((c) => c.method === "PATCH").map((c) => c.path)).toEqual(["failed", "/applications/@me"])
+    expect(logs.join("\n")).toContain("tunnel not reachable by Discord yet; retrying in 1s")
+  })
+
   test("never repoints an application not named as the dev application", async () => {
     const { calls, transport } = discord()
     project({ DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, COMPOSURE_DEV_APPLICATION_ID: "1111111111111111111" })

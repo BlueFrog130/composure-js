@@ -2,7 +2,7 @@
 // opens a tunnel, points the *dev* application's interactions endpoint at it, and syncs Commands to a
 // dev guild on start and whenever the code changes.
 import type { AddressInfo } from "node:net"
-import { createTracker, type ScopedDefinition, type Transport } from "composurejs"
+import { createTracker, DiscordApiError, type ScopedDefinition, type Transport } from "composurejs"
 import { BotClient, editCurrentApplication } from "composurejs/rest"
 import { apply, configFromEnv, plan, summary, type SyncConfig } from "composurejs/sync"
 import { isRunnableDevEnvironment, loadEnv, type Plugin, runnerImport, type ViteDevServer } from "vite"
@@ -35,6 +35,8 @@ export const DEV_APPLICATION_VAR = "COMPOSURE_DEV_APPLICATION_ID"
 export const DEV_GUILD_VAR = "COMPOSURE_DEV_GUILD"
 
 const TAG = "\x1b[36m[composure]\x1b[0m"
+/** Waits between attempts to point the dev application at a tunnel Discord cannot reach yet. */
+const ENDPOINT_RETRY_DELAYS = [1000, 2000, 4000, 8000, 8000]
 
 /** `.env` files for the mode, then the process environment. */
 function devEnv(server: ViteDevServer): Record<string, string | undefined> {
@@ -141,7 +143,20 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
           )
           return
         }
-        await editCurrentApplication(new BotClient(cfg.token, rest), { interactions_endpoint_url: endpoint })
+        // Discord PINGs the endpoint before accepting it (400 when that fails), and a new tunnel can
+        // take a few seconds to route.
+        const client = new BotClient(cfg.token, rest)
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await editCurrentApplication(client, { interactions_endpoint_url: endpoint })
+            break
+          } catch (error) {
+            const delay = ENDPOINT_RETRY_DELAYS[attempt]
+            if (!(error instanceof DiscordApiError && error.status === 400) || delay === undefined) throw error
+            info(`tunnel not reachable by Discord yet; retrying in ${delay / 1000}s`)
+            await new Promise((resolve) => setTimeout(resolve, delay))
+          }
+        }
         info(`interactions endpoint of application ${cfg.applicationId} → ${endpoint}`)
       })().catch((error: unknown) => warn(`tunnel failed: ${(error as Error).message}`))
     })
