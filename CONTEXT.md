@@ -205,4 +205,12 @@ The creates, updates, and deletes a Sync would perform, shown before it is appli
 _Avoid_: Diff, migration
 
 **Dev Loop**:
-What `vite dev` with `@composurejs/vite` runs: the App served through Vite, a tunnel, the dev application's interactions endpoint pointed at it, and Sync to a dev guild on change.
+What `vite dev` with `@composurejs/vite` runs: the App served through Vite, a tunnel, the Dev Application's interactions endpoint pointed at it, and Sync to a dev guild on change.
+
+**Dev Application**:
+The Discord application a project names as its development one: the only application whose interactions endpoint the Dev Loop ever changes, and only when the bot token belongs to it. Never the production application.
+_Avoid_: Test bot, dev bot, staging app
+
+**Tunnel**:
+The public HTTPS URL forwarding to `vite dev` that the Dev Loop points the Dev Application at. A quick tunnel (a random `trycloudflare.com` host, the default), a named tunnel (a Cloudflare Tunnel on the developer's own hostname), or one the developer already runs.
+_Avoid_: Proxy, forwarder

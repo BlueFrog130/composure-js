@@ -1,5 +1,7 @@
 # The Dev Loop is `vite dev`: serve, tunnel, repoint only the dev application, sync to a dev guild
 
+Superseded by [ADR 0031](./0031-dev-loop-rebuilt.md): typed `dev` options instead of `COMPOSURE_DEV_*`, and a quick tunnel that waits for authoritative DNS.
+
 The kickoff brief asked for one command from clone to clicking buttons in Discord. Discord can only reach a public HTTPS URL, checks it with a signed PING before accepting it, and only shows Commands that were synced. So `vite dev`, with `composure({ target })`, does four things.
 
 **Serving.** For `node` and `bun` the plugin serves the App itself (`appType: "custom"`): POST requests go to the module's `app` (or default) export, imported through Vite's ssr module runner on every request. An edit takes effect on the next Interaction without a restart, and Inline Handlers re-register under the same ids. Background Work runs on a tracker, and `GET /health` answers. For `cloudflare`, `@cloudflare/vite-plugin` already serves the Worker on workerd from the same port, so the plugin only adds the rest.

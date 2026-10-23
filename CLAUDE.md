@@ -54,3 +54,17 @@ Use pnpm only. pnpm 12 blocks dependency build scripts unless they're listed in 
 - Logs are structured objects. Never log the interaction token, a URL containing it, or Custom ID State.
 - Unknown Discord data (interaction types, component types, events) is answered or passed through. It must never throw.
 - Use the words in `CONTEXT.md`. Record decisions as `docs/adr/NNNN-*.md`: one dense paragraph or a few, saying what was decided and why, plus the alternatives that were rejected.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on BlueFrog130/composure-js, via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` is the glossary, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
