@@ -93,7 +93,7 @@ server an announcement channel of its own plus the feedback and log channels. Th
 
    ```sh
    pnpm run deploy                               # vite build && wrangler deploy
-   DISCORD_TOKEN=... pnpm sync                   # the production application's token
+   pnpm sync                                     # production's DISCORD_TOKEN, from .env.production.local or the environment
    ```
 
 6. In the Developer Portal:
@@ -110,10 +110,12 @@ secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `DISCORD_TOKEN` and
 
 ## Run locally
 
-Fill in the top-level `vars` with the dev application's id and channels, copy
-[`.env.example`](.env.example) to `.dev.vars` with the dev application's secrets, then
-`pnpm dev`: the Dev Loop opens a tunnel, points the dev application at it and syncs to
-`COMPOSURE_DEV_GUILD`. The cron runs on `GET /cdn-cgi/handler/scheduled`.
+The Dev Application's id and the home server are committed in [`vite.config.ts`](vite.config.ts)
+(`dev`), and its channels in the top-level `vars`. Copy [`.env.example`](.env.example) to
+`.env.local` with the Dev Application's secrets, then `pnpm dev`: the Dev Loop opens a quick
+tunnel, points the Dev Application at it and syncs the Commands to the home server. Production's
+secrets go in `.env.production.local`, which `vite dev` never reads. The cron runs on
+`GET /cdn-cgi/handler/scheduled`.
 
 ## Test
 

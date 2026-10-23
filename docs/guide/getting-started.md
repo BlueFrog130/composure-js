@@ -12,17 +12,25 @@ Pick Cloudflare Workers, Node or Bun. Each template has the same starting bot (`
 
 ## Connect it to Discord
 
-1. In the [Developer Portal](https://discord.com/developers/applications), create an application **for development** and add its bot to a test server. Keep it separate from the one you deploy.
-2. Copy `.env.example` to `.env` (for Workers, also to `.dev.vars`) and fill it in:
+1. In the [Developer Portal](https://discord.com/developers/applications), create an application **for development** (your Dev Application) and add its bot to a test server. Keep it separate from the one you deploy.
+2. `pnpm create composurejs` asks for the Dev Application's id (General Information → Application ID) and the test server's id (Developer Mode → right-click the server → Copy Server ID), and writes them into `vite.config.ts`. If you skipped them, fill them in there:
+
+```ts twoslash
+import composure from "@composurejs/vite"
+// ---cut---
+composure({ dev: { application: "1100146565504565411", guild: "798662131062931547" } })
+```
+
+3. Copy `.env.example` to `.env.local` and fill in the Dev Application's secrets:
 
 | Variable | Where it comes from |
 |---|---|
 | `DISCORD_PUBLIC_KEY` | General Information → Public Key |
 | `DISCORD_TOKEN` | Bot → Token |
-| `COMPOSURE_DEV_APPLICATION_ID` | General Information → Application ID of the **dev** application |
-| `COMPOSURE_DEV_GUILD` | Your test server's id (Developer Mode → right-click the server) |
 
-3. Run `pnpm dev`. It serves the bot, opens a public tunnel, sets the dev application's Interactions Endpoint URL to it, and syncs the Commands to your test server. Type `/counter` in Discord and press the button. See [Local development](./local-dev) for what each step does.
+4. Run `pnpm dev`. It serves the bot, opens a public tunnel, sets the Dev Application's Interactions Endpoint URL to it, and syncs the Commands to your test server. Type `/counter` in Discord and press the button. See [Local development](./local-dev) for what each step does.
+
+Production's secrets go in `.env.production.local`, which `pnpm dev` never reads ([Deploying](./deploying#sync)).
 
 ## The shape of a bot
 
