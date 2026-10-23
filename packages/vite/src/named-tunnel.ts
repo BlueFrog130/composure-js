@@ -1,8 +1,9 @@
-// A named Cloudflare Tunnel, run by the Dev Loop (ADR 0017): `cloudflared tunnel run` with the tunnel's
-// token, which `cloudflared tunnel token <name>` fetches after `cloudflared tunnel login` unless given.
+// A named Cloudflare Tunnel (`dev.tunnel: { name, hostname }`, ADR 0031): `cloudflared tunnel run`
+// with the tunnel's token, from `CLOUDFLARE_TUNNEL_TOKEN` or else `cloudflared tunnel token <name>`
+// (after `cloudflared tunnel login`).
 import { type ChildProcess, spawn } from "node:child_process"
 import { createInterface } from "node:readline"
-import type { Tunnel } from "./dev.ts"
+import type { Tunnel } from "./tunnel.ts"
 
 /** Starts cloudflared with these arguments and extra environment (tests swap in a stand-in). */
 export type SpawnCloudflared = (args: string[], env: Record<string, string>) => ChildProcess
@@ -11,26 +12,26 @@ const spawnCloudflared: SpawnCloudflared = (args, env) =>
   spawn(process.env.CLOUDFLARED_PATH || "cloudflared", args, { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env } })
 
 export interface NamedTunnelOptions {
-  /** The public URL the tunnel routes to this server. */
-  url: string
+  /** The tunnel's name, to fetch its token with. */
+  name: string
+  /** The public hostname the tunnel routes to this server. */
+  hostname: string
   /** The local port `vite dev` listens on. */
   port: number
-  /** The tunnel's name, to fetch its token with. */
-  name?: string | undefined
-  /** The tunnel's token (Cloudflare dashboard → the tunnel → install command); skips the fetch. */
+  /** The tunnel's token (`CLOUDFLARE_TUNNEL_TOKEN`; Cloudflare dashboard → the tunnel → install command); skips the fetch. */
   token?: string | undefined
   warn(message: string): void
-  spawn?: SpawnCloudflared
+  spawn?: SpawnCloudflared | undefined
   /** How long to wait for cloudflared's first connection, in ms. */
   timeout?: number
 }
 
-/** Resolves once cloudflared has registered a connection; warns when the tunnel routes `url` elsewhere. */
+/** Resolves once cloudflared has registered a connection; warns when the tunnel routes `hostname` elsewhere. */
 export async function startNamedTunnel(options: NamedTunnelOptions): Promise<Tunnel> {
-  const { url, port, warn, timeout = 30_000 } = options
+  const { name: label, port, warn, timeout = 30_000 } = options
+  const url = `https://${options.hostname}`
   const run = options.spawn ?? spawnCloudflared
-  const label = options.name ?? "from COMPOSURE_DEV_TUNNEL_TOKEN"
-  const token = options.token ?? (await tunnelToken(run, options.name!))
+  const token = options.token ?? (await tunnelToken(run, label))
   // The token goes through the environment: an argument would show in the process list.
   const child = run(["tunnel", "--no-autoupdate", "--url", `http://localhost:${port}`, "run"], { TUNNEL_TOKEN: token })
   const kill = () => void child.kill()
@@ -116,7 +117,7 @@ function tunnelToken(run: SpawnCloudflared, name: string): Promise<string> {
     child.once("close", (code) => {
       if (code === 0 && out.trim()) return resolve(out.trim())
       const reason = err.trim().split("\n").at(-1) ?? `exit ${code}`
-      reject(new Error(`cloudflared tunnel token ${name} failed (${reason}): run \`cloudflared tunnel login\`, or set COMPOSURE_DEV_TUNNEL_TOKEN`))
+      reject(new Error(`cloudflared tunnel token ${name} failed (${reason}): run \`cloudflared tunnel login\`, or set CLOUDFLARE_TUNNEL_TOKEN`))
     })
   })
 }

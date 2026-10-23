@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 import { checkPlacement } from "composurejs/placement"
-import { loadEnv, normalizePath, type Plugin } from "vite"
-import { type DevOptions, setupDevLoop, tunnelUrlOf } from "./dev.ts"
+import { normalizePath, type Plugin } from "vite"
+import { type DevOptions, setupDevLoop } from "./dev.ts"
 import { describeBreaks, diffLock, type HandlerLock, inCi, LOCK_FILE, lockOf, readLock, writeLock } from "./lock.ts"
 import { HandlerTransformError, parseModule, relativePath, type ShippedHandler, transformHandlers } from "./transform.ts"
+import { allowedHostsOf } from "./tunnel.ts"
 
 export interface ComposureOptions {
   /** The module exporting the App as `app` or default. Default: `src/app.tsx`, `src/app.ts`, ... */
@@ -17,7 +18,10 @@ export interface ComposureOptions {
    * these either way. Default true.
    */
   placement?: boolean
-  /** The Dev Loop in `vite dev` (ADR 0017): the tunnel and dev Sync. See {@link DevOptions}. */
+  /**
+   * The Dev Loop in `vite dev` (ADR 0031): the Tunnel, the Dev Application's endpoint, and dev
+   * Sync. Unset: no Dev Loop. See {@link DevOptions}.
+   */
   dev?: DevOptions
   /**
    * The Handler Lock (ADR 0029), `composure.handlers.json` at the root: `vite build` records every
@@ -65,14 +69,11 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
     enforce: "pre",
     api: { appFile: () => appFile },
 
-    // Vite freezes `server.allowedHosts` when the server starts, before the quick tunnel's hostname
-    // is known, so the whole domain is allowed (its names resolve to Cloudflare, never to this machine).
-    config(config, env) {
-      if (env.command !== "serve" || options.dev?.tunnel === false) return undefined
-      const dir = resolve(config.root ?? ".")
-      const own = tunnelUrlOf(options.dev ?? {}, { ...loadEnv(env.mode, config.envDir === false ? dir : resolve(dir, config.envDir ?? ""), ""), ...process.env })
-      if (own) return { server: { allowedHosts: [new URL(own).hostname] } }
-      return options.dev?.startTunnel ? undefined : { server: { allowedHosts: [".trycloudflare.com"] } }
+    // Vite's host check lets exactly the tunnel's host through.
+    config(_config, env) {
+      if (env.command !== "serve" || !options.dev) return undefined
+      const allowedHosts = allowedHostsOf(options.dev.tunnel ?? "quick")
+      return allowedHosts ? { server: { allowedHosts } } : undefined
     },
 
     configResolved(config) {
@@ -85,8 +86,8 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
     configureServer(server) {
       // Under Vitest only with an injected transport: a test run must never reach Discord with the
       // developer's real token, whichever Vite config it loaded.
-      if (process.env.VITEST && !options.dev?.transport) return
-      setupDevLoop(server, options.dev ?? {}, appFile, () => composure({ include, placement: false, handlerLock: false }))
+      if (!options.dev || (process.env.VITEST && !options.dev.transport)) return
+      setupDevLoop(server, options.dev, appFile, () => composure({ include, placement: false, handlerLock: false }))
     },
 
     transform(code, id) {
@@ -169,5 +170,6 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
 
 export { composure, HandlerTransformError, transformHandlers }
 export { server, SERVER_ENTRY, type ServerOptions } from "./server-plugin.ts"
-export type { DevOptions, Tunnel } from "./dev.ts"
+export type { DevOptions } from "./dev.ts"
+export type { NamedTunnelOption, Tunnel, TunnelOption, UrlTunnelOption } from "./tunnel.ts"
 export { LOCK_FILE, type HandlerLock, type LockedHandler } from "./lock.ts"

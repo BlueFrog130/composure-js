@@ -40,10 +40,13 @@ describe("server()", () => {
 
   test("dev serves the App itself; composure() alone leaves the build and dev server to other plugins", () => {
     expect(config(server(), {}, serve)).toEqual({ appType: "custom" })
-    // composure() only lets the tunnel's host past Vite's host check.
-    expect(config(composure(), {}, build)).toBeUndefined()
-    expect(config(composure(), {}, serve)).toEqual({ server: { allowedHosts: [".trycloudflare.com"] } })
+    // composure() only lets the tunnel's host past Vite's host check, and only with the Dev Loop on.
+    expect(config(composure({ dev: {} }), {}, build)).toBeUndefined()
+    expect(config(composure(), {}, serve)).toBeUndefined()
+    expect(config(composure({ dev: {} }), {}, serve)).toEqual({ server: { allowedHosts: [".trycloudflare.com"] } })
     expect(config(composure({ dev: { tunnel: false } }), {}, serve)).toBeUndefined()
-    expect(config(composure({ dev: { tunnelUrl: "https://bot-dev.example.com" } }), {}, serve)).toEqual({ server: { allowedHosts: ["bot-dev.example.com"] } })
+    expect(config(composure({ dev: { tunnel: async () => ({ url: "https://x.example.com", close: async () => {} }) } }), {}, serve)).toBeUndefined()
+    expect(config(composure({ dev: { tunnel: { url: "https://bot-dev.example.com" } } }), {}, serve)).toEqual({ server: { allowedHosts: ["bot-dev.example.com"] } })
+    expect(config(composure({ dev: { tunnel: { name: "bot-dev", hostname: "dev.example.com" } } }), {}, serve)).toEqual({ server: { allowedHosts: ["dev.example.com"] } })
   })
 })

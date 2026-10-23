@@ -1,8 +1,10 @@
 // `server()`: builds the Default Server, or your own entry, for Node and Bun (ADR 0024, 0025), and
-// serves the App in `vite dev`. The App module is `composure()`'s.
-import type { Plugin, UserConfig } from "vite"
-import { serveInDev } from "./dev.ts"
+// serves the App in `vite dev` (ADR 0031). The App module is `composure()`'s.
+import { createTracker, type ScopedDefinition } from "composurejs"
+import { isRunnableDevEnvironment, type Plugin, type UserConfig, type ViteDevServer } from "vite"
+import { viteEnv } from "./env.ts"
 import type { ComposureApi } from "./index.ts"
+import { appOf, send, toRequest } from "./server.ts"
 import { relativePath } from "./transform.ts"
 
 export interface ServerOptions {
@@ -78,4 +80,30 @@ export function server(options: ServerOptions = {}): Plugin {
       ].join("\n")
     },
   }
+}
+
+interface LoadedApp {
+  fetch(request: Request, env?: unknown, platform?: unknown): Promise<Response>
+  definitions(): ScopedDefinition[]
+}
+
+/** `vite dev`: answers requests with the App in `appFile`, reloaded through Vite; its env is Vite's env files for the mode under the process environment. */
+function serveInDev(server: ViteDevServer, appFile: string): void {
+  const env = viteEnv(server.config)
+  const platform = createTracker()
+  server.middlewares.use((req, res, next) => {
+    if (req.method !== "POST" && req.url !== "/health") return next()
+    if (req.url === "/health") return void res.writeHead(200, { "content-type": "text/plain" }).end("ok")
+    void (async () => {
+      const ssr = server.environments.ssr
+      if (!isRunnableDevEnvironment(ssr)) throw new Error("The ssr environment is not runnable in this process")
+      const app = appOf<LoadedApp>(await ssr.runner.import(appFile), appFile)
+      const request = await toRequest(req)
+      await send(res, request ? await app.fetch(request, env, platform) : new Response("Payload Too Large", { status: 413 }))
+    })().catch((error: unknown) => {
+      server.ssrFixStacktrace(error as Error)
+      server.config.logger.error(`\x1b[36m[composure]\x1b[0m ${(error as Error).stack ?? String(error)}`)
+      if (!res.headersSent) res.writeHead(500).end("Internal Server Error")
+    })
+  })
 }
