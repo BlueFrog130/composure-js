@@ -115,13 +115,28 @@ async function farEnd(statuses: number[], events: string[]): Promise<(port: numb
   return async () => ({ url: `http://bot.test:${port}`, address: "127.0.0.1", close: async () => {} })
 }
 
-const until = async (check: () => boolean, ms = 5000) => {
-  for (const start = Date.now(); !check();) {
+const until = async (check: () => boolean | Promise<boolean>, ms = 5000) => {
+  for (const start = Date.now(); !(await check());) {
     if (Date.now() - start > ms) throw new Error("timed out")
     await new Promise((r) => setTimeout(r, 25))
   }
 }
 const settle = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Writes the App's source, and saves it again each second until `check` holds: on Windows the
+ * watcher can miss a write made right after it is ready.
+ */
+const edit = async (source: string, check: () => boolean | Promise<boolean>, ms = 8000) => {
+  let saved = 0
+  await until(async () => {
+    if (Date.now() - saved > 1000) {
+      writeFileSync(`${dir}src/app.tsx`, source)
+      saved = Date.now()
+    }
+    return check()
+  }, ms)
+}
 
 afterEach(async () => {
   await server?.close()
@@ -286,9 +301,97 @@ describe("vite dev", { timeout: 30_000 }, () => {
     })
     expect(logs.join("\n")).toContain(`dev Sync to guild ${GUILD}: 1 to create, 0 to update, 0 to delete`)
 
-    writeFileSync(`${dir}src/app.tsx`, appSource("v1", `.command(command({ name: "bye", description: "Bye", handler: () => "bye" }))`))
-    await until(() => calls.filter((c) => c.method === "PUT").length === 2, 8000)
-    expect((calls.filter((c) => c.method === "PUT")[1]!.body as { name: string }[]).map((c) => c.name)).toEqual(["hello", "bye"])
+    await edit(appSource("v1", `.command(command({ name: "bye", description: "Bye", handler: () => "bye" }))`), () => calls.filter((c) => c.method === "PUT").length === 2)
+    await settle(1500)
+    const puts = calls.filter((c) => c.method === "PUT")
+    expect(puts).toHaveLength(2)
+    expect((puts[1]!.body as { name: string }[]).map((c) => c.name)).toEqual(["hello", "bye"])
+  })
+
+  test("dev Sync: an edit that leaves the Definitions unchanged sends nothing", async () => {
+    const { calls, transport } = discord()
+    project({ DISCORD_TOKEN: "t" })
+    const logs: string[] = []
+    const port = await start({ guild: GUILD, tunnel: false, transport }, logs)
+    const bye = `.command(command({ name: "bye", description: "Bye", handler: () => "bye" }))`
+    // A synced change first: the watcher is known to be live before the edit under test.
+    await edit(appSource("v1", bye), () => calls.filter((c) => c.method === "PUT").length === 2)
+    await settle(1000)
+    const before = calls.length
+
+    // Only a handler's body changes: the served App changes, its Definitions do not.
+    await edit(appSource("v2", bye), async () => (await ask(port, (await ask(port, chatInput("hello"))).click("Go"))).text === "v2")
+    await settle(1500)
+    expect(calls.slice(before)).toEqual([])
+  })
+
+  test("dev Sync: without dev.guild, nothing is synced", async () => {
+    const { calls, transport } = discord()
+    project({ DISCORD_TOKEN: "t" })
+    const logs: string[] = []
+    const port = await start({ tunnel: false, transport }, logs)
+    await edit(appSource("v1", `.command(command({ name: "bye", description: "Bye", handler: () => "bye" }))`), async () => (await ask(port, chatInput("bye"))).text === "bye")
+    await settle(1500)
+    expect(calls).toEqual([])
+    expect(logs.join("\n")).not.toContain("dev Sync")
+  })
+
+  test("dev Sync: a failing Sync is logged, vite dev keeps serving, and the next change syncs again", async () => {
+    let failing = true
+    const { calls, transport } = discord([], (request) =>
+      failing && request.method === "PUT" ? Response.json({ code: 50035, message: "Invalid Form Body" }, { status: 400 }) : undefined,
+    )
+    project({ DISCORD_TOKEN: "t" })
+    const logs: string[] = []
+    const port = await start({ guild: GUILD, tunnel: false, transport }, logs)
+    await until(() => logs.some((l) => l.includes("dev Sync failed")))
+    expect(logs.join("\n")).toMatch(/dev Sync failed: .*Invalid Form Body/)
+    expect((await ask(port, chatInput("hello"))).status).toBe(200)
+
+    failing = false
+    await edit(appSource("v1", `.command(command({ name: "bye", description: "Bye", handler: () => "bye" }))`), () => logs.some((l) => l.includes(`dev Sync to guild ${GUILD}`)))
+    expect((calls.filter((c) => c.method === "PUT").at(-1)!.body as { name: string }[]).map((c) => c.name)).toEqual(["hello", "bye"])
+  })
+
+  test("dev Sync: a broken App is logged, and vite dev keeps running", async () => {
+    const { calls, transport } = discord()
+    project({ DISCORD_TOKEN: "t" }, `export const app = (() => { throw new Error("bad Definition") })()`)
+    const logs: string[] = []
+    const port = await start({ guild: GUILD, tunnel: false, transport }, logs)
+    await until(() => logs.some((l) => l.includes("dev Sync failed")))
+    expect(logs.join("\n")).toContain("dev Sync failed: bad Definition")
+    expect(calls.filter((c) => c.method === "PUT")).toEqual([])
+
+    await edit(appSource("v1"), () => calls.some((c) => c.method === "PUT"))
+    expect((await ask(port, chatInput("hello"))).status).toBe(200)
+  })
+
+  test("dev Sync: runs while the Tunnel is still connecting", async () => {
+    const { calls, transport } = discord()
+    project({ DISCORD_TOKEN: "t" })
+    const logs: string[] = []
+    let connect!: (tunnel: Tunnel) => void
+    let opening = false
+    await start(
+      {
+        application: APP_ID,
+        guild: GUILD,
+        transport,
+        tunnel: () => {
+          opening = true
+          return new Promise((resolve) => {
+            connect = resolve
+          })
+        },
+      },
+      logs,
+    )
+    await until(() => calls.some((c) => c.method === "PUT"))
+    expect(opening).toBe(true)
+    expect(logs.join("\n")).not.toContain("tunnel connected")
+
+    connect(await local()((server!.httpServer!.address() as AddressInfo).port))
+    await until(() => logs.some((l) => l.includes("Dev Application")))
   })
 })
 

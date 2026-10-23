@@ -2,13 +2,11 @@
 // at it (Endpoint), and syncs Commands to the dev guild on start and whenever the code changes.
 // Serving the App is another plugin's: `server()`, or `@cloudflare/vite-plugin`.
 import type { AddressInfo } from "node:net"
-import type { ScopedDefinition, Transport } from "composurejs"
-import { BotClient, getCurrentApplication } from "composurejs/rest"
-import { apply, plan, summary } from "composurejs/sync"
-import { type Plugin, runnerImport, type ViteDevServer } from "vite"
+import type { Transport } from "composurejs"
+import type { Plugin, ViteDevServer } from "vite"
+import { startDevSync } from "./dev-sync.ts"
 import { pointEndpoint } from "./endpoint.ts"
-import { type Secrets, secretsOf, viteEnv } from "./env.ts"
-import { appOf } from "./server.ts"
+import { secretsOf, viteEnv } from "./env.ts"
 import { describeFailure, elapsed, withinLimit } from "./stage.ts"
 import { openTunnel, type Tunnel, type TunnelOption } from "./tunnel.ts"
 
@@ -45,7 +43,7 @@ export function setupDevLoop(server: ViteDevServer, dev: DevOptions, appFile: st
   const warn = (msg: string) => logger.warn(`${TAG} ${msg}`, { timestamp: true })
   const secrets = secretsOf(viteEnv(server.config))
 
-  if (dev.guild) devSync(server, { guild: dev.guild, secrets, transport: dev.transport, appFile, hoist, info, warn })
+  if (dev.guild) startDevSync(server, { guild: dev.guild, token: secrets.token, transport: dev.transport, appFile, plugin: hoist, info, warn })
 
   const option = dev.tunnel ?? "quick"
   if (option === false) return
@@ -72,50 +70,4 @@ export function setupDevLoop(server: ViteDevServer, dev: DevOptions, appFile: st
     closed = true
     void tunnel?.close()
   })
-}
-
-interface DevSyncOptions {
-  guild: string
-  secrets: Secrets
-  transport: Transport | undefined
-  appFile: string
-  hoist: () => Plugin
-  info(message: string): void
-  warn(message: string): void
-}
-
-/** dev Sync (ADR 0017): definitions read through Vite like the build, compared with what was last synced. */
-function devSync(server: ViteDevServer, options: DevSyncOptions): void {
-  const { guild, secrets, appFile, hoist, info, warn } = options
-  const rest = options.transport ? { transport: options.transport } : {}
-  let applicationId: string | undefined
-  let last = ""
-  let running: Promise<void> = Promise.resolve()
-  const syncNow = () =>
-    (running = running.then(async () => {
-      const token = secrets.token
-      if (!token) return warn("dev Sync needs DISCORD_TOKEN (in .env.local).")
-      try {
-        // The token's application: runs are serialized, so this is fetched once.
-        applicationId ??= (await getCurrentApplication(new BotClient(token, rest))).id
-        const config = { token, applicationId, scopes: {}, guild }
-        const { module } = await runnerImport<Record<string, unknown>>(appFile, { root: server.config.root, plugins: [hoist()], logLevel: "error" })
-        const definitions = appOf<{ fetch: unknown; definitions(): ScopedDefinition[] }>(module, appFile).definitions()
-        const key = JSON.stringify(definitions)
-        if (key === last) return
-        const planned = await plan(definitions, config, rest)
-        await apply(planned, config, rest)
-        last = key
-        info(`dev Sync to guild ${guild}: ${summary(planned)}`)
-      } catch (error) {
-        warn(`dev Sync failed: ${(error as Error).message}`)
-      }
-    }))
-  let timer: ReturnType<typeof setTimeout> | undefined
-  server.watcher.on("change", (file) => {
-    if (!/\.[cm]?[jt]sx?$/.test(file) || file.includes("node_modules")) return
-    clearTimeout(timer)
-    timer = setTimeout(syncNow, 300)
-  })
-  void syncNow()
 }
