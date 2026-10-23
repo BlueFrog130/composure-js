@@ -1,17 +1,17 @@
-import { execFileSync } from "node:child_process"
-import { mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { dirname, join, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import { Linter, RuleTester } from "eslint"
-import { afterAll, describe, expect, it, test } from "vitest"
-import plugin from "../src/index.ts"
+import { execFileSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Linter, RuleTester } from "eslint";
+import { afterAll, describe, expect, it, test } from "vitest";
+import plugin from "../src/index.ts";
 
-RuleTester.describe = describe
-RuleTester.it = it
-RuleTester.itOnly = it.only
+RuleTester.describe = describe;
+RuleTester.it = it;
+RuleTester.itOnly = it.only;
 
-const IMPORT = 'import { Button, Container, Row, Section, Text } from "composurejs"\n'
-const tester = new RuleTester({ languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } } })
+const IMPORT = 'import { Button, Container, Row, Section, Text } from "composurejs"\n';
+const tester = new RuleTester({ languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } } });
 
 // The cases checkPlacement covers are tested in @composurejs/vite; these test the rule around it.
 tester.run("placement", plugin.rules.placement, {
@@ -33,34 +33,34 @@ tester.run("placement", plugin.rules.placement, {
       ],
     },
   ],
-})
+});
 
 test("the recommended config turns the rule on as an error", () => {
-  const linter = new Linter()
+  const linter = new Linter();
   const messages = linter.verify(IMPORT + "const v = <Row><Text>a</Text></Row>", [
     { languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } } },
     plugin.configs.recommended,
-  ])
-  expect(messages).toMatchObject([{ ruleId: "@composurejs/placement", severity: 2, message: "<Text> cannot go inside <Row>" }])
-})
+  ]);
+  expect(messages).toMatchObject([{ ruleId: "@composurejs/placement", severity: 2, message: "<Text> cannot go inside <Row>" }]);
+});
 
 describe("oxlint", () => {
-  const here = dirname(fileURLToPath(import.meta.url))
-  const dir = join(here, ".tmp")
-  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+  const here = dirname(fileURLToPath(import.meta.url));
+  const dir = join(here, ".tmp");
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   test("loads the plugin as a JS plugin and reports in TSX", () => {
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, ".oxlintrc.json"), JSON.stringify({ jsPlugins: [resolve(here, "../src/index.ts").replace(/\\/g, "/")], rules: { "@composurejs/placement": "error" } }))
-    writeFileSync(join(dir, "view.tsx"), `${IMPORT}export const v = (n: number) => <Row>{(<Text>{n}</Text>) as any}</Row>\n`)
-    const bin = resolve(here, "../node_modules/oxlint/bin/oxlint")
-    let output = ""
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, ".oxlintrc.json"), JSON.stringify({ jsPlugins: [resolve(here, "../src/index.ts").replace(/\\/g, "/")], rules: { "@composurejs/placement": "error" } }));
+    writeFileSync(join(dir, "view.tsx"), `${IMPORT}export const v = (n: number) => <Row>{(<Text>{n}</Text>) as any}</Row>\n`);
+    const bin = resolve(here, "../node_modules/oxlint/bin/oxlint");
+    let output = "";
     try {
-      execFileSync(process.execPath, [bin, "--format", "unix", "view.tsx"], { cwd: dir, encoding: "utf8" })
+      execFileSync(process.execPath, [bin, "--format", "unix", "view.tsx"], { cwd: dir, encoding: "utf8" });
     } catch (error) {
-      output = (error as { stdout: string }).stdout
+      output = (error as { stdout: string }).stdout;
     }
-    expect(output).toContain("view.tsx:2:")
-    expect(output).toContain("<Text> cannot go inside <Row>")
-  })
-})
+    expect(output).toContain("view.tsx:2:");
+    expect(output).toContain("<Text> cannot go inside <Row>");
+  });
+});

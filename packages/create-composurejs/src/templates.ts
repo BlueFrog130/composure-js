@@ -2,33 +2,33 @@
 // differ only where the platform does. CI generates each and runs its typecheck, tests and build
 // (scripts/check-templates.mjs).
 
-export type Template = "cloudflare" | "node" | "bun"
+export type Template = "cloudflare" | "node" | "bun";
 
 export const TEMPLATES: Record<Template, { label: string; hint: string }> = {
   cloudflare: { label: "Cloudflare Workers", hint: "vite dev on workerd, wrangler deploy" },
   node: { label: "Node", hint: "one self-contained dist/index.js" },
   bun: { label: "Bun", hint: "one self-contained dist/index.js for bun" },
-}
+};
 
 /** Versions the generated package.json depends on. */
 export interface Versions {
-  composurejs: string
-  vite: string
-  cli: string
-  vitePlugin: string
+  composurejs: string;
+  vite: string;
+  cli: string;
+  vitePlugin: string;
 }
 
 /** The Dev Loop's ids, written literally into `vite.config.ts`'s `dev` (ADR 0031). */
 export interface DevIds {
   /** The Dev Application's id. */
-  application?: string
+  application?: string;
   /** dev Sync's guild id. */
-  guild?: string
+  guild?: string;
 }
 
-export type Files = Record<string, string>
+export type Files = Record<string, string>;
 
-const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
+const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
 /** Every file of a new bot named `name` for `template`. */
 export function generate(template: Template, name: string, versions: Versions, dev: DevIds = {}): Files {
@@ -67,8 +67,8 @@ export default defineConfig({ plugins: [composure()] })
     ".env.example": ENV_EXAMPLE,
     "README.md": readme(template, name),
     ...entry(template, name),
-  }
-  return files
+  };
+  return files;
 }
 
 function packageJson(template: Template, name: string, v: Versions) {
@@ -78,10 +78,10 @@ function packageJson(template: Template, name: string, v: Versions) {
     test: "vitest run",
     typecheck: "tsc",
     sync: "composure sync",
-  }
+  };
   // start reads production's secrets only: bun would otherwise load .env.local too.
-  if (template === "cloudflare") scripts.deploy = "vite build && wrangler deploy"
-  else scripts.start = template === "node" ? "node --env-file-if-exists=.env.production.local dist/index.js" : "bun --env-file=.env.production.local dist/index.js"
+  if (template === "cloudflare") scripts.deploy = "vite build && wrangler deploy";
+  else scripts.start = template === "node" ? "node --env-file-if-exists=.env.production.local dist/index.js" : "bun --env-file=.env.production.local dist/index.js";
 
   const devDependencies: Record<string, string> = {
     "@composurejs/cli": v.cli,
@@ -89,19 +89,19 @@ function packageJson(template: Template, name: string, v: Versions) {
     typescript: "^7.0.2",
     vite: v.vite,
     vitest: "^5.0.5",
-  }
-  if (template === "cloudflare") Object.assign(devDependencies, { "@cloudflare/vite-plugin": "^1.64.0", wrangler: "^4.151.3" })
-  else devDependencies["@types/node"] = "^26.6.5"
-  const dependencies: Record<string, string> = { composurejs: v.composurejs }
-  return { name, private: true, type: "module", scripts, dependencies, devDependencies }
+  };
+  if (template === "cloudflare") Object.assign(devDependencies, { "@cloudflare/vite-plugin": "^1.64.0", wrangler: "^4.151.3" });
+  else devDependencies["@types/node"] = "^26.6.5";
+  const dependencies: Record<string, string> = { composurejs: v.composurejs };
+  return { name, private: true, type: "module", scripts, dependencies, devDependencies };
 }
 
 const DEV_COMMENT = `  // dev: the Dev Loop in \`vite dev\`. application: your Dev Application's id, whose Interactions
-  // Endpoint URL is pointed at the tunnel. guild: the test server Commands sync to on every change.`
+  // Endpoint URL is pointed at the tunnel. guild: the test server Commands sync to on every change.`;
 
 function composureCall(dev: DevIds): string {
-  const fields = (["application", "guild"] as const).filter((key) => dev[key]).map((key) => `${key}: ${JSON.stringify(dev[key])}`)
-  return `composure({ dev: ${fields.length > 0 ? `{ ${fields.join(", ")} }` : "{}"} })`
+  const fields = (["application", "guild"] as const).filter((key) => dev[key]).map((key) => `${key}: ${JSON.stringify(dev[key])}`);
+  return `composure({ dev: ${fields.length > 0 ? `{ ${fields.join(", ")} }` : "{}"} })`;
 }
 
 function viteConfig(template: Template, dev: DevIds): string {
@@ -117,7 +117,7 @@ ${DEV_COMMENT}
   // Bundle size is cold-start time on Workers.
   build: { minify: true },
 })
-`
+`;
   }
   return `// vite dev: the bot with the Dev Loop (tunnel, dev Sync). vite build: one self-contained dist/index.js
 // serving src/app.tsx. For a server of your own, write it and pass server({ entry: "src/server.ts" }).
@@ -128,12 +128,12 @@ export default defineConfig({
 ${DEV_COMMENT}
   plugins: [${composureCall(dev)}, server()],
 })
-`
+`;
 }
 
 function entry(template: Template, name: string): Files {
   // node and bun: the plugin builds the Default Server around src/app.tsx.
-  if (template !== "cloudflare") return {}
+  if (template !== "cloudflare") return {};
   return {
     "src/worker.ts": `// Workers calls fetch(request, env, ctx): the App fits as is.
 import { app } from "./app.tsx"
@@ -147,7 +147,7 @@ export default app
       compatibility_date: "2026-10-01",
       observability: { enabled: true },
     }),
-  }
+  };
 }
 
 const APP = `import { App, command, option } from "composurejs"
@@ -167,7 +167,7 @@ export const greet = command({
 })
 
 export const app = new App().command(ping).command(greet).command(counter)
-`
+`;
 
 const COUNTER = `// Write the click where the button is: returned markup updates the message, and what the
 // handler reads (count, owner) travels in the button's custom_id.
@@ -190,7 +190,7 @@ export const counter = command({
   description: "A counter only you can press",
   handler: (c) => <Counter count={0} owner={c.user.id} />,
 })
-`
+`;
 
 const TEST = `import { expect, test } from "vitest"
 import { answer, chatInput } from "composurejs/testing"
@@ -215,7 +215,7 @@ test("/counter updates in place for its owner", async () => {
   const stranger = await answer(app, second.click("+1").by({ id: "2" }))
   expect([stranger.text, stranger.isEphemeral]).toEqual(["Not your counter", true])
 })
-`
+`;
 
 // Vite (and, for Workers, @cloudflare/vite-plugin) loads .env.local in `vite dev`; `composure sync`
 // reads .env.production.local over it (ADR 0031).
@@ -228,10 +228,10 @@ DISCORD_TOKEN=
 # Optional, .env.local only: a named Cloudflare Tunnel's token, for dev: { tunnel: { name, hostname } }
 # in vite.config.ts. Without it \`pnpm dev\` opens a quick tunnel.
 # CLOUDFLARE_TUNNEL_TOKEN=
-`
+`;
 
 function readme(template: Template, name: string): string {
-  const run = template === "cloudflare" ? "pnpm build && pnpm wrangler secret put DISCORD_PUBLIC_KEY && pnpm deploy" : "pnpm build && pnpm start   # reads .env.production.local"
+  const run = template === "cloudflare" ? "pnpm build && pnpm wrangler secret put DISCORD_PUBLIC_KEY && pnpm deploy" : "pnpm build && pnpm start   # reads .env.production.local";
   return `# ${name}
 
 A Discord bot built with [composurejs](https://github.com/BlueFrog130/composure-js) on ${TEMPLATES[template].label}.
@@ -261,5 +261,5 @@ pnpm sync   # make Discord's global Commands match the code (asks before applyin
 \`\`\`
 
 \`pnpm build\` writes \`composure.handlers.json\`, the handler ids your buttons use: commit it. A build in CI fails when a change would make buttons already sent answer "This message is outdated.".
-`
+`;
 }

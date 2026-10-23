@@ -1,6 +1,6 @@
-import { defaultServerConditions } from "vite"
-import { defineProject } from "vitest/config"
-import composure from "../../packages/vite/src/index.ts"
+import { defaultServerConditions } from "vite";
+import { defineProject } from "vitest/config";
+import composure from "../../packages/vite/src/index.ts";
 
 export default defineProject({
   plugins: [composure()],
@@ -8,4 +8,4 @@ export default defineProject({
   test: {
     name: "bot",
   },
-})
+});

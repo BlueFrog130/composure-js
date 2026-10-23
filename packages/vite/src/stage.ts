@@ -3,12 +3,12 @@
 
 /** A Dev Loop stage that failed. Logged as `<stage> failed: <message>`. */
 export class StageError extends Error {
-  override name = "StageError"
+  override name = "StageError";
   constructor(
     readonly stage: string,
     message: string,
   ) {
-    super(message)
+    super(message);
   }
 }
 
@@ -24,36 +24,36 @@ export async function withinLimit<T>(
   run: (observe: (what: string) => void, signal: AbortSignal) => Promise<T>,
   late?: (value: T) => void,
 ): Promise<T> {
-  const controller = new AbortController()
-  let last: string | undefined
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let timedOut = false
+  const controller = new AbortController();
+  let last: string | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      timedOut = true
-      controller.abort()
-      reject(new StageError(stage, `no ${waitingFor} within ${ms / 1000}s${last ? ` (last: ${last})` : ""}`))
-    }, ms)
-  })
-  const work = run((what) => void (last = what), controller.signal)
+      timedOut = true;
+      controller.abort();
+      reject(new StageError(stage, `no ${waitingFor} within ${ms / 1000}s${last ? ` (last: ${last})` : ""}`));
+    }, ms);
+  });
+  const work = run((what) => void (last = what), controller.signal);
   work.then(
     (value) => {
-      if (timedOut) late?.(value)
+      if (timedOut) late?.(value);
     },
     () => {},
-  )
+  );
   try {
-    return await Promise.race([work, timeout])
+    return await Promise.race([work, timeout]);
   } catch (error) {
-    throw error instanceof StageError ? error : new StageError(stage, (error as Error).message)
+    throw error instanceof StageError ? error : new StageError(stage, (error as Error).message);
   } finally {
-    clearTimeout(timer)
+    clearTimeout(timer);
   }
 }
 
 /** Seconds since `since`, as `8.1s`. */
-export const elapsed = (since: number) => `${((Date.now() - since) / 1000).toFixed(1)}s`
+export const elapsed = (since: number) => `${((Date.now() - since) / 1000).toFixed(1)}s`;
 
 /** How a Dev Loop failure is logged. */
 export const describeFailure = (error: unknown) =>
-  error instanceof StageError ? `${error.stage} failed: ${error.message}` : `Dev Loop failed: ${(error as Error).message ?? String(error)}`
+  error instanceof StageError ? `${error.stage} failed: ${error.message}` : `Dev Loop failed: ${(error as Error).message ?? String(error)}`;

@@ -12,9 +12,9 @@ import type {
   APIModalSubmitInteraction,
   APIPingInteraction,
   APIUser,
-} from "discord-api-types/v10"
+} from "discord-api-types/v10";
 
-export type { APIInteractionResponse as InteractionResponse, APIInteractionGuildMember as Member, APIUser as User, APIEntitlement as Entitlement }
+export type { APIInteractionResponse as InteractionResponse, APIInteractionGuildMember as Member, APIUser as User, APIEntitlement as Entitlement };
 
 /** Any Interaction, including kinds this version does not know (passed through raw). */
 export type Interaction =
@@ -22,10 +22,10 @@ export type Interaction =
   | APIApplicationCommandInteraction
   | APIMessageComponentInteraction
   | APIApplicationCommandAutocompleteInteraction
-  | APIModalSubmitInteraction
+  | APIModalSubmitInteraction;
 
-export type ChatInputInteraction = APIChatInputApplicationCommandInteraction
-export type KnownInteraction = APIInteraction
+export type ChatInputInteraction = APIChatInputApplicationCommandInteraction;
+export type KnownInteraction = APIInteraction;
 
 export const InteractionType = {
   Ping: 1,
@@ -33,13 +33,13 @@ export const InteractionType = {
   MessageComponent: 3,
   ApplicationCommandAutocomplete: 4,
   ModalSubmit: 5,
-} as const
+} as const;
 
 export const CommandType = {
   ChatInput: 1,
   User: 2,
   Message: 3,
-} as const
+} as const;
 
 export const ResponseType = {
   Pong: 1,
@@ -49,10 +49,10 @@ export const ResponseType = {
   UpdateMessage: 7,
   ApplicationCommandAutocompleteResult: 8,
   Modal: 9,
-} as const
+} as const;
 
 export const MessageFlags = {
   Ephemeral: 1 << 6,
   SuppressNotifications: 1 << 12,
   IsComponentsV2: 1 << 15,
-} as const
+} as const;

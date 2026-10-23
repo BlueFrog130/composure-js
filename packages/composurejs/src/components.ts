@@ -1,22 +1,22 @@
 // Built-in tags (ADR 0004). Each props interface is the tag's reference: document every attribute.
 // Placement and Discord's limits are checked by render, not by types.
-import type { JSX } from "./jsx-runtime.ts"
-import { type Child, createNode } from "./jsx/node.ts"
-import type { ClickHandler, HandlerRef, SelectHandler, SubmitHandler } from "./handlers.ts"
-import type { Form } from "./forms.ts"
-import type { Choices } from "./options.ts"
+import type { JSX } from "./jsx-runtime.ts";
+import { type Child, createNode } from "./jsx/node.ts";
+import type { ClickHandler, HandlerRef, SelectHandler, SubmitHandler } from "./handlers.ts";
+import type { Form } from "./forms.ts";
+import type { Choices } from "./options.ts";
 
-const UPLOAD = Symbol.for("composurejs.upload")
+const UPLOAD = Symbol.for("composurejs.upload");
 
 /** A file sent with the message, created with {@link upload}. */
 export interface Upload {
-  readonly [UPLOAD]: true
+  readonly [UPLOAD]: true;
   /** The attachment's filename; `attachment://<name>` refers to it. */
-  readonly name: string
-  readonly data: Blob | ArrayBuffer | Uint8Array | string
-  readonly contentType: string | undefined
+  readonly name: string;
+  readonly data: Blob | ArrayBuffer | Uint8Array | string;
+  readonly contentType: string | undefined;
   /** Alt text. */
-  readonly description: string | undefined
+  readonly description: string | undefined;
 }
 
 /**
@@ -24,403 +24,403 @@ export interface Upload {
  * attach it and point at `attachment://<name>` themselves. Names may use letters, digits, `_`, `-`, `.`.
  */
 export function upload(name: string, data: Upload["data"], options: { contentType?: string; description?: string } = {}): Upload {
-  return { [UPLOAD]: true, name, data, contentType: options.contentType, description: options.description }
+  return { [UPLOAD]: true, name, data, contentType: options.contentType, description: options.description };
 }
 
 export function isUpload(value: unknown): value is Upload {
-  return typeof value === "object" && value !== null && UPLOAD in value
+  return typeof value === "object" && value !== null && UPLOAD in value;
 }
 
 /** `"👍"`, a custom emoji as `"<:name:id>"` / `"<a:name:id>"`, or its parts. */
-export type Emoji = string | { id?: string; name?: string; animated?: boolean }
+export type Emoji = string | { id?: string; name?: string; animated?: boolean };
 
 interface Base {
   /** Optional numeric identifier, unique within the message; Discord assigns one if unset. */
-  id?: number
+  id?: number;
 }
 
 // ---- Message root --------------------------------------------------------------------------
 
 export interface AllowedMentions {
   /** Kinds of mention parsed from the text. Default `[]`: only `users` and `roles` listed here ping. Without `allowedMentions`, Discord parses all. */
-  parse?: ("users" | "roles" | "everyone")[]
+  parse?: ("users" | "roles" | "everyone")[];
   /** Users that may be pinged (max 100); not with `parse: ["users"]`. */
-  users?: string[]
+  users?: string[];
   /** Roles that may be pinged (max 100); not with `parse: ["roles"]`. */
-  roles?: string[]
+  roles?: string[];
   /** Ping the author of the replied-to message. */
-  repliedUser?: boolean
+  repliedUser?: boolean;
 }
 
 export interface MessageProps {
   /** Only the invoking user sees it. Decided on the first answer; edits cannot change it. */
-  ephemeral?: boolean
+  ephemeral?: boolean;
   /** Who the message may ping; `{ parse: [] }` pings nobody. */
-  allowedMentions?: AllowedMentions
+  allowedMentions?: AllowedMentions;
   /** Sends without a push or desktop notification. */
-  suppressNotifications?: boolean
-  children?: Child
+  suppressNotifications?: boolean;
+  children?: Child;
 }
 
 /** The whole message, when it needs message-level settings. Only at the root of a View. */
 export function Message(props: MessageProps): JSX.Element {
-  return createNode("Message", { ...props })
+  return createNode("Message", { ...props });
 }
 
 // ---- Layout --------------------------------------------------------------------------------
 
 export interface ContainerProps extends Base {
   /** Left border color, as `0xRRGGBB`. */
-  accentColor?: number
+  accentColor?: number;
   /** Blur the whole container until clicked. */
-  spoiler?: boolean
+  spoiler?: boolean;
   /** Anything a message holds except another `<Container>`. */
-  children?: Child
+  children?: Child;
 }
 
 /** A Container: groups components behind a colored border, like an embed. Cannot nest. */
 export function Container(props: ContainerProps): JSX.Element {
-  return createNode("Container", { ...props })
+  return createNode("Container", { ...props });
 }
 
 export interface SectionProps extends Base {
   /** Required. A `<Button>` or `<Thumbnail>` shown beside the text. */
-  accessory: JSX.Element
+  accessory: JSX.Element;
   /** 1-3 blocks of text: `<Text>` or bare text. */
-  children?: Child
+  children?: Child;
 }
 
 /** Text with an accessory (button or thumbnail) beside it. */
 export function Section(props: SectionProps): JSX.Element {
-  return createNode("Section", { ...props })
+  return createNode("Section", { ...props });
 }
 
 export interface TextProps extends Base {
   /** The markdown, instead of children. */
-  content?: string
+  content?: string;
   /**
    * Markdown text; adjacent strings and `{expr}` join into one Text Display. JSX drops
    * newlines and indentation, so use one `<Text>` per markdown block, `<br />` for a line
    * break, or `` {md`..`} `` for raw multi-line markdown.
    */
-  children?: Child
+  children?: Child;
 }
 
 /** A Text Display: one block of markdown. */
 export function Text(props: TextProps): JSX.Element {
-  return createNode("Text", { ...props })
+  return createNode("Text", { ...props });
 }
 
 export interface SeparatorProps extends Base {
   /** Draw a line; `false` leaves only space. Default true. */
-  divider?: boolean
+  divider?: boolean;
   /** Default `"small"`. */
-  spacing?: "small" | "large"
+  spacing?: "small" | "large";
 }
 
 /** Vertical space, with or without a line. */
 export function Separator(props: SeparatorProps): JSX.Element {
-  return createNode("Separator", { ...props })
+  return createNode("Separator", { ...props });
 }
 
 export interface RowProps extends Base {
   /** Up to 5 `<Button>`s, or one select. */
-  children?: Child
+  children?: Child;
 }
 
 /** An Action Row: a line of buttons, or one select. */
 export function Row(props: RowProps): JSX.Element {
-  return createNode("Row", { ...props })
+  return createNode("Row", { ...props });
 }
 
 // ---- Media ---------------------------------------------------------------------------------
 
 /** An image or file: a URL, `attachment://<name>`, or an {@link Upload} sent with the message. */
-export type Media = string | Upload
+export type Media = string | Upload;
 
 export interface ThumbnailProps extends Base {
   /** Required. The image. */
-  src: Media
+  src: Media;
   /** Alt text; max 1024 characters. */
-  description?: string
-  spoiler?: boolean
+  description?: string;
+  spoiler?: boolean;
 }
 
 /** A small image, as a `<Section>` accessory. */
 export function Thumbnail(props: ThumbnailProps): JSX.Element {
-  return createNode("Thumbnail", { ...props })
+  return createNode("Thumbnail", { ...props });
 }
 
 export interface GalleryProps extends Base {
   /** 1-10 `<Item>`s. */
-  children?: Child
+  children?: Child;
 }
 
 /** A Media Gallery: a grid of images and videos. */
 export function Gallery(props: GalleryProps): JSX.Element {
-  return createNode("Gallery", { ...props })
+  return createNode("Gallery", { ...props });
 }
 
 export interface ItemProps {
   /** Required. The image or video. */
-  src: Media
+  src: Media;
   /** Alt text; max 1024 characters. */
-  description?: string
-  spoiler?: boolean
+  description?: string;
+  spoiler?: boolean;
 }
 
 /** One image or video in a `<Gallery>`. */
 export function Item(props: ItemProps): JSX.Element {
-  return createNode("Item", { ...props })
+  return createNode("Item", { ...props });
 }
 
 export interface FileProps extends Base {
   /** Required. An {@link Upload}, or `attachment://<name>` of a file attached otherwise. */
-  src: Upload | `attachment://${string}`
-  spoiler?: boolean
+  src: Upload | `attachment://${string}`;
+  spoiler?: boolean;
 }
 
 /** A file attached to the message, shown as a download. */
 export function File(props: FileProps): JSX.Element {
-  return createNode("File", { ...props })
+  return createNode("File", { ...props });
 }
 
 // ---- Interactive ---------------------------------------------------------------------------
 
 export interface ButtonProps extends Base {
   /** Default `"secondary"` (grey). Link and premium buttons take their style from `url` / `skuId`. */
-  style?: "primary" | "secondary" | "success" | "danger"
+  style?: "primary" | "secondary" | "success" | "danger";
   /** Routes the click to whatever handles this `custom_id`; max 100 characters. */
-  customId?: string
+  customId?: string;
   /**
    * Answers the click: `onClick={(c) => <Counter count={count + 1} />}`. Returned markup updates the
    * clicked message; `c.reply(..)` / `c.ephemeral(..)` answer with a new one. Reads of the
    * component's props and locals travel in the `custom_id` (ADR 0015). Instead of `customId`.
    */
-  onClick?: ClickHandler | HandlerRef
+  onClick?: ClickHandler | HandlerRef;
   /** A link button opening this URL (max 512 characters); no `customId`. */
-  url?: string
+  url?: string;
   /** A premium button offering this SKU; no label, emoji or `customId`. */
-  skuId?: string
+  skuId?: string;
   /** The label, instead of children; max 80 characters. */
-  label?: string
+  label?: string;
   /** Shown before the label. */
-  emoji?: Emoji
-  disabled?: boolean
+  emoji?: Emoji;
+  disabled?: boolean;
   /** The label as text. */
-  children?: Child
+  children?: Child;
 }
 
 /** A Button, in a `<Row>` or as a `<Section>` accessory. */
 export function Button(props: ButtonProps): JSX.Element {
-  return createNode("Button", { ...props })
+  return createNode("Button", { ...props });
 }
 
 interface SelectBase<V extends string = string> extends Base {
   /** Routes the selection to whatever handles this `custom_id`; max 100 characters. */
-  customId?: string
+  customId?: string;
   /** Answers the selection in a message: `onSelect={(c, values) => ..}`. Instead of `customId`. */
-  onSelect?: SelectHandler<V> | HandlerRef
+  onSelect?: SelectHandler<V> | HandlerRef;
   /** In a modal: the key of this select's values in `onSubmit`. */
-  name?: string
+  name?: string;
   /** Shown while nothing is selected; max 150 characters. */
-  placeholder?: string
+  placeholder?: string;
   /** Fewest selections, 0-25. Default 1. */
-  minValues?: number
+  minValues?: number;
   /** Most selections, 1-25. Default 1. */
-  maxValues?: number
+  maxValues?: number;
   /** Messages only. */
-  disabled?: boolean
+  disabled?: boolean;
   /** Modals only. Default true. */
-  required?: boolean
+  required?: boolean;
 }
 
 export interface StringSelectProps<V extends string = string> extends SelectBase<V> {
   /** Options from shared Choices, before any `<Option>` children; they type `onSelect`'s values. */
-  options?: Choices<V>
+  options?: Choices<V>;
   /** `<Option>`s; 1-25 in all. */
-  children?: Child
+  children?: Child;
 }
 
 /** A select of fixed options. */
 export function StringSelect<V extends string = string>(props: StringSelectProps<V>): JSX.Element {
-  return createNode("StringSelect", { ...props })
+  return createNode("StringSelect", { ...props });
 }
 
 export interface OptionProps {
   /** Required. What is submitted when chosen; max 100 characters. */
-  value: string
+  value: string;
   /** The label, instead of children; max 100 characters. */
-  label?: string
+  label?: string;
   /** A second line under the label; max 100 characters. */
-  description?: string
+  description?: string;
   /** Selects only. */
-  emoji?: Emoji
+  emoji?: Emoji;
   /** Chosen initially. */
-  default?: boolean
-  children?: Child
+  default?: boolean;
+  children?: Child;
 }
 
 /** One option of a `<StringSelect>`, `<RadioGroup>` or `<CheckboxGroup>`. */
 export function Option(props: OptionProps): JSX.Element {
-  return createNode("Option", { ...props })
+  return createNode("Option", { ...props });
 }
 
 export interface EntitySelectProps extends SelectBase {
   /** Ids preselected. */
-  defaultValues?: string[]
+  defaultValues?: string[];
 }
 
 /** A select of the server's users. */
 export function UserSelect(props: EntitySelectProps): JSX.Element {
-  return createNode("UserSelect", { ...props })
+  return createNode("UserSelect", { ...props });
 }
 
 /** A select of the server's roles. */
 export function RoleSelect(props: EntitySelectProps): JSX.Element {
-  return createNode("RoleSelect", { ...props })
+  return createNode("RoleSelect", { ...props });
 }
 
 export interface MentionableSelectProps extends SelectBase {
   /** Preselected users and roles. */
-  defaultValues?: { id: string; type: "user" | "role" }[]
+  defaultValues?: { id: string; type: "user" | "role" }[];
 }
 
 /** A select of users and roles. */
 export function MentionableSelect(props: MentionableSelectProps): JSX.Element {
-  return createNode("MentionableSelect", { ...props })
+  return createNode("MentionableSelect", { ...props });
 }
 
 export interface ChannelSelectProps extends EntitySelectProps {
   /** The kinds of channel offered (`ChannelType` numbers). */
-  channelTypes?: number[]
+  channelTypes?: number[];
 }
 
 /** A select of the server's channels. */
 export function ChannelSelect(props: ChannelSelectProps): JSX.Element {
-  return createNode("ChannelSelect", { ...props })
+  return createNode("ChannelSelect", { ...props });
 }
 
 // ---- Modals --------------------------------------------------------------------------------
 
 export interface ModalProps<V = Record<string, any>, P = Partial<V>> {
   /** Required. Shown at the top; max 45 characters. */
-  title: string
+  title: string;
   /** Routes the submit to whatever handles this `custom_id`; max 100 characters. */
-  customId?: string
+  customId?: string;
   /** The modal's inputs as a {@link Form}: one `<Label>` per Field, after any `<Text>` children. Types `onSubmit`'s values. */
-  form?: Form<V, P>
+  form?: Form<V, P>;
   /** Prefills the Form's Fields. */
-  values?: P
+  values?: P;
   /** Answers the submit: `onSubmit={(c, v) => ..}`, values typed from `form`, or keyed by input `name` and annotated. Instead of `customId`. */
-  onSubmit?: SubmitHandler<V> | HandlerRef
+  onSubmit?: SubmitHandler<V> | HandlerRef;
   /** 1-5 `<Label>`s and `<Text>`s in all; with `form`, only `<Text>`s. */
-  children?: Child
+  children?: Child;
 }
 
 /** A modal form. Only at the root of a View; answering with it opens it. */
 export function Modal<V = Record<string, any>, P = Partial<V>>(props: ModalProps<V, P>): JSX.Element {
-  return createNode("Modal", { ...props })
+  return createNode("Modal", { ...props });
 }
 
 export interface LabelProps extends Base {
   /** Required. The field's title; max 45 characters. */
-  text: string
+  text: string;
   /** Under the title; max 100 characters. */
-  description?: string
+  description?: string;
   /** Exactly one input. */
-  children?: Child
+  children?: Child;
 }
 
 /** A titled field in a `<Modal>`, around exactly one input. */
 export function Label(props: LabelProps): JSX.Element {
-  return createNode("Label", { ...props })
+  return createNode("Label", { ...props });
 }
 
 export interface TextInputProps extends Base {
   /** Required. The key of this input's value in `onSubmit` (and its `custom_id`). */
-  name: string
+  name: string;
   /** Multi-line. Default single-line. */
-  paragraph?: boolean
+  paragraph?: boolean;
   /** 0-4000. */
-  minLength?: number
+  minLength?: number;
   /** 1-4000. */
-  maxLength?: number
+  maxLength?: number;
   /** Shown while empty; max 100 characters. */
-  placeholder?: string
+  placeholder?: string;
   /** Prefilled text; max 4000 characters. */
-  value?: string
+  value?: string;
   /** Default true. */
-  required?: boolean
+  required?: boolean;
 }
 
 /** A text field, in a `<Label>`. */
 export function TextInput(props: TextInputProps): JSX.Element {
-  return createNode("TextInput", { ...props })
+  return createNode("TextInput", { ...props });
 }
 
 export interface RadioGroupProps extends Base {
   /** Required. The key of this input's value in `onSubmit`. */
-  name: string
+  name: string;
   /** Options from shared Choices, before any `<Option>` children. */
-  options?: Choices<string>
+  options?: Choices<string>;
   /** Default true. */
-  required?: boolean
+  required?: boolean;
   /** `<Option>`s. */
-  children?: Child
+  children?: Child;
 }
 
 /** Pick one of several options, in a `<Label>`. */
 export function RadioGroup(props: RadioGroupProps): JSX.Element {
-  return createNode("RadioGroup", { ...props })
+  return createNode("RadioGroup", { ...props });
 }
 
 export interface CheckboxGroupProps extends Base {
   /** Required. The key of this input's value in `onSubmit`. */
-  name: string
-  options?: Choices<string>
+  name: string;
+  options?: Choices<string>;
   /** 0-10. */
-  minValues?: number
+  minValues?: number;
   /** 1-10. */
-  maxValues?: number
+  maxValues?: number;
   /** Default true. */
-  required?: boolean
-  children?: Child
+  required?: boolean;
+  children?: Child;
 }
 
 /** Pick any of several options, in a `<Label>`. */
 export function CheckboxGroup(props: CheckboxGroupProps): JSX.Element {
-  return createNode("CheckboxGroup", { ...props })
+  return createNode("CheckboxGroup", { ...props });
 }
 
 export interface CheckboxProps extends Base {
   /** Required. The key of this input's value in `onSubmit`. */
-  name: string
+  name: string;
   /** Checked initially. */
-  default?: boolean
+  default?: boolean;
 }
 
 /** One yes/no box, in a `<Label>`. Never required. */
 export function Checkbox(props: CheckboxProps): JSX.Element {
-  return createNode("Checkbox", { ...props })
+  return createNode("Checkbox", { ...props });
 }
 
 export interface FileUploadProps extends Base {
   /** Required. The key of this input's value in `onSubmit`. */
-  name: string
+  name: string;
   /** 0-10. */
-  minValues?: number
+  minValues?: number;
   /** 1-10. */
-  maxValues?: number
+  maxValues?: number;
   /** Up to 10 of `"image"`, `"video"`, `"audio"`, or extensions like `".pdf"`. */
-  fileTypes?: string[]
+  fileTypes?: string[];
   /** Default true. */
-  required?: boolean
+  required?: boolean;
 }
 
 /** Upload files, in a `<Label>`. */
 export function FileUpload(props: FileUploadProps): JSX.Element {
-  return createNode("FileUpload", { ...props })
+  return createNode("FileUpload", { ...props });
 }
 
 // ---- Text helpers --------------------------------------------------------------------------
@@ -431,16 +431,16 @@ export function FileUpload(props: FileUploadProps): JSX.Element {
  */
 export function md(strings: TemplateStringsArray, ...values: unknown[]): string {
   // Dedent the literal parts only, so interpolated values cannot change the indentation.
-  const HOLE = "\u0000"
-  const raw = strings.join(HOLE)
+  const HOLE = "\u0000";
+  const raw = strings.join(HOLE);
   const lines = raw
     .replace(/^[ \t]*\r?\n/, "")
     .replace(/\r?\n[ \t]*$/, "")
-    .split(/\r?\n/)
-  const indent = Math.min(...lines.filter((l) => l.trim() !== "").map((l) => l.match(/^[ \t]*/)![0].length))
-  let i = 0
+    .split(/\r?\n/);
+  const indent = Math.min(...lines.filter((l) => l.trim() !== "").map((l) => l.match(/^[ \t]*/)![0].length));
+  let i = 0;
   return lines
     .map((l) => l.slice(Number.isFinite(indent) ? indent : 0))
     .join("\n")
-    .replaceAll(HOLE, () => String(values[i++]))
+    .replaceAll(HOLE, () => String(values[i++]));
 }

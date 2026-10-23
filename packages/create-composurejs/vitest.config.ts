@@ -1,3 +1,3 @@
-import { defineProject } from "vitest/config"
+import { defineProject } from "vitest/config";
 
-export default defineProject({ test: { name: "create" } })
+export default defineProject({ test: { name: "create" } });

@@ -7,13 +7,13 @@ import type {
   APIModalSubmitInteraction,
   APIPingInteraction,
   APIUserApplicationCommandInteraction,
-} from "discord-api-types/v10"
-import type { ChatInputInteraction, Interaction, Member, User } from "../discord.ts"
-import { type Attachment, OptionType, type PartialChannel, type ResolvedMember, type Role } from "../options.ts"
+} from "discord-api-types/v10";
+import type { ChatInputInteraction, Interaction, Member, User } from "../discord.ts";
+import { type Attachment, OptionType, type PartialChannel, type ResolvedMember, type Role } from "../options.ts";
 
-export const TEST_APPLICATION_ID = "1052322265397739523"
-export const TEST_GUILD_ID = "798662131062931547"
-export const TEST_CHANNEL_ID = "300000000000000001"
+export const TEST_APPLICATION_ID = "1052322265397739523";
+export const TEST_GUILD_ID = "798662131062931547";
+export const TEST_CHANNEL_ID = "300000000000000001";
 
 export const testUser: User = {
   id: "100000000000000001",
@@ -21,77 +21,77 @@ export const testUser: User = {
   global_name: "Alice",
   discriminator: "0",
   avatar: null,
-}
+};
 
 /** A full user from a partial one; unset fields get neutral defaults, never another user's. */
 function toUser(user: WithId<User>): User {
-  return { username: `user${user.id}`, global_name: null, discriminator: "0", avatar: null, ...user }
+  return { username: `user${user.id}`, global_name: null, discriminator: "0", avatar: null, ...user };
 }
 
-let nextId = 900000000000000000n
-const snowflake = () => String(nextId++)
+let nextId = 900000000000000000n;
+const snowflake = () => String(nextId++);
 
 /** Something that builds an Interaction; `answer` accepts it directly. */
 export interface Buildable<I extends Interaction = Interaction> {
-  build(): I
+  build(): I;
 }
 
-type Data = Record<string, unknown>
-type WithId<T> = Partial<T> & { id: string }
+type Data = Record<string, unknown>;
+type WithId<T> = Partial<T> & { id: string };
 
-const JOINED_AT = "2024-01-01T00:00:00.000Z"
-const PERMISSIONS = "2248473465835073"
+const JOINED_AT = "2024-01-01T00:00:00.000Z";
+const PERMISSIONS = "2248473465835073";
 
 /** Who invokes the Interaction and where; shared by every builder. */
 abstract class InteractionBuilder<I extends Interaction> implements Buildable<I> {
-  #user: User = testUser
-  #guildId: string | undefined = TEST_GUILD_ID
-  #member: Partial<Member> = {}
-  #locale = "en-US"
-  #appPermissions = PERMISSIONS
+  #user: User = testUser;
+  #guildId: string | undefined = TEST_GUILD_ID;
+  #member: Partial<Member> = {};
+  #locale = "en-US";
+  #appPermissions = PERMISSIONS;
 
-  protected abstract readonly type: number
-  protected abstract data(): Data | undefined
+  protected abstract readonly type: number;
+  protected abstract data(): Data | undefined;
   protected extra(): Data {
-    return {}
+    return {};
   }
 
   protected get inGuildNow(): boolean {
-    return this.#guildId !== undefined
+    return this.#guildId !== undefined;
   }
 
   /** Invoked by `user` (default Alice). */
   by(user: WithId<User>): this {
-    this.#user = toUser(user)
-    return this
+    this.#user = toUser(user);
+    return this;
   }
 
   /** In guild `guildId` (the default guild unless `inDm` was called), as a member with `member`'s fields. */
   inGuild(guildId: string = TEST_GUILD_ID, member: Partial<Member> = {}): this {
-    this.#guildId = guildId
-    this.#member = member
-    return this
+    this.#guildId = guildId;
+    this.#member = member;
+    return this;
   }
 
   /** The bot's permissions in the channel (`app_permissions`), as flags or Discord's decimal string. */
   appPermissions(permissions: bigint | string): this {
-    this.#appPermissions = String(permissions)
-    return this
+    this.#appPermissions = String(permissions);
+    return this;
   }
 
   /** In the bot's DM, so `user` is set instead of `member`. */
   inDm(): this {
-    this.#guildId = undefined
-    return this
+    this.#guildId = undefined;
+    return this;
   }
 
   locale(locale: string): this {
-    this.#locale = locale
-    return this
+    this.#locale = locale;
+    return this;
   }
 
   build(): I {
-    const inGuild = this.inGuildNow
+    const inGuild = this.inGuildNow;
     const who = inGuild
       ? {
           guild_id: this.#guildId,
@@ -99,8 +99,8 @@ abstract class InteractionBuilder<I extends Interaction> implements Buildable<I>
           member: { user: this.#user, roles: [], joined_at: JOINED_AT, deaf: false, mute: false, flags: 0, permissions: PERMISSIONS, ...this.#member },
           context: 0,
         }
-      : { user: this.#user, context: 1 }
-    const data = this.data()
+      : { user: this.#user, context: 1 };
+    const data = this.data();
     return {
       id: snowflake(),
       application_id: TEST_APPLICATION_ID,
@@ -117,137 +117,137 @@ abstract class InteractionBuilder<I extends Interaction> implements Buildable<I>
       attachment_size_limit: 10485760,
       ...who,
       ...this.extra(),
-    } as unknown as I
+    } as unknown as I;
   }
 }
 
 // JSON as Discord sends it; the builders' parameters carry the types.
-type Resolved = Record<"users" | "members" | "roles" | "channels" | "attachments" | "messages", Record<string, Data>>
+type Resolved = Record<"users" | "members" | "roles" | "channels" | "attachments" | "messages", Record<string, Data>>;
 
 /** Shared by the Command builders: resolved data for Option values and targets. */
 abstract class ResolvingBuilder<I extends Interaction> extends InteractionBuilder<I> {
-  protected readonly resolved: Resolved = { users: {}, members: {}, roles: {}, channels: {}, attachments: {}, messages: {} }
+  protected readonly resolved: Resolved = { users: {}, members: {}, roles: {}, channels: {}, attachments: {}, messages: {} };
   // Member data depends on where it is invoked, known only at build.
-  protected resolvedUsers = new Map<string, [User, Partial<ResolvedMember> | undefined]>()
+  protected resolvedUsers = new Map<string, [User, Partial<ResolvedMember> | undefined]>();
 
   protected resolveUser(user: WithId<User>, member?: Partial<ResolvedMember>): string {
-    this.resolvedUsers.set(user.id, [toUser(user), member])
-    return user.id
+    this.resolvedUsers.set(user.id, [toUser(user), member]);
+    return user.id;
   }
 
   protected resolvedData(): Data | undefined {
     for (const [id, [user, member]] of this.resolvedUsers) {
-      this.resolved.users[id] = { ...user }
-      if (this.inGuildNow) this.resolved.members[id] = { roles: [], joined_at: JOINED_AT, flags: 0, permissions: PERMISSIONS, ...member }
+      this.resolved.users[id] = { ...user };
+      if (this.inGuildNow) this.resolved.members[id] = { roles: [], joined_at: JOINED_AT, flags: 0, permissions: PERMISSIONS, ...member };
     }
-    const nonEmpty = Object.entries(this.resolved).filter(([, map]) => Object.keys(map).length > 0)
-    return nonEmpty.length > 0 ? Object.fromEntries(nonEmpty) : undefined
+    const nonEmpty = Object.entries(this.resolved).filter(([, map]) => Object.keys(map).length > 0);
+    return nonEmpty.length > 0 ? Object.fromEntries(nonEmpty) : undefined;
   }
 }
 
 class ChatInputBuilder<I extends Interaction> extends ResolvingBuilder<I> {
-  protected readonly type: number = 2
-  #path: string[] = []
-  protected readonly options: Data[] = []
+  protected readonly type: number = 2;
+  #path: string[] = [];
+  protected readonly options: Data[] = [];
 
   constructor(readonly name: string) {
-    super()
+    super();
   }
 
   /** Addresses a subcommand: `.subcommand("ban")`, or `.subcommand("role", "add")` in a nested Group. */
   subcommand(...path: [string] | [string, string]): this {
-    this.#path = path
-    return this
+    this.#path = path;
+    return this;
   }
 
   /** A string, integer (whole number), number or boolean Option value. */
   option(name: string, value: string | number | boolean): this {
-    const type = typeof value === "string" ? OptionType.String : typeof value === "boolean" ? OptionType.Boolean : Number.isInteger(value) ? OptionType.Integer : OptionType.Number
-    this.options.push({ name, type, value })
-    return this
+    const type = typeof value === "string" ? OptionType.String : typeof value === "boolean" ? OptionType.Boolean : Number.isInteger(value) ? OptionType.Integer : OptionType.Number;
+    this.options.push({ name, type, value });
+    return this;
   }
 
   /** A User Option; `member` adds member data when invoked in a guild. */
   user(name: string, user: WithId<User>, member?: Partial<ResolvedMember>): this {
-    this.options.push({ name, type: OptionType.User, value: this.resolveUser(user, member) })
-    return this
+    this.options.push({ name, type: OptionType.User, value: this.resolveUser(user, member) });
+    return this;
   }
 
   channel(name: string, channel: WithId<PartialChannel>): this {
-    this.resolved.channels[channel.id] = { type: 0, name: "general", permissions: PERMISSIONS, ...channel }
-    this.options.push({ name, type: OptionType.Channel, value: channel.id })
-    return this
+    this.resolved.channels[channel.id] = { type: 0, name: "general", permissions: PERMISSIONS, ...channel };
+    this.options.push({ name, type: OptionType.Channel, value: channel.id });
+    return this;
   }
 
   role(name: string, role: WithId<Role>): this {
-    this.resolved.roles[role.id] = { name: "role", color: 0, hoist: false, position: 1, permissions: "0", managed: false, mentionable: true, flags: 0, ...role }
-    this.options.push({ name, type: OptionType.Role, value: role.id })
-    return this
+    this.resolved.roles[role.id] = { name: "role", color: 0, hoist: false, position: 1, permissions: "0", managed: false, mentionable: true, flags: 0, ...role };
+    this.options.push({ name, type: OptionType.Role, value: role.id });
+    return this;
   }
 
   attachment(name: string, attachment: WithId<Attachment>): this {
-    this.resolved.attachments[attachment.id] = { filename: "file.txt", size: 1, url: "https://cdn.test/file.txt", proxy_url: "https://cdn.test/file.txt", ...attachment }
-    this.options.push({ name, type: OptionType.Attachment, value: attachment.id })
-    return this
+    this.resolved.attachments[attachment.id] = { filename: "file.txt", size: 1, url: "https://cdn.test/file.txt", proxy_url: "https://cdn.test/file.txt", ...attachment };
+    this.options.push({ name, type: OptionType.Attachment, value: attachment.id });
+    return this;
   }
 
   protected data(): Data {
-    const [first, second] = this.#path
-    const leaf = this.options
+    const [first, second] = this.#path;
+    const leaf = this.options;
     const options =
       second !== undefined
         ? [{ type: OptionType.SubcommandGroup, name: first, options: [{ type: OptionType.Subcommand, name: second, options: leaf }] }]
         : first !== undefined
           ? [{ type: OptionType.Subcommand, name: first, options: leaf }]
-          : leaf
-    const resolved = this.resolvedData()
-    return { id: snowflake(), name: this.name, type: 1, ...(options.length > 0 && { options }), ...(resolved && { resolved }) }
+          : leaf;
+    const resolved = this.resolvedData();
+    return { id: snowflake(), name: this.name, type: 1, ...(options.length > 0 && { options }), ...(resolved && { resolved }) };
   }
 }
 
 class AutocompleteBuilder extends ChatInputBuilder<APIApplicationCommandAutocompleteInteraction> {
-  protected override readonly type: number = 4
+  protected override readonly type: number = 4;
 
   /** The Option being typed into, with its partial input. */
   focused(name: string, input: string, type: number = OptionType.String): this {
-    this.options.push({ name, type, value: input, focused: true })
-    return this
+    this.options.push({ name, type, value: input, focused: true });
+    return this;
   }
 }
 
 class UserCommandBuilder extends ResolvingBuilder<APIUserApplicationCommandInteraction> {
-  protected readonly type = 2
-  #target: string
+  protected readonly type = 2;
+  #target: string;
 
   constructor(readonly name: string) {
-    super()
-    this.#target = this.resolveUser(testUser)
+    super();
+    this.#target = this.resolveUser(testUser);
   }
 
   /** The clicked user (default Alice). */
   target(user: WithId<User>, member?: Partial<ResolvedMember>): this {
-    this.resolvedUsers.clear()
-    this.#target = this.resolveUser(user, member)
-    return this
+    this.resolvedUsers.clear();
+    this.#target = this.resolveUser(user, member);
+    return this;
   }
 
   protected data(): Data {
-    return { id: snowflake(), name: this.name, type: 2, target_id: this.#target, resolved: this.resolvedData() }
+    return { id: snowflake(), name: this.name, type: 2, target_id: this.#target, resolved: this.resolvedData() };
   }
 }
 
 class MessageCommandBuilder extends ResolvingBuilder<APIMessageApplicationCommandInteraction> {
-  protected readonly type = 2
-  #target = ""
+  protected readonly type = 2;
+  #target = "";
 
   constructor(readonly name: string) {
-    super()
-    this.target({})
+    super();
+    this.target({});
   }
 
   /** The clicked message (default: "hello" by Alice). */
   target(message: Partial<APIMessage>): this {
-    const id = message.id ?? snowflake()
+    const id = message.id ?? snowflake();
     this.resolved.messages = {
       [id]: {
         id,
@@ -266,58 +266,58 @@ class MessageCommandBuilder extends ResolvingBuilder<APIMessageApplicationComman
         type: 0,
         ...message,
       },
-    }
-    this.#target = id
-    return this
+    };
+    this.#target = id;
+    return this;
   }
 
   protected data(): Data {
-    return { id: snowflake(), name: this.name, type: 3, target_id: this.#target, resolved: this.resolvedData() }
+    return { id: snowflake(), name: this.name, type: 3, target_id: this.#target, resolved: this.resolvedData() };
   }
 }
 
 class ComponentBuilder extends InteractionBuilder<APIMessageComponentInteraction> {
-  protected readonly type = 3
-  #values: string[] | undefined
-  #componentType: number | undefined
-  #message: Data = { components: [], flags: 0 }
+  protected readonly type = 3;
+  #values: string[] | undefined;
+  #componentType: number | undefined;
+  #message: Data = { components: [], flags: 0 };
 
   constructor(readonly customId: string) {
-    super()
+    super();
   }
 
   /** Selected values, making this a select (string select unless `componentType` says otherwise). */
   values(values: string[], componentType = 3): this {
-    this.#values = values
-    this.#componentType = componentType
-    return this
+    this.#values = values;
+    this.#componentType = componentType;
+    return this;
   }
 
   /** The message the component is on (its `components` and `flags`). */
   onMessage(message: Data): this {
-    this.#message = message
-    return this
+    this.#message = message;
+    return this;
   }
 
   protected data(): Data {
-    return this.#values ? { custom_id: this.customId, component_type: this.#componentType, values: this.#values } : { custom_id: this.customId, component_type: 2 }
+    return this.#values ? { custom_id: this.customId, component_type: this.#componentType, values: this.#values } : { custom_id: this.customId, component_type: 2 };
   }
 
   protected override extra(): Data {
-    return { message: { id: snowflake(), channel_id: TEST_CHANNEL_ID, type: 0, content: "", ...this.#message } }
+    return { message: { id: snowflake(), channel_id: TEST_CHANNEL_ID, type: 0, content: "", ...this.#message } };
   }
 }
 
 /** A value submitted for one modal input. */
-export type SubmittedValue = string | boolean | string[] | null
+export type SubmittedValue = string | boolean | string[] | null;
 
 class ModalSubmitBuilder extends ResolvingBuilder<APIModalSubmitInteraction> {
-  protected readonly type = 5
-  readonly #inputs: Data[] = []
-  #message: Data | undefined
+  protected readonly type = 5;
+  readonly #inputs: Data[] = [];
+  #message: Data | undefined;
 
   constructor(readonly customId: string) {
-    super()
+    super();
   }
 
   /** An input's value: a string for a text input or radio group, a boolean for a checkbox, a list for selects and checkbox groups. */
@@ -329,81 +329,81 @@ class ModalSubmitBuilder extends ResolvingBuilder<APIModalSubmitInteraction> {
           ? { type: 3, custom_id: customId, values: value }
           : value === null
             ? { type: 21, custom_id: customId, value: null }
-            : { type: 4, custom_id: customId, value }
-    this.#inputs.push({ type: 18, component })
-    return this
+            : { type: 4, custom_id: customId, value };
+    this.#inputs.push({ type: 18, component });
+    return this;
   }
 
   /** Users chosen in a `<UserSelect>` (or a Form's `field.user`), resolved as Discord sends them. */
   users(customId: string, users: WithId<User>[]): this {
-    this.#inputs.push({ type: 18, component: { type: 5, custom_id: customId, values: users.map((u) => this.resolveUser(u)) } })
-    return this
+    this.#inputs.push({ type: 18, component: { type: 5, custom_id: customId, values: users.map((u) => this.resolveUser(u)) } });
+    return this;
   }
 
   /** Roles chosen in a `<RoleSelect>` (or a Form's `field.role`), resolved as Discord sends them. */
   roles(customId: string, roles: WithId<Role>[]): this {
     for (const role of roles) {
-      this.resolved.roles[role.id] = { name: "role", color: 0, hoist: false, position: 1, permissions: "0", managed: false, mentionable: true, flags: 0, ...role }
+      this.resolved.roles[role.id] = { name: "role", color: 0, hoist: false, position: 1, permissions: "0", managed: false, mentionable: true, flags: 0, ...role };
     }
-    this.#inputs.push({ type: 18, component: { type: 6, custom_id: customId, values: roles.map((r) => r.id) } })
-    return this
+    this.#inputs.push({ type: 18, component: { type: 6, custom_id: customId, values: roles.map((r) => r.id) } });
+    return this;
   }
 
   /** Files uploaded to a `<FileUpload>`. */
   files(customId: string, attachments: WithId<Attachment>[]): this {
-    for (const a of attachments) this.resolved.attachments[a.id] = { filename: "file.txt", size: 1, url: `https://cdn.test/${a.id}`, proxy_url: `https://cdn.test/${a.id}`, ...a }
-    this.#inputs.push({ type: 18, component: { type: 19, custom_id: customId, values: attachments.map((a) => a.id) } })
-    return this
+    for (const a of attachments) this.resolved.attachments[a.id] = { filename: "file.txt", size: 1, url: `https://cdn.test/${a.id}`, proxy_url: `https://cdn.test/${a.id}`, ...a };
+    this.#inputs.push({ type: 18, component: { type: 19, custom_id: customId, values: attachments.map((a) => a.id) } });
+    return this;
   }
 
   /** Opened from a component on this message, so the submit can Update it. */
   onMessage(message: Data): this {
-    this.#message = message
-    return this
+    this.#message = message;
+    return this;
   }
 
   protected data(): Data {
-    const resolved = this.resolvedData()
-    return { custom_id: this.customId, components: this.#inputs, ...(resolved && { resolved }) }
+    const resolved = this.resolvedData();
+    return { custom_id: this.customId, components: this.#inputs, ...(resolved && { resolved }) };
   }
 
   protected override extra(): Data {
-    return this.#message ? { message: { id: snowflake(), channel_id: TEST_CHANNEL_ID, type: 0, content: "", ...this.#message } } : {}
+    return this.#message ? { message: { id: snowflake(), channel_id: TEST_CHANNEL_ID, type: 0, content: "", ...this.#message } } : {};
   }
 }
 
 export function ping(): Buildable<APIPingInteraction> {
-  return { build: () => ({ id: snowflake(), application_id: TEST_APPLICATION_ID, type: 1, token: "test-interaction-token", version: 1 }) as unknown as APIPingInteraction }
+  return { build: () => ({ id: snowflake(), application_id: TEST_APPLICATION_ID, type: 1, token: "test-interaction-token", version: 1 }) as unknown as APIPingInteraction };
 }
 
 /** A chat input Command invocation of `/name`. */
 export function chatInput(name: string): ChatInputBuilder<ChatInputInteraction> {
-  return new ChatInputBuilder(name)
+  return new ChatInputBuilder(name);
 }
 
 /** Autocomplete for `/name`; set the typed-into Option with `.focused(name, input)`. */
 export function autocomplete(name: string): AutocompleteBuilder {
-  return new AutocompleteBuilder(name)
+  return new AutocompleteBuilder(name);
 }
 
 /** A user context menu Command invocation; set the clicked user with `.target(user)`. */
 export function userCommand(name: string): UserCommandBuilder {
-  return new UserCommandBuilder(name)
+  return new UserCommandBuilder(name);
 }
 
 /** A message context menu Command invocation; set the clicked message with `.target(message)`. */
 export function messageCommand(name: string): MessageCommandBuilder {
-  return new MessageCommandBuilder(name)
+  return new MessageCommandBuilder(name);
 }
 
 /** A click on a component with `customId`; `.values([..])` makes it a select. */
 export function component(customId: string): ComponentBuilder {
-  return new ComponentBuilder(customId)
+  return new ComponentBuilder(customId);
 }
 
 /** A modal submit of the modal with `customId`; add inputs with `.field(id, value)`. */
 export function modalSubmit(customId: string): ModalSubmitBuilder {
-  return new ModalSubmitBuilder(customId)
+  return new ModalSubmitBuilder(customId);
 }
 
-export type { AutocompleteBuilder, ChatInputBuilder, ComponentBuilder, InteractionBuilder, MessageCommandBuilder, ModalSubmitBuilder, UserCommandBuilder }
+export type { AutocompleteBuilder, ChatInputBuilder, ComponentBuilder, InteractionBuilder, MessageCommandBuilder, ModalSubmitBuilder, UserCommandBuilder };

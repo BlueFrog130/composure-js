@@ -1,7 +1,7 @@
-import { defaultServerConditions } from "vite"
-import { defineProject } from "vitest/config"
+import { defaultServerConditions } from "vite";
+import { defineProject } from "vitest/config";
 // In your bot: import composure from "@composurejs/vite"
-import composure from "../../packages/vite/src/index.ts"
+import composure from "../../packages/vite/src/index.ts";
 
 export default defineProject({
   plugins: [composure()],
@@ -9,4 +9,4 @@ export default defineProject({
   test: {
     name: "example-bot",
   },
-})
+});

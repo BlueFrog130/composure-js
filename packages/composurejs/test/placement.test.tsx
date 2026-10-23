@@ -1,7 +1,7 @@
 // The static checks (composurejs/placement) and the render walk must agree: every built-in tag,
 // text and <br /> is rendered inside every parent the table has rules for, and the walk must
 // throw exactly the table's message, or no placement error at all.
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "vitest";
 import {
   Button,
   ChannelSelect,
@@ -29,11 +29,11 @@ import {
   Thumbnail,
   UserSelect,
   type JSX,
-} from "composurejs"
-import * as components from "../src/components.ts"
-import { accessoryError, PLACEMENT, placementError, TAGS, TEXT } from "../src/placement.ts"
+} from "composurejs";
+import * as components from "../src/components.ts";
+import { accessoryError, PLACEMENT, placementError, TAGS, TEXT } from "../src/placement.ts";
 
-type View = JSX.Element | string
+type View = JSX.Element | string;
 
 const CHILDREN: Record<string, () => View> = {
   [TEXT]: () => "hello",
@@ -78,13 +78,13 @@ const CHILDREN: Record<string, () => View> = {
   CheckboxGroup: () => <CheckboxGroup name="cg" options={[{ name: "a", value: "a" }]} />,
   Checkbox: () => <Checkbox name="cb" />,
   FileUpload: () => <FileUpload name="fu" />,
-}
+};
 
 const modal = (input: JSX.Element) => (
   <Modal title="t" customId="modal">
     <Label text="l">{input}</Label>
   </Modal>
-)
+);
 
 /** Each parent holding `c`, itself placed where it may go. Labels are left out so children count. */
 const PARENTS: Record<string, (c: View) => JSX.Element> = {
@@ -123,38 +123,38 @@ const PARENTS: Record<string, (c: View) => JSX.Element> = {
       <Label text="l">{c}</Label>
     </Modal>
   ),
-}
+};
 
-const PLACEMENT_ERROR = /cannot go|can only be the root|goes in|accessory/
+const PLACEMENT_ERROR = /cannot go|can only be the root|goes in|accessory/;
 const errorOf = (view: JSX.Element) =>
   render(view).then(
     () => undefined,
     (e: Error) => e.message,
-  )
-const kinds = [TEXT, "br", ...TAGS]
+  );
+const kinds = [TEXT, "br", ...TAGS];
 
 test("TAGS lists every built-in tag", () => {
   const exported = Object.entries(components)
     .filter(([name, value]) => /^[A-Z]/.test(name) && typeof value === "function")
-    .map(([name]) => name)
-  expect([...TAGS].sort()).toEqual(exported.sort())
-  expect(Object.keys(PARENTS).sort()).toEqual(Object.keys(PLACEMENT).sort())
-})
+    .map(([name]) => name);
+  expect([...TAGS].sort()).toEqual(exported.sort());
+  expect(Object.keys(PARENTS).sort()).toEqual(Object.keys(PLACEMENT).sort());
+});
 
 describe.each(Object.keys(PLACEMENT))("inside <%s>", (parent) => {
   test.each(kinds)("%s", async (kind) => {
-    const expected = placementError(parent, kind)
-    const error = await errorOf(PARENTS[parent]!(CHILDREN[kind]!()))
-    if (expected) expect(error).toBe(expected)
-    else expect(error ?? "").not.toMatch(PLACEMENT_ERROR)
-  })
-})
+    const expected = placementError(parent, kind);
+    const error = await errorOf(PARENTS[parent]!(CHILDREN[kind]!()));
+    if (expected) expect(error).toBe(expected);
+    else expect(error ?? "").not.toMatch(PLACEMENT_ERROR);
+  });
+});
 
 describe("<Section accessory>", () => {
   test.each(kinds)("%s", async (kind) => {
-    const expected = accessoryError(kind)
-    const error = await errorOf(<Section accessory={CHILDREN[kind]!() as JSX.Element}>s</Section>)
-    if (expected) expect(error).toBe(expected)
-    else expect(error ?? "").not.toMatch(PLACEMENT_ERROR)
-  })
-})
+    const expected = accessoryError(kind);
+    const error = await errorOf(<Section accessory={CHILDREN[kind]!() as JSX.Element}>s</Section>);
+    if (expected) expect(error).toBe(expected);
+    else expect(error ?? "").not.toMatch(PLACEMENT_ERROR);
+  });
+});

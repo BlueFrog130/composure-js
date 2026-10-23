@@ -2,8 +2,8 @@
 
 /** A cloudflared release, and the asset for each `${process.platform}-${process.arch}` with its SHA-256. */
 export interface CloudflaredRelease {
-  version: string
-  assets: Partial<Record<string, { file: string; sha256: string }>>
+  version: string;
+  assets: Partial<Record<string, { file: string; sha256: string }>>;
 }
 
 /** The cloudflared release the Dev Loop downloads when none is installed. */
@@ -20,4 +20,4 @@ export const CLOUDFLARED_RELEASE: CloudflaredRelease = {
     "win32-ia32": { file: "cloudflared-windows-386.exe", sha256: "84be6271133004dc103d71b1a2b6b80cf204685ebf277e2504082793507922cf" },
     "win32-x64": { file: "cloudflared-windows-amd64.exe", sha256: "76b2805253d0d6ffacb092a7acfbee99e7af6917835c0c5410e23f3ef5052da2" },
   },
-}
+};
