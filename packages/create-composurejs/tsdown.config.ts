@@ -1,4 +1,4 @@
-import { defineConfig } from "tsdown"
+import { defineConfig } from "tsdown";
 
 export default defineConfig({
   entry: { index: "src/index.ts", bin: "src/bin.ts" },
@@ -6,4 +6,4 @@ export default defineConfig({
   platform: "node",
   fixedExtension: false,
   dts: { tsconfig: "tsconfig.build.json" },
-})
+});

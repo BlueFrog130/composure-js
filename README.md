@@ -26,7 +26,7 @@ Discord bots that receive only **HTTP Interactions** (no gateway) and run anywhe
 > - releases with Changesets (per-package versions, npm provenance)
 
 ```sh
-pnpm create composurejs my-bot   # Cloudflare Workers, Node or Bun; then: cp .env.example .env && pnpm dev
+pnpm create composurejs my-bot   # Cloudflare Workers, Node or Bun; then: cp .env.example .env.local && pnpm dev
 ```
 
 ```tsx
@@ -102,7 +102,7 @@ export default defineConfig({ plugins: [composure(), cloudflare()], build: { min
 // export default defineConfig({ plugins: [composure(), server()] })
 ```
 
-Develop against Discord with one command. Put `DISCORD_PUBLIC_KEY`, `DISCORD_TOKEN`, `COMPOSURE_DEV_APPLICATION_ID` (your *dev* application, the only one it will repoint) and `COMPOSURE_DEV_GUILD` in `.env`, then `vite dev`: it opens a tunnel, sets the dev application's Interactions Endpoint URL, syncs Commands to the dev guild, and re-syncs on save.
+Develop against Discord with one command. Name your Dev Application (the only one it will repoint) and a test server in the config, `composure({ dev: { application: "<id>", guild: "<id>" } })`, put its `DISCORD_PUBLIC_KEY` and `DISCORD_TOKEN` in `.env.local` (production's go in `.env.production.local`), then `vite dev`: it opens a quick tunnel, sets the Dev Application's Interactions Endpoint URL, syncs Commands to the test server, and re-syncs on save.
 
 Sync the Commands to Discord (shows the plan, asks, then applies; `--check` for CI):
 

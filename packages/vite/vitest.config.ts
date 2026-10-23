@@ -1,6 +1,6 @@
-import { defaultServerConditions } from "vite"
-import { defineProject } from "vitest/config"
-import composure from "./src/index.ts"
+import { defaultServerConditions } from "vite";
+import { defineProject } from "vitest/config";
+import composure from "./src/index.ts";
 
 export default defineProject({
   // The signed fixtures the Default Server replays use Inline Handlers.
@@ -11,4 +11,4 @@ export default defineProject({
     // The dev tests start real servers and watch files: keep them in one worker.
     fileParallelism: false,
   },
-})
+});

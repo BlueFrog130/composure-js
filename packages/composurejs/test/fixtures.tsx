@@ -1,16 +1,16 @@
 // Signed regression fixtures: Interaction shapes as Discord sends them, each with the status
 // and JSON the regression App must answer with. Replayed over app.fetch and the Default Server.
-import { App, Button, command, Container, File, group, Label, messageCommand, named, Modal, option, Row, Text, TextInput, upload, userCommand, UserError } from "composurejs"
-import { TestKey } from "composurejs/testing"
+import { App, Button, command, Container, File, group, Label, messageCommand, named, Modal, option, Row, Text, TextInput, upload, userCommand, UserError } from "composurejs";
+import { TestKey } from "composurejs/testing";
 
-const SEED = new Uint8Array(32).fill(7)
-export const key = await TestKey.fromSeed(SEED)
-export const env = { DISCORD_PUBLIC_KEY: key.publicKey }
+const SEED = new Uint8Array(32).fill(7);
+export const key = await TestKey.fromSeed(SEED);
+export const env = { DISCORD_PUBLIC_KEY: key.publicKey };
 
-const APP = "1052322265397739523"
-const GUILD = "798662131062931547"
-const CHANNEL = "300000000000000001"
-const ALICE = { id: "100000000000000001", username: "alice", global_name: "Alice", discriminator: "0", avatar: null }
+const APP = "1052322265397739523";
+const GUILD = "798662131062931547";
+const CHANNEL = "300000000000000001";
+const ALICE = { id: "100000000000000001", username: "alice", global_name: "Alice", discriminator: "0", avatar: null };
 
 // Inline Handlers, with named() ids so the payloads below can address them. They register when
 // this module loads; no App lists them.
@@ -22,19 +22,19 @@ export const Counter = ({ n }: { n: number }) => (
       ))}
     >{`Count ${n}`}</Button>
   </Row>
-)
+);
 export const Poll = ({ poll }: { poll: string }) => (
   <Row>
     <Button onClick={named("vote", () => `vote up on ${poll}`)}>Up</Button>
   </Row>
-)
+);
 export const Feedback = () => (
   <Modal title="Feedback" onSubmit={named("fb", (_c, v: { what: string }) => `thanks for: ${v.what}`)}>
     <Label text="What?">
       <TextInput name="what" />
     </Label>
   </Modal>
-)
+);
 
 // Files go through the callback endpoint; a stand-in Discord accepts them.
 export const regressionApp = new App({ transport: async () => new Response(null, { status: 204 }) })
@@ -62,7 +62,7 @@ export const regressionApp = new App({ transport: async () => new Response(null,
       name: "oops",
       description: "User Error",
       handler: () => {
-        throw new UserError("Not here")
+        throw new UserError("Not here");
       },
     }),
   )
@@ -71,7 +71,7 @@ export const regressionApp = new App({ transport: async () => new Response(null,
       name: "crash",
       description: "Crash",
       handler: () => {
-        throw new Error("boom", { cause: new Error("root") })
+        throw new Error("boom", { cause: new Error("root") });
       },
     }),
   )
@@ -118,9 +118,9 @@ export const regressionApp = new App({ transport: async () => new Response(null,
         </Modal>
       ),
     }),
-  )
+  );
 
-const base = { application_id: APP, token: "fixture-token", version: 1, locale: "en-US", entitlements: [], app_permissions: "0", attachment_size_limit: 10485760 }
+const base = { application_id: APP, token: "fixture-token", version: 1, locale: "en-US", entitlements: [], app_permissions: "0", attachment_size_limit: 10485760 };
 const inGuild = {
   guild_id: GUILD,
   guild_locale: "en-US",
@@ -129,37 +129,37 @@ const inGuild = {
   member: { user: ALICE, roles: [], joined_at: "2024-01-01T00:00:00.000Z", deaf: false, mute: false, flags: 0, permissions: "0" },
   authorizing_integration_owners: { "0": GUILD },
   context: 0,
-}
-const inBotDm = { channel: { id: CHANNEL, type: 1 }, channel_id: CHANNEL, user: ALICE, authorizing_integration_owners: { "1": ALICE.id }, context: 1 }
+};
+const inBotDm = { channel: { id: CHANNEL, type: 1 }, channel_id: CHANNEL, user: ALICE, authorizing_integration_owners: { "1": ALICE.id }, context: 1 };
 const slash = (name: string, where: object = inGuild, data: object = {}) => ({
   ...base,
   ...where,
   id: "900000000000000001",
   type: 2,
   data: { id: "800000000000000001", name, type: 1, ...data },
-})
-const BOB = { id: "100000000000000002", username: "bob", global_name: "Bob", discriminator: "0", avatar: null }
-const BOB_MEMBER = { nick: "Bobby", roles: [], joined_at: "2024-01-01T00:00:00.000Z", flags: 0, permissions: "0" }
-const MODS = { id: "200000000000000001", name: "mods", color: 0, hoist: false, position: 1, permissions: "0", managed: false, mentionable: true, flags: 0 }
+});
+const BOB = { id: "100000000000000002", username: "bob", global_name: "Bob", discriminator: "0", avatar: null };
+const BOB_MEMBER = { nick: "Bobby", roles: [], joined_at: "2024-01-01T00:00:00.000Z", flags: 0, permissions: "0" };
+const MODS = { id: "200000000000000001", name: "mods", color: 0, hoist: false, position: 1, permissions: "0", managed: false, mentionable: true, flags: 0 };
 
-const EPHEMERAL = 1 << 6
-const V2 = 1 << 15
-const message = (content: string, flags?: number) => ({ type: 4, data: { content, ...(flags !== undefined && { flags }) } })
+const EPHEMERAL = 1 << 6;
+const V2 = 1 << 15;
+const message = (content: string, flags?: number) => ({ type: 4, data: { content, ...(flags !== undefined && { flags }) } });
 
-export type Signing = "valid" | "tampered" | "missing" | "stale"
+export type Signing = "valid" | "tampered" | "missing" | "stale";
 
 export interface Case {
-  name: string
-  body: string
+  name: string;
+  body: string;
   /** Default /interactions. */
-  path?: string
-  signing?: Signing
-  method?: string
-  status: number
-  response?: unknown
+  path?: string;
+  signing?: Signing;
+  method?: string;
+  status: number;
+  response?: unknown;
 }
 
-const json = (value: unknown) => JSON.stringify(value)
+const json = (value: unknown) => JSON.stringify(value);
 
 export const cases: Case[] = [
   { name: "ping", body: json({ ...base, id: "900000000000000000", type: 1 }), status: 200, response: { type: 1 } },
@@ -455,19 +455,19 @@ export const cases: Case[] = [
   { name: "not an Interaction", body: json({ hello: "world" }), status: 400 },
   { name: "oversized body", body: json({ ...slash("ping"), pad: "x".repeat(1024 * 1024) }), status: 413 },
   { name: "GET", body: "", method: "GET", signing: "missing", status: 405 },
-]
+];
 
 /** The signed request for `kase`, at `url`. */
 export async function requestFor(kase: Case, base = "https://bot.test"): Promise<Request> {
-  const url = base + (kase.path ?? "/interactions")
-  const method = kase.method ?? "POST"
-  const signing = kase.signing ?? "valid"
-  const headers: Record<string, string> = { "content-type": "application/json" }
+  const url = base + (kase.path ?? "/interactions");
+  const method = kase.method ?? "POST";
+  const signing = kase.signing ?? "valid";
+  const headers: Record<string, string> = { "content-type": "application/json" };
   if (signing !== "missing") {
-    const timestamp = signing === "stale" ? String(Math.floor(Date.now() / 1000) - 3600) : undefined
-    Object.assign(headers, await key.sign(kase.body, timestamp))
+    const timestamp = signing === "stale" ? String(Math.floor(Date.now() / 1000) - 3600) : undefined;
+    Object.assign(headers, await key.sign(kase.body, timestamp));
   }
   // Any change to the signed bytes must fail, even one that keeps the JSON valid.
-  const body = signing === "tampered" ? `${kase.body} ` : kase.body
-  return new Request(url, { method, headers, ...(method !== "GET" && { body }) })
+  const body = signing === "tampered" ? `${kase.body} ` : kase.body;
+  return new Request(url, { method, headers, ...(method !== "GET" && { body }) });
 }

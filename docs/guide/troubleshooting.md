@@ -4,7 +4,7 @@
 
 **The Interactions Endpoint URL won't save.** Discord sends a signed PING to a new URL first. The server must be running and reachable, and `DISCORD_PUBLIC_KEY` must be the public key of that same application. A wrong key gets 401.
 
-**Commands don't show up.** Run `composure sync` (or set `COMPOSURE_DEV_GUILD` while developing). Global Commands can take a while to appear in clients; guild Commands appear at once. Check `contexts` and `integrationTypes` if a Command is missing in DMs or in user installs.
+**Commands don't show up.** Run `composure sync` (or set [`dev.guild`](./local-dev#options) while developing). Global Commands can take a while to appear in clients; guild Commands appear at once. Check `contexts` and `integrationTypes` if a Command is missing in DMs or in user installs.
 
 **"This message is outdated."** The button's handler id no longer exists, or its values no longer decode. Usually the handler moved, was renamed, or now captures something different. Use [`named()`](./views#ids-deploys-and-named) for messages meant to last.
 
@@ -24,4 +24,38 @@
 
 **Rate limited.** Short waits are handled. `RateLimitedError` means Discord asked for longer than 2 seconds: slow down, or do the work in deferred or background work.
 
-**Something else?** The [decisions](/adr/0001-explicit-registration) explain why each part works the way it does. Issues are welcome on [GitHub](https://github.com/BlueFrog130/composure-js/issues).
+## The Dev Loop
+
+`vite dev` logs one `[composure]` line per stage ([Local development](./local-dev#what-vite-dev-does)). A stage that fails logs `<stage> failed: ...` with what it last saw, and the server keeps running: fix the cause and restart `vite dev`.
+
+**`Set the Interactions Endpoint URL by hand: ...`.** Nothing was repointed, and the line says why: `DISCORD_TOKEN is not set` (add it to `.env.local`), `dev.application is not set` (add your Dev Application's id to the config, or paste the URL into the Developer Portal), or `dev.application (...) is not the token's application (...)` (the token in `.env.local` belongs to another application, maybe production's: use the Dev Application's token, or fix the id).
+
+**`cloudflared failed: ...`.** No cloudflared could be found or downloaded. `no release is pinned for <platform>`: install cloudflared, or set `CLOUDFLARED_PATH` to it. `downloading cloudflared from ... failed`: GitHub could not be reached; retry, or install it. `does not match its pinned SHA-256`: the download was not the pinned release, and was not kept; install cloudflared yourself and report it.
+
+**`tunnel failed: no registered connection from cloudflared within 30s (last: ...)`.** The quick tunnel didn't connect. `last` is cloudflared's last log line: usually a network that blocks outbound connections to Cloudflare (port 7844), or trycloudflare.com refusing new tunnels for a while (`429 Too Many Requests`); wait a minute and restart. `cloudflared exited (...) before connecting` shows why it stopped. `cloudflared is not installed` means `CLOUDFLARED_PATH` names a missing file.
+
+**`tunnel failed: no connection within 30s`.** A named tunnel, or your own tunnel function, didn't connect in 30 seconds. For a named tunnel, check that it exists and is not already run elsewhere with another configuration. `cloudflared tunnel token <name> failed (...)`: run `cloudflared tunnel login` once, or set `CLOUDFLARE_TUNNEL_TOKEN`.
+
+**`tunnel <name> has no route for <host>`, `routes <host> to ..., but vite dev listens on http://localhost:<port>`.** A warning: the named tunnel's public hostnames in the Cloudflare dashboard don't send `hostname` to Vite. Change the route (Networks → Tunnels), or Vite's `server.port`.
+
+**`dns failed: no A record for <host> from trycloudflare.com's nameservers within 60s (last: ...)`.** The quick tunnel connected, but its hostname was never published, or the nameservers could not be asked (`last` shows the DNS error, e.g. a network that blocks DNS to anything but its own resolver). Restart to get a new hostname, or use a [named tunnel](./local-dev#named-tunnel).
+
+**`probe failed: no 401 from <url>/interactions within 30s (last: ...)`.** The tunnel is up, but the App didn't answer through it. `HTTP 403`: Vite's host check blocked the tunnel's host; with a tunnel function, add its host to `server.allowedHosts`. `HTTP 404`: nothing serves the App: add `server()` (Node, Bun) or `cloudflare()` (Workers) next to `composure()`. `HTTP 500`: the App failed to load or has no `DISCORD_PUBLIC_KEY` (check `.env.local`, and the terminal for the error). `HTTP 530`: Cloudflare cannot route the hostname to a running tunnel. `ECONNREFUSED`, `ETIMEDOUT`: the tunnel's address can't be reached from here.
+
+**`rate limited; retrying in <n>s`.** Discord's rate limit on editing the application, usually after several restarts in a row. The plugin waits it out; nothing to do.
+
+**`repoint failed: DISCORD_PUBLIC_KEY is not the public key of application <id>`.** Discord's PING was rejected because the App verifies with another application's key. Copy the Dev Application's Public Key into `.env.local`.
+
+**`Discord could not verify <url>; retrying once in 65s`**, then **`repoint failed: ... The endpoint must answer Discord's signed PING`.** The key matches, but Discord could not reach the App or its PING got no valid answer. Check that requests through the tunnel reach this server: open the URL in a browser. On Workers (`cloudflare()`) the App answers `Method Not Allowed`; on Node or Bun (`server()`) only POSTs reach the App, so Vite answers `Cannot GET /interactions`. Either means the tunnel reaches `vite dev`; a Cloudflare error page or no answer means it doesn't. Then check that nothing in front of the App changes the request.
+
+**`repoint failed: reading the token's application: ...`.** `DISCORD_TOKEN` was rejected (usually `401: Unauthorized`): reset the bot token in the Developer Portal and update `.env.local`.
+
+**`.env sets DISCORD_TOKEN, and Vite loads .env in every mode`.** A warning: a token in `.env` (often production's, from before `.env.production.local`) reaches `vite dev` unless `.env.local` sets its own. Move it to `.env.production.local` and keep the Dev Application's in `.env.local`.
+
+**`DISCORD_TOKEN comes from .env.local, the Dev Application's`** (`composure sync`). A warning: in production mode, neither the environment nor `.env.production.local` sets `DISCORD_TOKEN`, so the sync goes to the Dev Application. Put production's token in `.env.production.local`, or pass `--mode development` if the Dev Application is what you meant.
+
+**`dev Sync needs DISCORD_TOKEN (in .env.local).`, `dev Sync failed: ...`.** dev Sync couldn't run, or Discord rejected a Command definition; the message says which. The server keeps running, and the next save tries again.
+
+## Something else?
+
+The [decisions](/adr/0001-explicit-registration) explain why each part works the way it does. Issues are welcome on [GitHub](https://github.com/BlueFrog130/composure-js/issues).

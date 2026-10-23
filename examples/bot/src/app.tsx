@@ -20,16 +20,16 @@ import {
   Text,
   userCommand,
   UserError,
-} from "composurejs"
-import { counter } from "./counter.tsx"
+} from "composurejs";
+import { counter } from "./counter.tsx";
 
-const BRAND = 0x5865f2
+const BRAND = 0x5865f2;
 
 export const ping = command({
   name: "ping",
   description: "Check the bot is alive",
   handler: () => "Pong!",
-})
+});
 
 export const hello = command({
   name: "hello",
@@ -49,10 +49,10 @@ export const hello = command({
       </Text>
     </Container>
   ),
-})
+});
 
-const Flavor = defineChoices({ chocolate: "Chocolate chip", oat: "Oatmeal raisin", sugar: "Sugar" })
-const TOPPINGS = ["sprinkles", "sea salt", "icing", "nuts"]
+const Flavor = defineChoices({ chocolate: "Chocolate chip", oat: "Oatmeal raisin", sugar: "Sugar" });
+const TOPPINGS = ["sprinkles", "sea salt", "icing", "nuts"];
 
 export const cookie = command({
   name: "cookie",
@@ -69,10 +69,10 @@ export const cookie = command({
   contexts: ["guild", "botDm", "privateChannel"],
   integrationTypes: ["guildInstall", "userInstall"],
   handler: (_c, { user, flavor, count = 1, topping }) => `${user.displayName} gets ${count} ${flavor} ${count === 1 ? "cookie" : "cookies"}${topping ? ` with ${topping}` : ""} 🍪`,
-})
+});
 
 /** Answers with an ephemeral notice outside servers. */
-const guildOnly = middleware((c, next) => (c.guildId ? next() : Ephemeral("Run this in a server.")))
+const guildOnly = middleware((c, next) => (c.guildId ? next() : Ephemeral("Run this in a server.")));
 
 export const server = new App().use(guildOnly).command(
   group({
@@ -85,15 +85,15 @@ export const server = new App().use(guildOnly).command(
         description: "When a member joined",
         options: { who: option.user("Member") },
         handler: (_c, { who }) => {
-          if (!who.member?.joined_at) throw new UserError(`${who.displayName} is not in this server.`)
-          return `${who.displayName} joined <t:${Math.floor(Date.parse(who.member.joined_at) / 1000)}:R>`
+          if (!who.member?.joined_at) throw new UserError(`${who.displayName} is not in this server.`);
+          return `${who.displayName} joined <t:${Math.floor(Date.parse(who.member.joined_at) / 1000)}:R>`;
         },
       }),
     ],
   }),
-)
+);
 
-export const highFive = userCommand({ name: "High five", handler: (c, target) => `${c.user.username} high-fives ${target.displayName} 🙏` })
+export const highFive = userCommand({ name: "High five", handler: (c, target) => `${c.user.username} high-fives ${target.displayName} 🙏` });
 
 // A poll meant to last: named() keeps its buttons working across deploys that move the handlers.
 export const poll = command({
@@ -113,16 +113,16 @@ export const poll = command({
       </Row>
     </Container>
   ),
-})
+});
 
-const Mood = defineChoices({ great: "Great", fine: "Fine", meh: "Meh" })
+const Mood = defineChoices({ great: "Great", fine: "Fine", meh: "Meh" });
 
 // A Form: the modal renders a Label per Field, and onSubmit's values are typed from it.
 const feedbackForm = form({
   mood: field.radio(Mood, { label: "How is it going?" }),
   notes: field.text({ label: "Anything to add?", paragraph: true, maxLength: 1000, placeholder: "Optional" }).optional(),
   followUp: field.checkbox({ label: "Contact me about this" }),
-})
+});
 
 export const Feedback = () => (
   <Modal
@@ -149,12 +149,12 @@ export const Feedback = () => (
       )
     }
   />
-)
+);
 
-export const feedback = command({ name: "feedback", description: "Tell us how it's going", handler: () => <Feedback /> })
+export const feedback = command({ name: "feedback", description: "Tell us how it's going", handler: () => <Feedback /> });
 
-const basics = new App().command(ping).command(hello).command(cookie).command(highFive)
-const interactive = new App().command(poll).command(feedback).command(counter)
+const basics = new App().command(ping).command(hello).command(cookie).command(highFive);
+const interactive = new App().command(poll).command(feedback).command(counter);
 
 /** Deferred: answers at once with a loading state, then edits in the result (up to ~30s on Workers). */
 export const report = command({
@@ -162,15 +162,15 @@ export const report = command({
   description: "Build a slow report",
   handler: (c) =>
     c.defer(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await new Promise((resolve) => setTimeout(resolve, 50));
       return (
         <Container accentColor={BRAND}>
           <Text>### Report for {c.user.username}</Text>
           <Text>-# generated in the background</Text>
         </Container>
-      )
+      );
     }),
-})
+});
 
 export const app = new App()
   .route(basics)
@@ -178,11 +178,11 @@ export const app = new App()
   .route(interactive)
   .command(report)
   .events((_c, event) => {
-    console.info({ msg: "Webhook Event", type: event.type })
+    console.info({ msg: "Webhook Event", type: event.type });
   })
   .use(
     middleware((c, next) => {
-      console.log(c.raw)
-      return next()
+      console.log(c.raw);
+      return next();
     }),
-  )
+  );

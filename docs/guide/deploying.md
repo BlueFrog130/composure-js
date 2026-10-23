@@ -42,7 +42,7 @@ pnpm exec composure sync --check     # CI: exit 2 when Discord is out of date
 pnpm exec composure sync --yes       # CI deploy: apply without asking
 ```
 
-It loads `src/app.tsx` (or `--app`) through Vite and compares each Command, by name and type, with what Discord stores, ignoring the defaults Discord fills in. It then shows a plan of creates, updates and deletes. Commands Discord has that your code doesn't are deleted. It needs `DISCORD_TOKEN` from the environment, `.env` files or `.dev.vars`.
+It loads `src/app.tsx` (or `--app`) through Vite and compares each Command, by name and type, with what Discord stores, ignoring the defaults Discord fills in. It then shows a plan of creates, updates and deletes. Commands Discord has that your code doesn't are deleted. It needs `DISCORD_TOKEN`: production's, from the environment or `.env.production.local`, which wins over `.env.local` in production mode, the default. `--mode development` skips `.env.production.local`, so it syncs with the Dev Application's token from `.env.local`. In production mode, when `DISCORD_TOKEN` is set in neither the environment nor `.env.production.local`, the one from `.env.local` is used, with a warning.
 
 ### Scopes
 

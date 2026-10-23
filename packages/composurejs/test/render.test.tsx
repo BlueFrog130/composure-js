@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "vitest";
 import {
   Button,
   ChannelSelect,
@@ -30,23 +30,23 @@ import {
   upload,
   UserSelect,
   type JSX,
-} from "composurejs"
-import { renderMessage } from "../src/jsx/render.ts"
+} from "composurejs";
+import { renderMessage } from "../src/jsx/render.ts";
 
-const components = async (view: JSX.Element) => (await renderMessage(view)).data.components
-const fails = (view: JSX.Element, message: string | RegExp) => expect(render(view)).rejects.toThrow(message)
+const components = async (view: JSX.Element) => (await renderMessage(view)).data.components;
+const fails = (view: JSX.Element, message: string | RegExp) => expect(render(view)).rejects.toThrow(message);
 
 describe("text", () => {
   test("adjacent text and expressions join into one Text Display", async () => {
-    const name = "Alice"
+    const name = "Alice";
     expect(
       await components(
         <Text>
           Hi {name}, you have {3} cookies
         </Text>,
       ),
-    ).toEqual([{ type: 10, content: "Hi Alice, you have 3 cookies" }])
-  })
+    ).toEqual([{ type: 10, content: "Hi Alice, you have 3 cookies" }]);
+  });
 
   test("JSX drops newlines; <br /> puts them back", async () => {
     const view = (
@@ -54,12 +54,12 @@ describe("text", () => {
         - one
         <br />- two
       </Text>
-    )
-    expect(await components(view)).toEqual([{ type: 10, content: "- one\n- two" }])
-  })
+    );
+    expect(await components(view)).toEqual([{ type: 10, content: "- one\n- two" }]);
+  });
 
   test("md keeps raw markdown, dedented; interpolations do not change the indent", async () => {
-    const list = "a\n  b"
+    const list = "a\n  b";
     const view = (
       <Text>
         {md`
@@ -68,9 +68,9 @@ describe("text", () => {
             - nested
         `}
       </Text>
-    )
-    expect(await components(view)).toEqual([{ type: 10, content: "## Title\n- a\n  b\n  - nested" }])
-  })
+    );
+    expect(await components(view)).toEqual([{ type: 10, content: "## Title\n- a\n  b\n  - nested" }]);
+  });
 
   test("content prop, and bare text at the top joins into a Text Display", async () => {
     expect(
@@ -84,11 +84,11 @@ describe("text", () => {
     ).toEqual([
       { type: 10, content: "one 2" },
       { type: 10, content: "three" },
-    ])
-  })
+    ]);
+  });
 
   test("null, false, undefined render nothing; arrays, fragments and async Views flatten", async () => {
-    const Async = async ({ n }: { n: number }) => <Text>async {n}</Text>
+    const Async = async ({ n }: { n: number }) => <Text>async {n}</Text>;
     const view = (
       <Container>
         {null}
@@ -102,16 +102,16 @@ describe("text", () => {
         </>
         <Async n={1} />
       </Container>
-    )
-    const [container] = (await components(view)) as unknown as [{ components: unknown[] }]
+    );
+    const [container] = (await components(view)) as unknown as [{ components: unknown[] }];
     expect(container.components).toEqual([
       { type: 10, content: "a" },
       { type: 10, content: "b" },
       { type: 10, content: "frag" },
       { type: 10, content: "async 1" },
-    ])
-  })
-})
+    ]);
+  });
+});
 
 describe("component JSON", () => {
   test("Container, Separator, Section with Thumbnail and Button accessories", async () => {
@@ -132,7 +132,7 @@ describe("component JSON", () => {
           Text
         </Section>
       </Container>
-    )
+    );
     expect(await components(view)).toEqual([
       {
         type: 17,
@@ -152,8 +152,8 @@ describe("component JSON", () => {
           { type: 9, components: [{ type: 10, content: "Text" }], accessory: { type: 2, style: 1, custom_id: "more", label: "More" } },
         ],
       },
-    ])
-  })
+    ]);
+  });
 
   test("Buttons: styles, link, premium, emoji forms, disabled", async () => {
     const view = (
@@ -164,7 +164,7 @@ describe("component JSON", () => {
         <Button url="https://example.com">Docs</Button>
         <Button skuId="999" />
       </Row>
-    )
+    );
     expect(await components(view)).toEqual([
       {
         type: 1,
@@ -176,11 +176,11 @@ describe("component JSON", () => {
           { type: 2, style: 6, sku_id: "999" },
         ],
       },
-    ])
-  })
+    ]);
+  });
 
   test("selects: string options from Choices and <Option>s; entity defaults; channel types", async () => {
-    const Flavor = defineChoices({ choc: "Chocolate" })
+    const Flavor = defineChoices({ choc: "Chocolate" });
     const view = (
       <>
         <Row>
@@ -203,8 +203,8 @@ describe("component JSON", () => {
           <ChannelSelect customId="c" channelTypes={[0]} maxValues={3} />
         </Row>
       </>
-    )
-    const rows = (await components(view)) as unknown as { components: unknown[] }[]
+    );
+    const rows = (await components(view)) as unknown as { components: unknown[] }[];
     expect(rows.map((r) => r.components[0])).toEqual([
       {
         type: 3,
@@ -221,12 +221,12 @@ describe("component JSON", () => {
       { type: 6, custom_id: "r" },
       { type: 7, custom_id: "m", default_values: [{ id: "2", type: "role" }] },
       { type: 8, custom_id: "c", channel_types: [0], max_values: 3 },
-    ])
-  })
+    ]);
+  });
 
   test("Uploads attach once and are referenced as attachment://", async () => {
-    const chart = upload("chart.png", new Uint8Array([1, 2, 3]), { contentType: "image/png" })
-    const report = upload("report.txt", "hello")
+    const chart = upload("chart.png", new Uint8Array([1, 2, 3]), { contentType: "image/png" });
+    const report = upload("report.txt", "hello");
     const rendered = await renderMessage(
       <>
         <Gallery>
@@ -237,7 +237,7 @@ describe("component JSON", () => {
         <File src={report} spoiler />
         <File src="attachment://elsewhere.zip" />
       </>,
-    )
+    );
     expect(rendered.data.components).toEqual([
       {
         type: 12,
@@ -249,25 +249,25 @@ describe("component JSON", () => {
       { type: 9, components: [{ type: 10, content: "Same file, once" }], accessory: { type: 11, media: { url: "attachment://chart.png" } } },
       { type: 13, file: { url: "attachment://report.txt" }, spoiler: true },
       { type: 13, file: { url: "attachment://elsewhere.zip" } },
-    ])
-    expect(rendered.files).toEqual([chart, report])
-  })
+    ]);
+    expect(rendered.files).toEqual([chart, report]);
+  });
 
   test("<Message> sets ephemeral, notifications and allowed mentions", async () => {
     const rendered = await renderMessage(
       <Message ephemeral suppressNotifications allowedMentions={{ users: ["1"], repliedUser: false }}>
         <Text>Hi {"<@1>"}</Text>
       </Message>,
-    )
+    );
     expect(rendered.data).toEqual({
       flags: (1 << 15) | (1 << 6) | (1 << 12),
       components: [{ type: 10, content: "Hi <@1>" }],
       allowed_mentions: { parse: [], users: ["1"], replied_user: false },
-    })
-  })
+    });
+  });
 
   test("a <Modal> root renders a modal with Labels around inputs", async () => {
-    const Severity = defineChoices({ low: "Low", high: "High" })
+    const Severity = defineChoices({ low: "Low", high: "High" });
     const rendered = await render(
       <Modal title="Report" customId="report">
         <Text>Reporting **page**</Text>
@@ -290,9 +290,9 @@ describe("component JSON", () => {
           <FileUpload name="shot" maxValues={2} fileTypes={["image"]} required={false} />
         </Label>
       </Modal>,
-    ).catch((e: unknown) => e)
+    ).catch((e: unknown) => e);
     // 6 components: one over the limit of 5.
-    expect(rendered).toEqual(new RenderError("A <Modal> holds 1-5 <Label>s and <Text>s, it has 6"))
+    expect(rendered).toEqual(new RenderError("A <Modal> holds 1-5 <Label>s and <Text>s, it has 6"));
 
     const ok = await render(
       <Modal title="Report" customId="report">
@@ -315,7 +315,7 @@ describe("component JSON", () => {
           <FileUpload name="shot" maxValues={2} fileTypes={["image"]} required={false} />
         </Label>
       </Modal>,
-    )
+    );
     expect(ok).toEqual({
       kind: "modal",
       data: {
@@ -353,9 +353,9 @@ describe("component JSON", () => {
           { type: 18, label: "Screenshot", component: { type: 19, custom_id: "shot", required: false, max_values: 2, file_types: ["image"] } },
         ],
       },
-    })
-  })
-})
+    });
+  });
+});
 
 describe("placement errors name parent and child", () => {
   test.each([
@@ -473,9 +473,9 @@ describe("placement errors name parent and child", () => {
       "<Checkbox> is never required",
     ],
   ])("%s", async (_, view, message) => {
-    await fails(view, message)
-  })
-})
+    await fails(view, message);
+  });
+});
 
 describe("Limits are checked before Discord sees the message", () => {
   test.each([
@@ -615,6 +615,6 @@ describe("Limits are checked before Discord sees the message", () => {
       "<TextInput> maxLength must be 1-4000",
     ],
   ])("%s", async (_, view, message) => {
-    await fails(view, message)
-  })
-})
+    await fails(view, message);
+  });
+});

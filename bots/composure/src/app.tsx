@@ -10,15 +10,15 @@
 // - about.tsx: `/about`, `/invite`
 // - events.tsx: install logging and the installer's welcome DM
 // - ui.tsx: the tone containers every message is built from
-import { about, invite } from "./about.tsx"
-import { changelogs } from "./changelog.tsx"
-import { docs } from "./docs.tsx"
-import { createApp, loadData } from "./env.ts"
-import { onEvent } from "./events.tsx"
-import { feedback } from "./feedback.tsx"
-import { notify } from "./notify.tsx"
-import { pkg } from "./packages.tsx"
-import { renderError } from "./ui.tsx"
+import { about, invite } from "./about.tsx";
+import { changelogs } from "./changelog.tsx";
+import { docs } from "./docs.tsx";
+import { createApp, loadData } from "./env.ts";
+import { onEvent } from "./events.tsx";
+import { feedback } from "./feedback.tsx";
+import { notify } from "./notify.tsx";
+import { pkg } from "./packages.tsx";
+import { renderError } from "./ui.tsx";
 
 /** Every Command the bot serves, synced by `pnpm sync`. */
 export const app = createApp({ data: loadData })
@@ -30,4 +30,4 @@ export const app = createApp({ data: loadData })
   .command(about)
   .command(invite)
   .events(onEvent)
-  .onError(renderError)
+  .onError(renderError);
