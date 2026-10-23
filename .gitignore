@@ -4,6 +4,8 @@ coverage/
 .wrangler/
 .dev.vars
 .env
+.env.local
+.env.*.local
 *.log
 .tmp/
 .vitepress/cache/
