@@ -4,10 +4,12 @@ import { spawn } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import type { SpawnCloudflared } from "../src/cloudflared.ts";
 import { routeProblem } from "../src/named-tunnel.ts";
-import { openTunnel } from "../src/tunnel.ts";
+import { type NamedTunnelOption, type OpenTunnelOptions, tunnelFor } from "../src/tunnel.ts";
 
 const HOST = "bot-dev.example.com";
 const URL_ = `https://${HOST}`;
+
+const openTunnel = (option: NamedTunnelOption, options: OpenTunnelOptions) => tunnelFor(option)!.open(options);
 
 /** cloudflared that prints `token` for `tunnel token`, else logs like `tunnel run` with these routes. */
 function fake(routes: { hostname?: string; service: string }[], calls: { args: string[]; env: Record<string, string> }[] = []): SpawnCloudflared {

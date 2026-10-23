@@ -1,5 +1,7 @@
 // The `composure` command: commander parses, @clack/prompts shows (through Ui, so tests can record it).
-import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { parseEnv } from "node:util";
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 import type { Transport } from "composurejs";
 import { loadEnv } from "vite";
@@ -87,7 +89,7 @@ export async function sync(options: SyncOptions, io: Io): Promise<number> {
   ui.intro("composure sync");
   try {
     const root = resolve(options.root);
-    const config = configFromEnv(io.readEnvFiles === false ? io.env : projectEnv(root, options.mode, io.env));
+    const config = configFromEnv(io.readEnvFiles === false ? io.env : projectEnv(root, options.mode, io.env, ui));
     if (options.guild) config.guild = options.guild;
     const entry = options.app ?? defaultEntry(root);
     const rest = io.transport ? { transport: io.transport } : {};
@@ -139,7 +141,22 @@ export async function sync(options: SyncOptions, io: Io): Promise<number> {
   }
 }
 
-/** The process env over the root's .env files for the mode, as Vite loads them (ADR 0031). */
-function projectEnv(root: string, mode: string, env: Record<string, string | undefined>): Record<string, string | undefined> {
-  return { ...loadEnv(mode, root, ""), ...env };
+/**
+ * The process env over the root's .env files for the mode, as Vite loads them (ADR 0031). Outside
+ * development mode, warns when DISCORD_TOKEN is the Dev Application's, from `.env.local`.
+ */
+function projectEnv(root: string, mode: string, env: Record<string, string | undefined>, ui: Ui): Record<string, string | undefined> {
+  const merged = { ...loadEnv(mode, root, ""), ...env };
+  const modeFile = `.env.${mode}.local`;
+  const fromLocal = merged.DISCORD_TOKEN && !env.DISCORD_TOKEN && !envFile(root, modeFile).DISCORD_TOKEN && merged.DISCORD_TOKEN === envFile(root, ".env.local").DISCORD_TOKEN;
+  if (mode !== "development" && fromLocal) {
+    ui.warn(`DISCORD_TOKEN comes from .env.local, the Dev Application's: set ${mode}'s in ${modeFile} or the environment, or pass --mode development.`);
+  }
+  return merged;
+}
+
+/** One env file's variables; none when it is missing. */
+function envFile(root: string, name: string): Record<string, string | undefined> {
+  const file = join(root, name);
+  return existsSync(file) ? parseEnv(readFileSync(file, "utf8")) : {};
 }

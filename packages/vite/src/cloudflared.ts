@@ -37,10 +37,11 @@ export const spawnCloudflared =
 export async function resolveCloudflared(options: CloudflaredOptions): Promise<string> {
   const env = options.env ?? process.env;
   if (env.CLOUDFLARED_PATH) return env.CLOUDFLARED_PATH;
-  const found = onPath(env);
+  const platform = options.platform ?? process.platform;
+  const found = onPath(env, platform);
   if (found) return found;
   const release = options.release ?? CLOUDFLARED_RELEASE;
-  const target = `${options.platform ?? process.platform}-${options.arch ?? process.arch}`;
+  const target = `${platform}-${options.arch ?? process.arch}`;
   const asset = release.assets[target];
   if (!asset) throw new Error(`cloudflared is not installed and no release is pinned for ${target}: install it, or set CLOUDFLARED_PATH`);
   const file = join(options.root, "node_modules", ".cache", "composurejs", `cloudflared-${release.version}`, asset.file.endsWith(".exe") ? "cloudflared.exe" : "cloudflared");
@@ -84,8 +85,8 @@ function fromTarball(tgz: Uint8Array, name: string): Uint8Array {
 }
 
 /** `cloudflared` in a `PATH` directory: on Windows only `cloudflared.exe`, the one `spawn` runs without a shell. */
-function onPath(env: Record<string, string | undefined>): string | undefined {
-  const windows = process.platform === "win32";
+function onPath(env: Record<string, string | undefined>, platform: string): string | undefined {
+  const windows = platform === "win32";
   // Windows names it Path, and its variables are case-insensitive.
   const path = windows ? Object.entries(env).find(([key]) => key.toUpperCase() === "PATH")?.[1] : env.PATH;
   for (const dir of (path ?? "").split(delimiter)) {

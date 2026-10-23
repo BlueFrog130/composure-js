@@ -17,10 +17,10 @@ function tempDir(): string {
   return dir;
 }
 
-/** A directory holding an executable named cloudflared, as an install would put on PATH. */
-function installed(): { dir: string; bin: string } {
+/** A directory holding an executable named cloudflared, as an install on `platform` would put on PATH. */
+function installed(platform: string = process.platform): { dir: string; bin: string } {
   const dir = tempDir();
-  const bin = join(dir, process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
+  const bin = join(dir, platform === "win32" ? "cloudflared.exe" : "cloudflared");
   writeFileSync(bin, "installed");
   chmodSync(bin, 0o755);
   return { dir, bin };
@@ -70,8 +70,16 @@ describe("resolveCloudflared", () => {
     const logs: string[] = [];
     expect(await resolveCloudflared({ ...linux, log: (m) => logs.push(m), fetch: noFetch, env: { PATH: "" } })).toBe(downloaded);
     expect(logs).toEqual([]);
-    const { dir, bin } = installed();
+    const { dir, bin } = installed("linux");
     expect(await resolveCloudflared({ ...linux, log: () => {}, fetch: noFetch, env: { PATH: dir } })).toBe(bin);
+  });
+
+  test("PATH is searched as on the given platform: only cloudflared.exe on Windows, whose variable may be Path", async () => {
+    for (const platform of ["linux", "win32"]) {
+      const { dir, bin } = installed(platform);
+      const env = platform === "win32" ? { Path: dir } : { PATH: dir };
+      expect(await resolveCloudflared({ root: tempDir(), log: () => {}, fetch: noFetch, env, release: RELEASE, platform, arch: "x64" })).toBe(bin);
+    }
   });
 
   test("macOS's release is a .tgz: the binary inside it is what's kept", async () => {

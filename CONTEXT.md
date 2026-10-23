@@ -214,3 +214,7 @@ _Avoid_: Test bot, dev bot, staging app
 **Tunnel**:
 The public HTTPS URL forwarding to `vite dev` that the Dev Loop points the Dev Application at. A quick tunnel (a random `trycloudflare.com` host, the default), a named tunnel (a Cloudflare Tunnel on the developer's own hostname), or one the developer already runs.
 _Avoid_: Proxy, forwarder
+
+**Repoint**:
+The Dev Loop step that, once the App answers through the Tunnel, sets the Dev Application's Interactions Endpoint URL to it.
+_Avoid_: Endpoint (that is a REST route)

@@ -1,12 +1,13 @@
 // dev Sync (ADR 0031, unchanged from 0017): in `vite dev`, the App's Commands are synced to the
 // dev guild on start and after each source change. Independent of the Tunnel.
-import type { ScopedDefinition, Transport } from "composurejs";
+import type { Transport } from "composurejs";
 import { BotClient, getCurrentApplication } from "composurejs/rest";
 import { apply, plan, summary } from "composurejs/sync";
 import { type Plugin, runnerImport, type ViteDevServer } from "vite";
+import type { DevLog } from "./dev-log.ts";
 import { appOf } from "./server.ts";
 
-export interface DevSyncOptions {
+export interface DevSyncOptions extends DevLog {
   /** The guild Commands are synced to. */
   guild: string;
   /** `DISCORD_TOKEN`: its application is the one synced. */
@@ -17,8 +18,6 @@ export interface DevSyncOptions {
   appFile: string;
   /** A fresh `composure()` the App is loaded with. */
   plugin(): Plugin;
-  info(message: string): void;
-  warn(message: string): void;
 }
 
 /** Debounces source changes into one Sync. */
@@ -43,7 +42,7 @@ export function startDevSync(server: ViteDevServer, options: DevSyncOptions): vo
         applicationId ??= (await getCurrentApplication(new BotClient(token, rest))).id;
         const config = { token, applicationId, scopes: {}, guild };
         const { module } = await runnerImport<Record<string, unknown>>(appFile, { root: server.config.root, plugins: [plugin()], logLevel: "error" });
-        const definitions = appOf<{ fetch: unknown; definitions(): ScopedDefinition[] }>(module, appFile).definitions();
+        const definitions = appOf(module, appFile).definitions();
         const key = JSON.stringify(definitions);
         if (key === last) return;
         const planned = await plan(definitions, config, rest);

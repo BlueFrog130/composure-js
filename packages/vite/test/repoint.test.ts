@@ -1,9 +1,9 @@
-// Endpoint on its own, for what takes too long to wait out in `vite dev`: the 65 s retry after a
+// Repoint on its own, for what takes too long to wait out in `vite dev`: the 65 s retry after a
 // 400 and the probe's limit. The far end is a local HTTP server; Discord a recording Transport.
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, test } from "vitest";
-import { pointEndpoint } from "../src/endpoint.ts";
+import { repoint } from "../src/repoint.ts";
 import { StageError } from "../src/stage.ts";
 
 const APP_ID = "1052322265397739523";
@@ -31,12 +31,12 @@ function discord(patch: () => Response) {
 
 const rejected = () => Response.json({ code: 50035, message: "Invalid Form Body" }, { status: 400 });
 
-describe("Endpoint", { timeout: 10_000 }, () => {
+describe("Repoint", { timeout: 10_000 }, () => {
   test("a 400 with the application's own public key retries once after 65s, then fails with the hint", async () => {
     const { calls, transport } = discord(rejected);
     const slept: number[] = [];
     const logs: string[] = [];
-    const failure = await pointEndpoint({
+    const failure = await repoint({
       tunnel: await farEnd(401),
       application: APP_ID,
       token: "t",
@@ -49,7 +49,7 @@ describe("Endpoint", { timeout: 10_000 }, () => {
     expect(calls).toEqual(["GET", "PATCH", "PATCH"]);
     expect(slept).toEqual([65_000]);
     expect(failure).toBeInstanceOf(StageError);
-    expect((failure as StageError).stage).toBe("endpoint");
+    expect((failure as StageError).stage).toBe("repoint");
     expect((failure as StageError).message).toContain("Invalid Form Body");
     expect((failure as StageError).message).toContain("must answer Discord's signed PING");
   });
@@ -58,7 +58,7 @@ describe("Endpoint", { timeout: 10_000 }, () => {
     let failures = 1;
     const { calls, transport } = discord(() => (failures-- > 0 ? rejected() : Response.json({})));
     const logs: string[] = [];
-    await pointEndpoint({
+    await repoint({
       tunnel: await farEnd(401),
       application: APP_ID,
       token: "t",
@@ -75,7 +75,8 @@ describe("Endpoint", { timeout: 10_000 }, () => {
   test("a probe that never gets its 401 fails within its limit, naming the stage and the last answer", async () => {
     const { calls, transport } = discord(() => Response.json({}));
     const tunnel = await farEnd(502);
-    const failure = await pointEndpoint({
+    const slept: number[] = [];
+    const failure = await repoint({
       tunnel,
       application: APP_ID,
       token: "t",
@@ -85,7 +86,14 @@ describe("Endpoint", { timeout: 10_000 }, () => {
       warn: () => {},
       probeLimit: 500,
       probeInterval: 50,
+      sleep: (ms) => {
+        slept.push(ms);
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      },
     }).catch((error: unknown) => error);
+    // The probe waits between attempts with the injected sleep.
+    expect(slept.length).toBeGreaterThan(0);
+    expect(new Set(slept)).toEqual(new Set([50]));
     expect(failure).toBeInstanceOf(StageError);
     expect((failure as StageError).stage).toBe("probe");
     expect((failure as StageError).message).toBe(`no 401 from ${tunnel.url}/interactions within 0.5s (last: HTTP 502)`);

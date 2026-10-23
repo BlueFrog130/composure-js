@@ -174,6 +174,24 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(logs.join("\n")).not.toContain("[composure]");
   });
 
+  test("warns once when .env sets DISCORD_TOKEN: Vite loads .env in every mode", async () => {
+    project();
+    writeFileSync(`${dir}.env`, "# production\nDISCORD_TOKEN=production-token\n");
+    const logs: string[] = [];
+    await start({ tunnel: false, transport: discord().transport }, logs);
+    await settle();
+    expect(logs.filter((l) => l.includes(".env sets DISCORD_TOKEN"))).toHaveLength(1);
+  });
+
+  test("no .env warning for DISCORD_TOKEN in .env.local, or a .env without it", async () => {
+    project({ DISCORD_TOKEN: "t" });
+    writeFileSync(`${dir}.env`, "OTHER=1\n# DISCORD_TOKEN=commented out\n");
+    const logs: string[] = [];
+    await start({ tunnel: false, transport: discord().transport }, logs);
+    await settle();
+    expect(logs.join("\n")).not.toContain(".env sets DISCORD_TOKEN");
+  });
+
   test("serves the App with its handlers compiled, and picks up edits without a restart", async () => {
     project();
     const port = await start({ tunnel: false, transport: discord().transport });
@@ -192,7 +210,7 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(text).toBe("v2");
   });
 
-  test("Endpoint: probes the tunnel, pinned to its address, until a 401, then points the Dev Application at it", async () => {
+  test("Repoint: probes the tunnel, pinned to its address, until a 401, then points the Dev Application at it", async () => {
     const events: string[] = [];
     const { calls, transport } = discord(events);
     project({ DISCORD_TOKEN: "t" });
@@ -209,7 +227,7 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(out).toMatch(new RegExp(`Dev Application ${APP_ID} → http://${host}/interactions \\(\\d+\\.\\ds\\)`));
   });
 
-  test("Endpoint: never repoints when dev.application is not the token's application; prints the URL instead", async () => {
+  test("Repoint: never repoints when dev.application is not the token's application; prints the URL instead", async () => {
     const { calls, transport } = discord();
     project({ DISCORD_TOKEN: "t" });
     const logs: string[] = [];
@@ -220,7 +238,7 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(logs.join("\n")).toContain(`Set the Interactions Endpoint URL by hand: http://127.0.0.1:${port}/interactions`);
   });
 
-  test("Endpoint: without dev.application, opens the tunnel and prints the URL to set by hand", async () => {
+  test("Repoint: without dev.application, opens the tunnel and prints the URL to set by hand", async () => {
     const { calls, transport } = discord();
     project({ DISCORD_TOKEN: "t" });
     const logs: string[] = [];
@@ -232,7 +250,7 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(logs.join("\n")).toContain(`http://127.0.0.1:${port}/interactions`);
   });
 
-  test("Endpoint: a 429 waits retry_after, then PATCHes again", async () => {
+  test("Repoint: a 429 waits retry_after, then PATCHes again", async () => {
     let limited = 1;
     const { calls, transport } = discord([], (request) =>
       request.method === "PATCH" && limited-- > 0 ? Response.json({ message: "You are being rate limited.", retry_after: 0.4, global: false }, { status: 429 }) : undefined,
@@ -245,14 +263,14 @@ describe("vite dev", { timeout: 30_000 }, () => {
     expect(logs.join("\n")).toContain("rate limited; retrying in 0.4s");
   });
 
-  test("Endpoint: a 400 with another application's DISCORD_PUBLIC_KEY fails naming the key", async () => {
+  test("Repoint: a 400 with another application's DISCORD_PUBLIC_KEY fails naming the key", async () => {
     const { calls, transport } = discord([], (request) => (request.method === "PATCH" ? Response.json({ code: 50035, message: "Invalid Form Body" }, { status: 400 }) : undefined));
     project({ DISCORD_TOKEN: "t", DISCORD_PUBLIC_KEY: other.publicKey });
     const logs: string[] = [];
     const port = await start({ application: APP_ID, tunnel: local(), transport }, logs);
     await until(() => logs.some((l) => l.includes("failed")));
     expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
-    expect(logs.join("\n")).toContain(`endpoint failed: DISCORD_PUBLIC_KEY is not the public key of application ${APP_ID}`);
+    expect(logs.join("\n")).toContain(`repoint failed: DISCORD_PUBLIC_KEY is not the public key of application ${APP_ID}`);
     // vite dev keeps serving.
     expect((await post(port, "{}")).status).toBe(401);
   });

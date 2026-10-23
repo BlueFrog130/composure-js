@@ -157,7 +157,7 @@ The environment holds only secrets, in two files next to `vite.config.ts`, both 
 
 For the plugin and the CLI, variables already set in the process environment win over both files. Production's secrets never sit in a file `vite dev` loads, so a dev server can't act on production. For a deployed Worker, set them with `wrangler secret put` instead ([Deploying](./deploying)).
 
-Vite also reads `.env` and `.env.[mode]`, but don't put secrets there: `.env` is loaded in every mode, and `@cloudflare/vite-plugin` picks `.env.<name>` files by Cloudflare environment rather than Vite mode, so `.env.local` is the one per-developer file the Worker sees in `vite dev`.
+Vite also reads `.env` and `.env.[mode]`, but don't put secrets there: `.env` is loaded in every mode, and `@cloudflare/vite-plugin` picks `.env.<name>` files by Cloudflare environment rather than Vite mode, so `.env.local` is the one per-developer file the Worker sees in `vite dev`. `vite dev` warns when `.env` sets `DISCORD_TOKEN`.
 
 ## Tests
 

@@ -111,7 +111,7 @@ async function create(dirArg: string | undefined, options: CreateOptions, env: E
   ] as const) {
     let id = options[key];
     if (id === undefined && ask) {
-      const answer = await text({ message, placeholder: "skip", validate: (value) => (value && !ID.test(value) ? "A Discord id is digits only" : undefined) });
+      const answer = await text({ message, placeholder: "skip", validate: (value) => (value?.trim() && !ID.test(value.trim()) ? "A Discord id is digits only" : undefined) });
       if (isCancel(answer)) return stop("Cancelled.");
       id = answer?.trim();
     }

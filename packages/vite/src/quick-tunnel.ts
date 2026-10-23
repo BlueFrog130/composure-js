@@ -2,12 +2,13 @@
 // trycloudflare.com (ADR 0031). Its hostname is published 1–3 s after cloudflared registers a
 // connection, and any recursive lookup before that caches NXDOMAIN for 60 s, at Discord too. So it
 // is ready only once the zone's authoritative nameservers answer with an A record, and it returns
-// that IP as `address` for Endpoint's probe: nothing looks the hostname up recursively before then.
+// that IP as `address` for Repoint's probe: nothing looks the hostname up recursively before then.
 import type { ChildProcess } from "node:child_process";
 import { Resolver, resolve4, resolveNs } from "node:dns/promises";
 import { createInterface } from "node:readline";
 import type { SpawnCloudflared } from "./cloudflared.ts";
-import { StageError, withinLimit } from "./stage.ts";
+import type { DevLog } from "./dev-log.ts";
+import { CONNECT_LIMIT, sleep, StageError, withinLimit } from "./stage.ts";
 import type { Tunnel } from "./tunnel.ts";
 
 /** The DNS the quick tunnel asks (tests script it). */
@@ -30,19 +31,16 @@ const systemDns: QuickTunnelDns = {
   },
 };
 
-/** cloudflared must register a connection within this. */
-const CONNECT_LIMIT = 30_000;
 /** The authoritative nameservers must publish the hostname within this. */
 const DNS_LIMIT = 60_000;
 /** How often they are asked. */
 const DNS_INTERVAL = 1000;
 
-export interface QuickTunnelOptions {
+export interface QuickTunnelOptions extends Pick<DevLog, "warn"> {
   /** The local port `vite dev` listens on. */
   port: number;
   /** Starts cloudflared with the resolved binary (tests swap in a stand-in). */
   spawn: SpawnCloudflared;
-  warn(message: string): void;
   dns?: QuickTunnelDns | undefined;
   /** Tests: the stages' limits and how often DNS is asked, in ms. */
   connectLimit?: number;
@@ -89,7 +87,7 @@ export async function startQuickTunnel(options: QuickTunnelOptions): Promise<Tun
         } catch (error) {
           observe(describeDnsError(error));
         }
-        await new Promise((resolve) => setTimeout(resolve, interval));
+        await sleep(interval);
       }
       throw signal.reason;
     });

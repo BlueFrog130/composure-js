@@ -1,4 +1,4 @@
-// Endpoint (ADR 0031): points the Dev Application at a connected Tunnel. Only the application
+// Repoint (ADR 0031): points the Dev Application at a connected Tunnel. Only the application
 // named as `dev.application`, and only when it is the token's; only once the App answers through
 // the tunnel, because Discord PINGs a new endpoint before accepting it.
 import { request as httpRequest } from "node:http";
@@ -6,7 +6,8 @@ import { request as httpsRequest } from "node:https";
 import { isIPv6, type LookupFunction } from "node:net";
 import { DiscordApiError, RateLimitedError, type Transport } from "composurejs";
 import { BotClient, editCurrentApplication, getCurrentApplication } from "composurejs/rest";
-import { elapsed, StageError, withinLimit } from "./stage.ts";
+import type { DevLog } from "./dev-log.ts";
+import { elapsed, sleep as wait, StageError, withinLimit } from "./stage.ts";
 import type { Tunnel } from "./tunnel.ts";
 
 /** The application fields pointed at the tunnel, each to this path under its URL. */
@@ -20,7 +21,7 @@ const VERIFY_RETRY = 65_000;
 
 const HINT = "The endpoint must answer Discord's signed PING: check that the tunnel reaches this server and that DISCORD_PUBLIC_KEY is the Dev Application's.";
 
-export interface EndpointOptions {
+export interface RepointOptions extends DevLog {
   tunnel: Pick<Tunnel, "url" | "address">;
   /** `dev.application`: the only application ever repointed. */
   application: string | undefined;
@@ -29,8 +30,6 @@ export interface EndpointOptions {
   /** `DISCORD_PUBLIC_KEY`. */
   publicKey: string | undefined;
   transport?: Transport | undefined;
-  info(message: string): void;
-  warn(message: string): void;
   /** When the Dev Loop started: log lines carry the time since. */
   since?: number;
   /** Tests: the probe's limit and interval, and the waits for 429s and the 400 retry. */
@@ -41,9 +40,9 @@ export interface EndpointOptions {
 
 /**
  * Points the Dev Application's endpoint fields at the tunnel, or logs the URL to set by hand when
- * the token's application is not `dev.application`. Fails with a {@link StageError}: `probe`, `endpoint`.
+ * the token's application is not `dev.application`. Fails with a {@link StageError}: `probe`, `repoint`.
  */
-export async function pointEndpoint(options: EndpointOptions): Promise<void> {
+export async function repoint(options: RepointOptions): Promise<void> {
   const { info, warn, since = Date.now(), sleep = wait } = options;
   const base = options.tunnel.url.replace(/\/$/, "");
   const fields = Object.fromEntries(Object.entries(ENDPOINT_FIELDS).map(([field, path]) => [field, `${base}${path}`]));
@@ -67,7 +66,7 @@ export async function pointEndpoint(options: EndpointOptions): Promise<void> {
   };
 
   const me = await patiently(() => getCurrentApplication(client)).catch((error: unknown) => {
-    throw new StageError("endpoint", `reading the token's application: ${(error as Error).message}`);
+    throw new StageError("repoint", `reading the token's application: ${(error as Error).message}`);
   });
   // Never repoint a production application: only the one named as the Dev Application.
   if (me.id !== options.application) {
@@ -80,7 +79,7 @@ export async function pointEndpoint(options: EndpointOptions): Promise<void> {
       if (outcome === 401) return;
       observe(describeOutcome(outcome));
       if (signal.aborted) return;
-      await wait(options.probeInterval ?? PROBE_INTERVAL);
+      await sleep(options.probeInterval ?? PROBE_INTERVAL);
     }
   });
   info(`${endpoint} answers through the tunnel (${elapsed(since)})`);
@@ -90,19 +89,17 @@ export async function pointEndpoint(options: EndpointOptions): Promise<void> {
       await patiently(() => editCurrentApplication(client, fields));
       break;
     } catch (error) {
-      if (!(error instanceof DiscordApiError && error.status === 400)) throw new StageError("endpoint", (error as Error).message);
+      if (!(error instanceof DiscordApiError && error.status === 400)) throw new StageError("repoint", (error as Error).message);
       if (options.publicKey && me.verify_key !== options.publicKey) {
-        throw new StageError("endpoint", `DISCORD_PUBLIC_KEY is not the public key of application ${me.id}, so the App rejects Discord's PING: use the Dev Application's.`);
+        throw new StageError("repoint", `DISCORD_PUBLIC_KEY is not the public key of application ${me.id}, so the App rejects Discord's PING: use the Dev Application's.`);
       }
-      if (retried) throw new StageError("endpoint", `${error.message}\n${HINT}`);
+      if (retried) throw new StageError("repoint", `${error.message}\n${HINT}`);
       info(`Discord could not verify ${endpoint}; retrying once in ${VERIFY_RETRY / 1000}s`);
       await sleep(VERIFY_RETRY);
     }
   }
   info(`Dev Application ${me.id} → ${endpoint} (${elapsed(since)})`);
 }
-
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** One unsigned POST: the status, else the network error's code. Pinned to `address` when given. */
 function probe(endpoint: string, address: string | undefined, signal: AbortSignal): Promise<number | string> {

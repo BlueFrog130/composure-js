@@ -24,11 +24,20 @@ function env(overrides: Partial<Env> = {}) {
   return { env: value, out, err, installs };
 }
 
-// The terminal: each prompt takes the next queued answer and records its message.
-const prompts = vi.hoisted(() => ({ answers: [] as unknown[], asked: [] as string[] }));
+// The terminal: each prompt takes the next queued answer and records its message. An answer its
+// `validate` rejects is recorded in `rejected`, and the prompt takes the next one, as clack re-asks.
+const prompts = vi.hoisted(() => ({ answers: [] as unknown[], asked: [] as string[], rejected: [] as string[] }));
 vi.mock("@clack/prompts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@clack/prompts")>();
-  const answer = async ({ message }: { message: string }) => (prompts.asked.push(message), prompts.answers.shift());
+  const answer = async ({ message, validate }: { message: string; validate?: (value: string | undefined) => string | Error | undefined }) => {
+    prompts.asked.push(message);
+    for (;;) {
+      const value = prompts.answers.shift();
+      const problem = typeof value === "string" ? validate?.(value) : undefined;
+      if (!problem) return value;
+      prompts.rejected.push(`${JSON.stringify(value)}: ${String(problem)}`);
+    }
+  };
   return { ...actual, text: answer, select: answer, confirm: answer };
 });
 
@@ -36,6 +45,7 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true });
   prompts.answers.length = 0;
   prompts.asked.length = 0;
+  prompts.rejected.length = 0;
 });
 // clack writes to stdout; keep test output readable.
 vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -128,6 +138,13 @@ describe("create-composurejs", () => {
     prompts.answers.push("1100000000000000001", "1200000000000000002");
     expect(await main(["my-bot", "--template", "node", "--no-install"], env({ interactive: true }).env)).toBe(0);
     expect(prompts.asked).toEqual([expect.stringMatching(/Dev Application/), expect.stringMatching(/guild/)]);
+    expect(readFileSync(`${tmp}my-bot/vite.config.ts`, "utf8")).toContain(`composure({ dev: { application: "1100000000000000001", guild: "1200000000000000002" } })`);
+  });
+
+  test("an id pasted with spaces around it is accepted, and written trimmed; anything else but digits is not", async () => {
+    prompts.answers.push(" 1100000000000000001 ", "12OO", "1200000000000000002\n");
+    expect(await main(["my-bot", "--template", "node", "--no-install"], env({ interactive: true }).env)).toBe(0);
+    expect(prompts.rejected).toEqual(['"12OO": A Discord id is digits only']);
     expect(readFileSync(`${tmp}my-bot/vite.config.ts`, "utf8")).toContain(`composure({ dev: { application: "1100000000000000001", guild: "1200000000000000002" } })`);
   });
 

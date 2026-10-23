@@ -115,7 +115,7 @@ export function onShutdown(close: () => Promise<void>): () => void {
 }
 
 /** The App a module exports as `app` or default. */
-export function appOf<A extends { fetch: unknown; definitions: unknown }>(module: Record<string, unknown>, file: string): A {
+export function appOf<A extends { fetch: unknown; definitions: unknown } = App>(module: Record<string, unknown>, file: string): A {
   const app = [module.app, module.default].find((v) => typeof (v as A | undefined)?.fetch === "function" && typeof (v as A).definitions === "function");
   if (!app) throw new Error(`${file} must export the App as \`app\` or as its default export`);
   return app as A;

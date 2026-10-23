@@ -1,7 +1,8 @@
 // `server()`: builds the Default Server, or your own entry, for Node and Bun (ADR 0024, 0025), and
 // serves the App in `vite dev` (ADR 0031). The App module is `composure()`'s.
-import { createTracker, type ScopedDefinition } from "composurejs";
+import { createTracker } from "composurejs";
 import { isRunnableDevEnvironment, type Plugin, type UserConfig, type ViteDevServer } from "vite";
+import { TAG } from "./dev-log.ts";
 import { viteEnv } from "./env.ts";
 import type { ComposureApi } from "./index.ts";
 import { appOf, send, toRequest } from "./server.ts";
@@ -82,11 +83,6 @@ export function server(options: ServerOptions = {}): Plugin {
   };
 }
 
-interface LoadedApp {
-  fetch(request: Request, env?: unknown, platform?: unknown): Promise<Response>;
-  definitions(): ScopedDefinition[];
-}
-
 /** `vite dev`: answers requests with the App in `appFile`, reloaded through Vite; its env is Vite's env files for the mode under the process environment. */
 function serveInDev(server: ViteDevServer, appFile: string): void {
   const env = viteEnv(server.config);
@@ -97,12 +93,12 @@ function serveInDev(server: ViteDevServer, appFile: string): void {
     void (async () => {
       const ssr = server.environments.ssr;
       if (!isRunnableDevEnvironment(ssr)) throw new Error("The ssr environment is not runnable in this process");
-      const app = appOf<LoadedApp>(await ssr.runner.import(appFile), appFile);
+      const app = appOf(await ssr.runner.import(appFile), appFile);
       const request = await toRequest(req);
       await send(res, request ? await app.fetch(request, env, platform) : new Response("Payload Too Large", { status: 413 }));
     })().catch((error: unknown) => {
       server.ssrFixStacktrace(error as Error);
-      server.config.logger.error(`\x1b[36m[composure]\x1b[0m ${(error as Error).stack ?? String(error)}`);
+      server.config.logger.error(`${TAG} ${(error as Error).stack ?? String(error)}`);
       if (!res.headersSent) res.writeHead(500).end("Internal Server Error");
     });
   });

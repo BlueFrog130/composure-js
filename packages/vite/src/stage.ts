@@ -1,4 +1,4 @@
-// The Dev Loop's stages (tunnel, probe, endpoint, ...): each has its own limit, and a failure names
+// The Dev Loop's stages (tunnel, probe, repoint, ...): each has its own limit, and a failure names
 // its stage and the last thing it observed (ADR 0031).
 
 /** A Dev Loop stage that failed. Logged as `<stage> failed: <message>`. */
@@ -50,6 +50,12 @@ export async function withinLimit<T>(
     clearTimeout(timer);
   }
 }
+
+/** A tunnel must connect within this (a custom one: its function must resolve). */
+export const CONNECT_LIMIT = 30_000;
+
+/** Resolves after `ms`: the wait between a stage's attempts. */
+export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Seconds since `since`, as `8.1s`. */
 export const elapsed = (since: number) => `${((Date.now() - since) / 1000).toFixed(1)}s`;

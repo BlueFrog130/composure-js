@@ -19,8 +19,8 @@ function run(options: { env?: Record<string, string>; confirm?: boolean; stored?
   const err: string[] = [];
   const transport = new MockTransport().reply(200, options.stored ?? []);
   const io: Io = {
-    // With envFiles, everything comes from the project's files.
-    env: options.envFiles ? {} : { DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, ...options.env },
+    // With envFiles, everything else comes from the project's files.
+    env: options.envFiles ? { ...options.env } : { DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, ...options.env },
     ui,
     out: (text) => out.push(text),
     err: (text) => err.push(text),
@@ -142,6 +142,34 @@ describe("composure sync env files", { timeout: 30_000 }, () => {
     expect(await t.main("sync", "--root", root, "--dry-run", ...args)).toBe(0);
     return t.transport.requests[0]?.path.split("/")[2];
   }
+  async function warnings(env: Record<string, string>, ...args: string[]): Promise<string[]> {
+    const t = run({ envFiles: true, env });
+    expect(await t.main("sync", "--root", root, "--dry-run", ...args)).toBe(0);
+    return t.ui.lines.filter((l) => l.startsWith("warn: "));
+  }
+
+  test("production mode warns when DISCORD_TOKEN comes from .env.local, and still syncs with it", async () => {
+    files({ ".env.local": "111111111111111111" });
+    const lines = await warnings({});
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^warn: DISCORD_TOKEN comes from \.env\.local/);
+    expect(lines[0]).toContain(".env.production.local");
+    expect(await syncedTo()).toBe("111111111111111111");
+  });
+
+  test("a partial .env.production.local without DISCORD_TOKEN warns too", async () => {
+    files({ ".env.local": "111111111111111111" });
+    writeFileSync(join(root, ".env.production.local"), "DISCORD_APPLICATION_ID=222222222222222222\n");
+    expect(await warnings({})).toHaveLength(1);
+  });
+
+  test("no warning when DISCORD_TOKEN comes from .env.production.local or the process env, or in development mode", async () => {
+    files({ ".env.local": "111111111111111111", ".env.production.local": "222222222222222222" });
+    expect(await warnings({})).toEqual([]);
+    rmSync(join(root, ".env.production.local"));
+    expect(await warnings({ DISCORD_TOKEN: "from-ci" })).toEqual([]);
+    expect(await warnings({}, "--mode", "development")).toEqual([]);
+  });
 
   test("production mode (the default) takes .env.production.local over .env.local", async () => {
     files({ ".env.local": "111111111111111111", ".env.production.local": "222222222222222222" });
@@ -158,5 +186,6 @@ describe("composure sync env files", { timeout: 30_000 }, () => {
     const t = run({ envFiles: true });
     expect(await t.main("sync", "--root", root, "--dry-run")).toBe(1);
     expect(t.ui.lines.at(-1)).toBe("fail: DISCORD_TOKEN is not set");
+    expect(t.ui.lines.filter((l) => l.startsWith("warn: "))).toEqual([]);
   });
 });

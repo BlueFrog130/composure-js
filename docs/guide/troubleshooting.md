@@ -44,11 +44,15 @@
 
 **`rate limited; retrying in <n>s`.** Discord's rate limit on editing the application, usually after several restarts in a row. The plugin waits it out; nothing to do.
 
-**`endpoint failed: DISCORD_PUBLIC_KEY is not the public key of application <id>`.** Discord's PING was rejected because the App verifies with another application's key. Copy the Dev Application's Public Key into `.env.local`.
+**`repoint failed: DISCORD_PUBLIC_KEY is not the public key of application <id>`.** Discord's PING was rejected because the App verifies with another application's key. Copy the Dev Application's Public Key into `.env.local`.
 
-**`Discord could not verify <url>; retrying once in 65s`**, then **`endpoint failed: ... The endpoint must answer Discord's signed PING`.** The key matches, but Discord could not reach the App or its PING got no valid answer. Check that requests through the tunnel reach this server (open the URL in a browser: `Method Not Allowed` means it does), and that nothing in front of the App changes the request.
+**`Discord could not verify <url>; retrying once in 65s`**, then **`repoint failed: ... The endpoint must answer Discord's signed PING`.** The key matches, but Discord could not reach the App or its PING got no valid answer. Check that requests through the tunnel reach this server: open the URL in a browser. On Workers (`cloudflare()`) the App answers `Method Not Allowed`; on Node or Bun (`server()`) only POSTs reach the App, so Vite answers `Cannot GET /interactions`. Either means the tunnel reaches `vite dev`; a Cloudflare error page or no answer means it doesn't. Then check that nothing in front of the App changes the request.
 
-**`endpoint failed: reading the token's application: ...`.** `DISCORD_TOKEN` was rejected (usually `401: Unauthorized`): reset the bot token in the Developer Portal and update `.env.local`.
+**`repoint failed: reading the token's application: ...`.** `DISCORD_TOKEN` was rejected (usually `401: Unauthorized`): reset the bot token in the Developer Portal and update `.env.local`.
+
+**`.env sets DISCORD_TOKEN, and Vite loads .env in every mode`.** A warning: a token in `.env` (often production's, from before `.env.production.local`) reaches `vite dev` unless `.env.local` sets its own. Move it to `.env.production.local` and keep the Dev Application's in `.env.local`.
+
+**`DISCORD_TOKEN comes from .env.local, the Dev Application's`** (`composure sync`). A warning: in production mode, neither the environment nor `.env.production.local` sets `DISCORD_TOKEN`, so the sync goes to the Dev Application. Put production's token in `.env.production.local`, or pass `--mode development` if the Dev Application is what you meant.
 
 **`dev Sync needs DISCORD_TOKEN (in .env.local).`, `dev Sync failed: ...`.** dev Sync couldn't run, or Discord rejected a Command definition; the message says which. The server keeps running, and the next save tries again.
 

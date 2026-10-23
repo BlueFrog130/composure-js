@@ -3,9 +3,10 @@
 // (after `cloudflared tunnel login`).
 import { createInterface } from "node:readline";
 import type { SpawnCloudflared } from "./cloudflared.ts";
+import type { DevLog } from "./dev-log.ts";
 import type { Tunnel } from "./tunnel.ts";
 
-export interface NamedTunnelOptions {
+export interface NamedTunnelOptions extends Pick<DevLog, "warn"> {
   /** The tunnel's name, to fetch its token with. */
   name: string;
   /** The public hostname the tunnel routes to this server. */
@@ -14,21 +15,22 @@ export interface NamedTunnelOptions {
   port: number;
   /** The tunnel's token (`CLOUDFLARE_TUNNEL_TOKEN`; Cloudflare dashboard → the tunnel → install command); skips the fetch. */
   token?: string | undefined;
-  warn(message: string): void;
   /** Starts the resolved cloudflared (tests swap in a stand-in). */
   spawn: SpawnCloudflared;
-  /** How long to wait for cloudflared's first connection, in ms. */
-  timeout?: number;
+  /** Gets each line cloudflared logs while connecting. */
+  observe?: ((line: string) => void) | undefined;
+  /** Aborted when the connect limit passes: cloudflared is stopped. */
+  signal?: AbortSignal | undefined;
 }
 
 /** Resolves once cloudflared has registered a connection; warns when the tunnel routes `hostname` elsewhere. */
 export async function startNamedTunnel(options: NamedTunnelOptions): Promise<Tunnel> {
-  const { name: label, port, warn, timeout = 30_000 } = options;
+  const { name, port, warn, spawn, signal } = options;
   const url = `https://${options.hostname}`;
-  const run = options.spawn;
-  const token = options.token ?? (await tunnelToken(run, label));
+  const token = options.token ?? (await tunnelToken(spawn, name));
+  signal?.throwIfAborted();
   // The token goes through the environment: an argument would show in the process list.
-  const child = run(["tunnel", "--no-autoupdate", "--url", `http://localhost:${port}`, "run"], { TUNNEL_TOKEN: token });
+  const child = spawn(["tunnel", "--no-autoupdate", "--url", `http://localhost:${port}`, "run"], { TUNNEL_TOKEN: token });
   const kill = () => void child.kill();
   process.once("exit", kill);
   let closing = false;
@@ -44,28 +46,29 @@ export async function startNamedTunnel(options: NamedTunnelOptions): Promise<Tun
   return new Promise((resolve, reject) => {
     let ready = false;
     let last = "";
+    const stop = () => fail(signal!.reason as Error);
     const fail = (error: Error) => {
-      clearTimeout(timer);
+      signal?.removeEventListener("abort", stop);
       void close();
       reject(error);
     };
-    const timer = setTimeout(() => fail(new Error(`cloudflared did not connect tunnel ${label} within ${timeout / 1000}s: ${last}`)), timeout);
+    signal?.addEventListener("abort", stop, { once: true });
     const onLine = (line: string) => {
-      if (line.trim()) last = line.trim();
+      if (line.trim()) options.observe?.((last = line.trim()));
       // A dashboard-managed tunnel's routes win over --url: check they reach this server.
       const config = /Updated to new configuration config="((?:[^"\\]|\\.)*)"/.exec(line);
       if (config) {
         try {
           const { ingress } = JSON.parse(JSON.parse(`"${config[1]}"`) as string) as { ingress?: IngressRule[] };
           const problem = routeProblem(ingress ?? [], url, port);
-          if (problem) warn(`tunnel ${label} ${problem}: change the route in the Cloudflare dashboard (Networks → Tunnels), or vite's server.port.`);
+          if (problem) warn(`tunnel ${name} ${problem}: change the route in the Cloudflare dashboard (Networks → Tunnels), or vite's server.port.`);
         } catch {
           // An unexpected log format: nothing to check.
         }
       }
       if (!ready && line.includes("Registered tunnel connection")) {
         ready = true;
-        clearTimeout(timer);
+        signal?.removeEventListener("abort", stop);
         resolve({ url, close });
       }
     };
@@ -73,8 +76,8 @@ export async function startNamedTunnel(options: NamedTunnelOptions): Promise<Tun
     createInterface({ input: child.stderr! }).on("line", onLine);
     child.once("error", (error) => fail(notInstalled(error)));
     child.once("exit", (code) => {
-      if (!ready) fail(new Error(`cloudflared exited (${code}) before connecting tunnel ${label}: ${last}`));
-      else if (!closing) warn(`cloudflared exited (${code}); tunnel ${label} is down: ${last}`);
+      if (!ready) fail(new Error(`cloudflared exited (${code}) before connecting tunnel ${name}: ${last}`));
+      else if (!closing) warn(`cloudflared exited (${code}); tunnel ${name} is down: ${last}`);
     });
   });
 }

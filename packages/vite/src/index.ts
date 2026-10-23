@@ -5,7 +5,7 @@ import { normalizePath, type Plugin } from "vite";
 import { type DevOptions, setupDevLoop } from "./dev.ts";
 import { describeBreaks, diffLock, type HandlerLock, inCi, LOCK_FILE, lockOf, readLock, writeLock } from "./lock.ts";
 import { HandlerTransformError, parseModule, relativePath, type ShippedHandler, transformHandlers } from "./transform.ts";
-import { allowedHostsOf } from "./tunnel.ts";
+import { tunnelFor } from "./tunnel.ts";
 
 export interface ComposureOptions {
   /** The module exporting the App as `app` or default. Default: `src/app.tsx`, `src/app.ts`, ... */
@@ -72,7 +72,7 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
     // Vite's host check lets exactly the tunnel's host through.
     config(_config, env) {
       if (env.command !== "serve" || !options.dev) return undefined;
-      const allowedHosts = allowedHostsOf(options.dev.tunnel ?? "quick");
+      const allowedHosts = tunnelFor(options.dev.tunnel)?.allowedHosts;
       return allowedHosts ? { server: { allowedHosts } } : undefined;
     },
 
