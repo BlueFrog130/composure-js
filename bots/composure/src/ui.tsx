@@ -7,7 +7,7 @@
 // `renderError`, the App's Error Renderer, in the same style.
 import { Container, type ContainerProps, GENERIC_ERROR_MESSAGE, Text, UserError } from "composurejs"
 
-/** TypeScript's blue: tells this bot's messages from composure-rs's purple ones in the shared server. */
+/** TypeScript's blue: tells this bot's messages from composure-rs's rust orange ones in the shared server. */
 export const PRIMARY = 0x3178c6
 /** Discord's grey, for neutral information. */
 export const SECONDARY = 0x4e5058
