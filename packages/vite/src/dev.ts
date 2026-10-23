@@ -6,6 +6,7 @@ import { createTracker, DiscordApiError, type ScopedDefinition, type Transport }
 import { BotClient, editCurrentApplication, getCurrentApplication } from "composurejs/rest"
 import { apply, configFromEnv, plan, summary, type SyncConfig } from "composurejs/sync"
 import { isRunnableDevEnvironment, loadEnv, type Plugin, runnerImport, type ViteDevServer } from "vite"
+import { startNamedTunnel } from "./named-tunnel.ts"
 import { appOf, send, toRequest } from "./server.ts"
 
 export interface Tunnel {
@@ -20,8 +21,9 @@ export interface Tunnel {
 export interface DevOptions {
   /**
    * Open a public tunnel to `vite dev` and point the dev application's interactions endpoint at
-   * it. Default: when `applicationId` or `tunnelUrl` is set. Uses `tunnelUrl` when set, else
-   * `startTunnel`, else a cloudflared quick tunnel (downloaded on first use, under Cloudflare's terms).
+   * it. Default: when `applicationId`, `tunnelUrl` or `tunnelName` is set. Uses `tunnelUrl` when
+   * set, else `startTunnel`, else a cloudflared quick tunnel (downloaded on first use, under
+   * Cloudflare's terms).
    */
   tunnel?: boolean
   /**
@@ -30,11 +32,17 @@ export interface DevOptions {
    */
   applicationId?: string
   /**
-   * A tunnel you already run, forwarding to this server (a named Cloudflare Tunnel, an ngrok
-   * domain): its public URL, used instead of a quick tunnel, and its host allowed by Vite.
-   * Default: `COMPOSURE_DEV_TUNNEL_URL`.
+   * Your own tunnel's public URL, used instead of a quick tunnel, its host allowed by Vite. With
+   * `tunnelName` (or `COMPOSURE_DEV_TUNNEL_TOKEN`) the plugin runs that tunnel; without, it is one
+   * you already run, forwarding to this server (ngrok, ...). Default: `COMPOSURE_DEV_TUNNEL_URL`.
    */
   tunnelUrl?: string
+  /**
+   * A named Cloudflare Tunnel routing `tunnelUrl`'s host to this server: the plugin runs it with
+   * cloudflared (installed, and logged in with `cloudflared tunnel login`; or the tunnel's token in
+   * `COMPOSURE_DEV_TUNNEL_TOKEN`). Default: `COMPOSURE_DEV_TUNNEL_NAME`.
+   */
+  tunnelName?: string
   /** Sync Commands to `guild` on start and on every change. Default: when `guild` is set. */
   sync?: boolean
   /** The guild dev Sync syncs Commands to. Default: `COMPOSURE_DEV_GUILD`, else `DISCORD_GUILD_ID`. */
@@ -52,6 +60,9 @@ export const DEV_APPLICATION_VAR = "COMPOSURE_DEV_APPLICATION_ID"
 export const DEV_GUILD_VAR = "COMPOSURE_DEV_GUILD"
 /** A developer's own tunnel (a fixed hostname already forwarding to `vite dev`): used instead of a quick tunnel. */
 export const DEV_TUNNEL_URL_VAR = "COMPOSURE_DEV_TUNNEL_URL"
+export const DEV_TUNNEL_NAME_VAR = "COMPOSURE_DEV_TUNNEL_NAME"
+/** A named tunnel's token: runs it without `cloudflared tunnel login`. A secret, so never an option. */
+export const DEV_TUNNEL_TOKEN_VAR = "COMPOSURE_DEV_TUNNEL_TOKEN"
 
 const TAG = "\x1b[36m[composure]\x1b[0m"
 /** Waits between attempts to point the dev application at an endpoint Discord cannot verify yet: past a 60s DNS negative cache. */
@@ -149,12 +160,22 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
   // Tunnel: only once the server listens, because Discord PINGs a new endpoint before accepting it.
   const devApp = options.applicationId ?? env[DEV_APPLICATION_VAR]
   const ownTunnel = tunnelUrlOf(options, env)
-  if (options.tunnel ?? (devApp !== undefined || ownTunnel !== undefined)) {
+  const tunnelName = (options.tunnelName ?? env[DEV_TUNNEL_NAME_VAR]) || undefined
+  const tunnelToken = env[DEV_TUNNEL_TOKEN_VAR] || undefined
+  const openTunnel = async (port: number): Promise<Tunnel> => {
+    if (tunnelName || tunnelToken) {
+      if (!ownTunnel) throw new Error(`a named tunnel needs ${DEV_TUNNEL_URL_VAR} (or dev.tunnelUrl): the public URL it routes to this server`)
+      return startNamedTunnel({ url: ownTunnel, port, name: tunnelName, token: tunnelToken, warn })
+    }
+    if (ownTunnel) return { url: ownTunnel, close: async () => {} }
+    return (options.startTunnel ?? cloudflared)(port)
+  }
+  if (options.tunnel ?? (devApp !== undefined || ownTunnel !== undefined || tunnelName !== undefined)) {
     let tunnel: Tunnel | undefined
     server.httpServer?.once("listening", () => {
       void (async () => {
         const { port } = server.httpServer!.address() as AddressInfo
-        tunnel = ownTunnel ? { url: ownTunnel, close: async () => {} } : await (options.startTunnel ?? cloudflared)(port)
+        tunnel = await openTunnel(port)
         const endpoint = `${tunnel.url.replace(/\/$/, "")}/interactions`
         info(`tunnel: ${tunnel.url}`)
         const cfg = discord()
@@ -207,7 +228,7 @@ async function untilReachable(endpoint: string, ms = 60_000): Promise<true | str
     try {
       const res = await fetch(endpoint, { method: "POST", body: "{}", signal: AbortSignal.timeout(5000) })
       if (res.status === 401) return true
-      last = `HTTP ${res.status}`
+      last = res.status === 530 ? "HTTP 530: Cloudflare cannot route this hostname to a running tunnel; check its DNS record and route" : `HTTP ${res.status}`
     } catch (error) {
       const cause = (error as { cause?: { code?: string } }).cause
       last = cause?.code ?? (error as Error).message
