@@ -207,6 +207,8 @@ DISCORD_TOKEN=
 COMPOSURE_DEV_APPLICATION_ID=
 # The guild \`vite dev\` syncs Commands to on start and on every change.
 COMPOSURE_DEV_GUILD=
+# Optional: your own tunnel's public URL (forwarding to \`vite dev\`), used instead of a quick tunnel.
+COMPOSURE_DEV_TUNNEL_URL=
 `
 
 function readme(template: Template, name: string): string {

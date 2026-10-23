@@ -40,6 +40,9 @@ describe("server()", () => {
 
   test("dev serves the App itself; composure() alone leaves the build and dev server to other plugins", () => {
     expect(config(server(), {}, serve)).toEqual({ appType: "custom" })
-    expect(composure().config).toBeUndefined()
+    // composure() only lets the tunnel's host past Vite's host check.
+    expect(config(composure(), {}, build)).toBeUndefined()
+    expect(config(composure(), {}, serve)).toEqual({ server: { allowedHosts: [".trycloudflare.com"] } })
+    expect(config(composure({ dev: { tunnel: false } }), {}, serve)).toBeUndefined()
   })
 })

@@ -3,7 +3,7 @@
 // dev guild on start and whenever the code changes.
 import type { AddressInfo } from "node:net"
 import { createTracker, DiscordApiError, type ScopedDefinition, type Transport } from "composurejs"
-import { BotClient, editCurrentApplication } from "composurejs/rest"
+import { BotClient, editCurrentApplication, getCurrentApplication } from "composurejs/rest"
 import { apply, configFromEnv, plan, summary, type SyncConfig } from "composurejs/sync"
 import { isRunnableDevEnvironment, loadEnv, type Plugin, runnerImport, type ViteDevServer } from "vite"
 import { appOf, send, toRequest } from "./server.ts"
@@ -16,8 +16,9 @@ export interface Tunnel {
 export interface DevOptions {
   /**
    * Open a public tunnel to `vite dev` and point the dev application's interactions endpoint at
-   * it. Default: when `COMPOSURE_DEV_APPLICATION_ID` is set. Uses a cloudflared quick tunnel
-   * (downloaded on first use, under Cloudflare's terms) unless `startTunnel` says otherwise.
+   * it. Default: when `COMPOSURE_DEV_APPLICATION_ID` is set. Uses `COMPOSURE_DEV_TUNNEL_URL` when
+   * set (a tunnel you run, forwarding to this server), else `startTunnel`, else a cloudflared quick
+   * tunnel (downloaded on first use, under Cloudflare's terms).
    */
   tunnel?: boolean
   /** Sync Commands to `COMPOSURE_DEV_GUILD` on start and on every change. Default: when it is set. */
@@ -33,10 +34,12 @@ export interface DevOptions {
 
 export const DEV_APPLICATION_VAR = "COMPOSURE_DEV_APPLICATION_ID"
 export const DEV_GUILD_VAR = "COMPOSURE_DEV_GUILD"
+/** A developer's own tunnel (a fixed hostname already forwarding to `vite dev`): used instead of a quick tunnel. */
+export const DEV_TUNNEL_URL_VAR = "COMPOSURE_DEV_TUNNEL_URL"
 
 const TAG = "\x1b[36m[composure]\x1b[0m"
-/** Waits between attempts to point the dev application at a tunnel Discord cannot reach yet. */
-const ENDPOINT_RETRY_DELAYS = [1000, 2000, 4000, 8000, 8000]
+/** Waits between attempts to point the dev application at an endpoint Discord cannot verify yet: past a 60s DNS negative cache. */
+const ENDPOINT_RETRY_DELAYS = [2000, 4000, 8000, 16000, 30000]
 
 /** `.env` files for the mode, then the process environment. */
 function devEnv(server: ViteDevServer): Record<string, string | undefined> {
@@ -124,12 +127,13 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
 
   // Tunnel: only once the server listens, because Discord PINGs a new endpoint before accepting it.
   const devApp = env[DEV_APPLICATION_VAR]
-  if (options.tunnel ?? devApp !== undefined) {
+  const ownTunnel = env[DEV_TUNNEL_URL_VAR] || undefined
+  if (options.tunnel ?? (devApp !== undefined || ownTunnel !== undefined)) {
     let tunnel: Tunnel | undefined
     server.httpServer?.once("listening", () => {
       void (async () => {
         const { port } = server.httpServer!.address() as AddressInfo
-        tunnel = await (options.startTunnel ?? cloudflared)(port)
+        tunnel = ownTunnel ? { url: ownTunnel, close: async () => {} } : await (options.startTunnel ?? cloudflared)(port)
         const endpoint = `${tunnel.url.replace(/\/$/, "")}/interactions`
         info(`tunnel: ${tunnel.url}`)
         const cfg = discord()
@@ -143,18 +147,22 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
           )
           return
         }
-        // Discord PINGs the endpoint before accepting it (400 when that fails), and a new tunnel can
-        // take a few seconds to route.
+        // A quick tunnel's hostname resolves only seconds after cloudflared prints it, and a resolver
+        // caches the miss (60s for trycloudflare.com): Discord's first lookup must come after ours.
+        const reached = await untilReachable(endpoint)
+        if (reached !== true) warn(`${endpoint} does not reach this server (${reached}); asking Discord anyway`)
+        // Discord PINGs the endpoint before accepting it, and answers 400 when that fails.
         const client = new BotClient(cfg.token, rest)
         for (let attempt = 0; ; attempt++) {
           try {
             await editCurrentApplication(client, { interactions_endpoint_url: endpoint })
             break
           } catch (error) {
+            if (!(error instanceof DiscordApiError && error.status === 400)) throw error
             const delay = ENDPOINT_RETRY_DELAYS[attempt]
-            if (!(error instanceof DiscordApiError && error.status === 400) || delay === undefined) throw error
-            info(`tunnel not reachable by Discord yet; retrying in ${delay / 1000}s`)
-            await new Promise((resolve) => setTimeout(resolve, delay))
+            if (delay === undefined) throw new Error(`${error.message}\n${await verifyHint(client, env)}`)
+            info(`Discord could not verify ${endpoint} yet; retrying in ${delay / 1000}s`)
+            await sleep(delay)
           }
         }
         info(`interactions endpoint of application ${cfg.applicationId} → ${endpoint}`)
@@ -167,6 +175,34 @@ export function setupDevLoop(server: ViteDevServer, options: DevOptions, appFile
 interface LoadedApp {
   fetch(request: Request, env?: unknown, platform?: unknown): Promise<Response>
   definitions(): ScopedDefinition[]
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Polls the endpoint until the App answers an unsigned request (401): true, else the last outcome. */
+async function untilReachable(endpoint: string, ms = 60_000): Promise<true | string> {
+  let last = ""
+  for (const start = Date.now(); Date.now() - start < ms; await sleep(1000)) {
+    try {
+      const res = await fetch(endpoint, { method: "POST", body: "{}", signal: AbortSignal.timeout(5000) })
+      if (res.status === 401) return true
+      last = `HTTP ${res.status}`
+    } catch (error) {
+      const cause = (error as { cause?: { code?: string } }).cause
+      last = cause?.code ?? (error as Error).message
+    }
+  }
+  return last
+}
+
+/** Why Discord's signed PING keeps failing: most often a public key from another application. */
+async function verifyHint(client: BotClient, env: Record<string, string | undefined>): Promise<string> {
+  const publicKey = env.DISCORD_PUBLIC_KEY
+  const application = await getCurrentApplication(client).catch(() => undefined)
+  if (publicKey && application && application.verify_key !== publicKey) {
+    return `DISCORD_PUBLIC_KEY is not the public key of application ${application.id}, so the App rejects Discord's PING.`
+  }
+  return "The endpoint must answer Discord's signed PING: check that it reaches this server and that the App's DISCORD_PUBLIC_KEY is the dev application's."
 }
 
 async function cloudflared(port: number): Promise<Tunnel> {

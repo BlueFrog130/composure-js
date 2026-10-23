@@ -2,7 +2,7 @@
 // Transport and the tunnel a stand-in: nothing leaves the machine.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { request as httpRequest } from "node:http"
-import type { AddressInfo } from "node:net"
+import { type AddressInfo, createServer as createNetServer } from "node:net"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, test } from "vitest"
 import { createLogger, createServer, type ViteDevServer } from "vite"
@@ -49,7 +49,7 @@ function discord() {
   return { calls, transport }
 }
 
-async function start(dev: DevOptions, logs: string[] = []) {
+async function start(dev: DevOptions, logs: string[] = [], port = 0) {
   const logger = createLogger("info")
   logger.info = (msg) => void logs.push(msg)
   logger.warn = (msg) => void logs.push(msg)
@@ -58,7 +58,7 @@ async function start(dev: DevOptions, logs: string[] = []) {
     configFile: false,
     customLogger: logger,
     plugins: [composure({ dev }), serverPlugin()],
-    server: { port: 0, host: "127.0.0.1", hmr: false },
+    server: { port, strictPort: port !== 0, host: "127.0.0.1", hmr: false },
   })
   await server.listen()
   return (server.httpServer!.address() as AddressInfo).port
@@ -81,6 +81,20 @@ async function ask(port: number, interaction: { build(): unknown }) {
   const body = JSON.stringify(payload)
   const res = await post(port, body, await key.sign(body))
   return TestResponse.of(res.status, JSON.parse(res.text), [], payload as never)
+}
+
+/** A tunnel that is this server itself: the Dev Loop's reachability probe gets a real answer. */
+const local =
+  (onClose = () => {}) =>
+  async (port: number) => ({ url: `http://127.0.0.1:${port}`, close: async () => onClose() })
+
+function freePort(): Promise<number> {
+  return new Promise((resolve) => {
+    const probe = createNetServer().listen(0, "127.0.0.1", () => {
+      const { port } = probe.address() as AddressInfo
+      probe.close(() => resolve(port))
+    })
+  })
 }
 
 const until = async (check: () => boolean, ms = 5000) => {
@@ -137,13 +151,13 @@ describe("vite dev", { timeout: 30_000 }, () => {
     project({ DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, COMPOSURE_DEV_APPLICATION_ID: APP_ID, COMPOSURE_DEV_GUILD: GUILD })
     let closed = false
     const logs: string[] = []
-    await start({ transport, startTunnel: async () => ({ url: "https://dev-bot.trycloudflare.com", close: async () => void (closed = true) }) }, logs)
+    const port = await start({ transport, startTunnel: local(() => (closed = true)) }, logs)
 
     await until(() => calls.some((c) => c.method === "PATCH") && calls.some((c) => c.method === "PUT"))
     expect(calls.find((c) => c.method === "PATCH")).toEqual({
       method: "PATCH",
       path: "/applications/@me",
-      body: { interactions_endpoint_url: "https://dev-bot.trycloudflare.com/interactions" },
+      body: { interactions_endpoint_url: `http://127.0.0.1:${port}/interactions` },
     })
     expect(calls.find((c) => c.method === "PUT")).toEqual({
       method: "PUT",
@@ -173,10 +187,30 @@ describe("vite dev", { timeout: 30_000 }, () => {
     }
     project({ DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, COMPOSURE_DEV_APPLICATION_ID: APP_ID })
     const logs: string[] = []
-    await start({ transport: flaky, sync: false, startTunnel: async () => ({ url: "https://slow.trycloudflare.com", close: async () => {} }) }, logs)
+    const port = await start({ transport: flaky, sync: false, startTunnel: local() }, logs)
     await until(() => logs.some((l) => l.includes("interactions endpoint of application")))
     expect(calls.filter((c) => c.method === "PATCH").map((c) => c.path)).toEqual(["failed", "/applications/@me"])
-    expect(logs.join("\n")).toContain("tunnel not reachable by Discord yet; retrying in 1s")
+    expect(logs.join("\n")).toContain(`Discord could not verify http://127.0.0.1:${port}/interactions yet; retrying in 2s`)
+  })
+
+  test("COMPOSURE_DEV_TUNNEL_URL: your own tunnel instead of a quick tunnel, its host allowed", async () => {
+    const { calls, transport } = discord()
+    const port = await freePort()
+    const own = `http://localhost:${port}`
+    project({ DISCORD_TOKEN: "t", DISCORD_APPLICATION_ID: APP_ID, COMPOSURE_DEV_APPLICATION_ID: APP_ID, COMPOSURE_DEV_TUNNEL_URL: own })
+    const logs: string[] = []
+    let started = false
+    await start({ transport, sync: false, startTunnel: async () => ((started = true), { url: "https://unused.example.com", close: async () => {} }) }, logs, port)
+    await until(() => calls.some((c) => c.method === "PATCH"))
+    expect(started).toBe(false)
+    expect(calls.find((c) => c.method === "PATCH")!.body).toEqual({ interactions_endpoint_url: `${own}/interactions` })
+    expect(server!.config.server.allowedHosts).toContain("localhost")
+  })
+
+  test("COMPOSURE_DEV_TUNNEL_URL's host passes Vite's host check", async () => {
+    project({ COMPOSURE_DEV_TUNNEL_URL: "https://bot-dev.example.com" })
+    const port = await start({})
+    expect((await post(port, "{}", { host: "bot-dev.example.com" })).status).toBe(401)
   })
 
   test("never repoints an application not named as the dev application", async () => {
