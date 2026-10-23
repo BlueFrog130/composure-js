@@ -20,10 +20,10 @@
   // scheduled() checks GitHub for new releases every 15 minutes (inherited by production)
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": {
-    "DISCORD_APPLICATION_ID": "",
-    "ANNOUNCE_CHANNEL_ID": "",
-    "FEEDBACK_CHANNEL_ID": "",
-    "LOG_CHANNEL_ID": "",
+    "DISCORD_APPLICATION_ID": "1100146565504565411",
+    "ANNOUNCE_CHANNEL_ID": "1562169589515681832",
+    "FEEDBACK_CHANNEL_ID": "1562169639239164054",
+    "LOG_CHANNEL_ID": "1562169852527906989",
     "GITHUB_REPO": "BlueFrog130/composure-js",
   },
   // Releases, the last version announced, and npm stats (10-minute TTL). Dev's is simulated
@@ -34,10 +34,10 @@
       // Without it wrangler appends the env: `composurejs-bot-production`
       "name": "composurejs-bot",
       "vars": {
-        "DISCORD_APPLICATION_ID": "",
-        "ANNOUNCE_CHANNEL_ID": "",
-        "FEEDBACK_CHANNEL_ID": "",
-        "LOG_CHANNEL_ID": "",
+        "DISCORD_APPLICATION_ID": "1562278701016809502",
+        "ANNOUNCE_CHANNEL_ID": "1562278383138902097",
+        "FEEDBACK_CHANNEL_ID": "1562278533152112691",
+        "LOG_CHANNEL_ID": "1562278174015103010",
         "GITHUB_REPO": "BlueFrog130/composure-js",
       },
       // `npx wrangler kv namespace create composurejs-bot`, then add its "id" here (composure-rs's

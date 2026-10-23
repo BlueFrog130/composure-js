@@ -16,7 +16,7 @@ function gitSha(): string {
 }
 
 export default defineConfig({
-  plugins: [composure(), cloudflare()],
+  plugins: [composure({}), cloudflare()],
   define: { __GIT_SHA__: JSON.stringify(gitSha()) },
   // Bundle size is cold-start time on Workers.
   build: { minify: true },
