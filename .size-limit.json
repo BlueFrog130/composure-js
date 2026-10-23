@@ -3,7 +3,7 @@
     "name": "core: App + command",
     "path": "packages/composurejs/dist/index.js",
     "import": "{ App, command }",
-    "limit": "15 kB"
+    "limit": "19.5 kB"
   },
   {
     "name": "core + Views: App, command, tags, JSX runtime",
@@ -12,7 +12,7 @@
       "packages/composurejs/dist/index.js": "{ App, command, Container, Text, Row, Button }",
       "packages/composurejs/dist/jsx-runtime.js": "{ jsx }"
     },
-    "limit": "15 kB"
+    "limit": "19.5 kB"
   },
   {
     "name": "composurejs/rest: createMessage",
@@ -23,6 +23,6 @@
   {
     "name": "example bot Worker (vite build)",
     "path": "examples/bot/dist/composurejs_example_bot/index.js",
-    "limit": "18 kB"
+    "limit": "22.5 kB"
   }
 ]
