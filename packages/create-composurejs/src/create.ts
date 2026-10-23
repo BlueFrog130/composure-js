@@ -6,10 +6,14 @@ import { basename, dirname, join, relative, resolve } from "node:path"
 import { cancel, confirm, intro, isCancel, log, note, outro, select, spinner, text } from "@clack/prompts"
 import { Command, CommanderError, Option } from "commander"
 import pkg from "../package.json" with { type: "json" }
-import { generate, type Template, TEMPLATES, type Versions } from "./templates.ts"
+import { type DevIds, generate, type Template, TEMPLATES, type Versions } from "./templates.ts"
 
 export interface CreateOptions {
   template?: Template
+  /** The Dev Application's id. */
+  application?: string
+  /** dev Sync's guild id. */
+  guild?: string
   install?: boolean
   yes?: boolean
 }
@@ -26,6 +30,9 @@ export interface Env {
   err(text: string): void
 }
 
+/** A Discord id (snowflake). */
+const ID = /^\d+$/
+
 const NAME = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
 
 /** Runs the CLI; resolves to the exit status. */
@@ -36,6 +43,8 @@ export async function main(argv: string[], env: Env): Promise<number> {
     .version(pkg.version, "-v, --version")
     .argument("[dir]", "directory to create the bot in")
     .addOption(new Option("-t, --template <template>", "the platform").choices(Object.keys(TEMPLATES)))
+    .option("--application <id>", "your Dev Application's id, for the Dev Loop")
+    .option("--guild <id>", "your dev guild's id, for dev Sync")
     .option("--no-install", "skip installing dependencies")
     .option("-y, --yes", "use the defaults for anything not given")
     .exitOverride()
@@ -56,6 +65,10 @@ async function create(dirArg: string | undefined, options: CreateOptions, env: E
   intro("create-composurejs")
   const ask = env.interactive && !options.yes
   const stop = (message: string) => (cancel(message), 1)
+  for (const key of ["application", "guild"] as const) {
+    const id = options[key]
+    if (id !== undefined && !ID.test(id)) return stop(`--${key} must be a Discord id (digits), not "${id}"`)
+  }
 
   let dir = dirArg
   if (!dir) {
@@ -90,7 +103,22 @@ async function create(dirArg: string | undefined, options: CreateOptions, env: E
     }
   }
 
-  const files = generate(template, name, env.versions)
+  // The Dev Loop's ids (ADR 0031): both optional, written literally into vite.config.ts.
+  const dev: DevIds = {}
+  for (const [key, message] of [
+    ["application", "Your Dev Application's id? (Developer Portal → General Information; Enter to skip)"],
+    ["guild", "Your dev guild's id, for dev Sync? (Developer Mode → right-click your test server → Copy Server ID; Enter to skip)"],
+  ] as const) {
+    let id = options[key]
+    if (id === undefined && ask) {
+      const answer = await text({ message, placeholder: "skip", validate: (value) => (value && !ID.test(value) ? "A Discord id is digits only" : undefined) })
+      if (isCancel(answer)) return stop("Cancelled.")
+      id = answer?.trim()
+    }
+    if (id) dev[key] = id
+  }
+
+  const files = generate(template, name, env.versions, dev)
   for (const [path, content] of Object.entries(files)) {
     const file = join(target, path)
     mkdirSync(dirname(file), { recursive: true })
@@ -119,7 +147,8 @@ async function create(dirArg: string | undefined, options: CreateOptions, env: E
     [
       ...(cd ? [`cd ${cd}`] : []),
       ...(install ? [] : [`${pm} install`]),
-      "cp .env.example .env    # then fill it in",
+      "cp .env.example .env.local    # then fill in the Dev Application's",
+      ...(dev.application && dev.guild ? [] : ["# and fill dev in vite.config.ts (see README.md)"]),
       `${run} dev              # tunnel, dev Sync, and the bot`,
     ].join("\n"),
     "Next steps",
