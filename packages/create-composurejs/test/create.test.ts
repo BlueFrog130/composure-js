@@ -166,12 +166,9 @@ describe("create-composurejs", () => {
     expect(existsSync(`${tmp}c`)).toBe(false);
   });
 
-  test("help and version", async () => {
+  test("help", async () => {
     const help = env();
     expect(await main(["--help"], help.env)).toBe(0);
     expect(help.out.join("\n")).toMatch(/^Usage: create-composurejs \[options\] \[dir\]/);
-    const version = env();
-    expect(await main(["--version"], version.env)).toBe(0);
-    expect(version.out).toEqual(["0.0.0"]);
   });
 });

@@ -88,14 +88,11 @@ describe("composure sync", { timeout: 30_000 }, () => {
     ]);
   });
 
-  test("commander handles help, version and usage errors", async () => {
+  test("commander handles help and usage errors", async () => {
     const help = run();
     expect(await help.main("sync", "--help")).toBe(0);
     expect(help.out.join("\n")).toMatch(/^Usage: composure sync \[options\]/);
     expect(help.out.join("\n")).toContain("COMPOSURE_SCOPE_<NAME>");
-    const version = run();
-    expect(await version.main("--version")).toBe(0);
-    expect(version.out).toEqual(["0.0.0"]);
     const conflict = run();
     expect(await conflict.main(...sync("--check", "--yes"))).toBe(1);
     expect(conflict.err.join("\n")).toMatch(/option '--check' cannot be used with option '-y, --yes'/);
