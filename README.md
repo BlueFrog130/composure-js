@@ -46,7 +46,7 @@ export default new App().command(
 )
 ```
 
-That's the whole bot. The click handler lives on the button. There are no custom ids to invent and nothing to register: the Vite plugin hoists the handler, `count` and `owner` travel in the button's `custom_id`, and the markup the handler returns replaces the message.
+The click handler lives on the button. There are no custom ids to invent and nothing to register: the Vite plugin hoists the handler, `count` and `owner` travel in the button's `custom_id`, and the markup the handler returns replaces the message.
 
 ## Quick start
 
