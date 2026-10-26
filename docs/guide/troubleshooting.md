@@ -58,4 +58,4 @@
 
 ## Something else?
 
-The [decisions](/adr/0001-explicit-registration) explain why each part works the way it does. Issues are welcome on [GitHub](https://github.com/BlueFrog130/composure-js/issues).
+Open an issue on [GitHub](https://github.com/BlueFrog130/composure-js/issues).

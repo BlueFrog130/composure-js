@@ -65,7 +65,7 @@ The handler is compiled where it is written (`<Primary onClick={..}>`), and `Pri
 
 - **Strings, numbers, booleans** (and `null` / `undefined`) from props, locals and loop variables. Read the part you need: `item.id`, not `item`. Capturing an object or a function fails at render, saying what to capture instead.
 - **Anything at module scope**: imports, constants, other components. A component a handler renders must be defined at module scope; one defined inside a function is a compile error.
-- **Not too much.** Everything captured must fit in 100 characters. Carry an id and load the rest instead; an async component makes that natural:
+- **Not too much.** Everything captured must fit in 100 characters. Carry an id and load the rest instead, for example in an async component:
 
 ```tsx twoslash
 import { Button, Row } from "composurejs"

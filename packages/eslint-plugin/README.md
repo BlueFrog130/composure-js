@@ -1,4 +1,4 @@
-# @composurejs/eslint-plugin
+# <img src="https://raw.githubusercontent.com/BlueFrog130/composure-js/main/assets/logo.svg" width="32" height="32" alt="" align="top"> @composurejs/eslint-plugin
 
 [![npm](https://img.shields.io/npm/v/@composurejs/eslint-plugin?color=5865f2)](https://www.npmjs.com/package/@composurejs/eslint-plugin)
 [![Guide](https://img.shields.io/badge/docs-guide-5865f2)](https://bluefrog130.github.io/composure-js/)

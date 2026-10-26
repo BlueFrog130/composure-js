@@ -1,20 +1,14 @@
-import { readdirSync } from "node:fs";
 import { transformerTwoslash } from "@shikijs/vitepress-twoslash";
 import { defineConfig } from "vitepress";
 
 // Every ```ts twoslash / ```tsx twoslash block is compiled against the built packages: a type
 // error fails `pnpm -C docs build`, so the docs cannot drift from the API (kickoff lesson 19).
-const adrs = readdirSync(new URL("../adr/", import.meta.url))
-  .filter((f) => /^\d{4}-.*\.md$/.test(f))
-  .sort()
-  .map((f) => ({ text: f.slice(0, 4) + " " + f.slice(5, -3).replace(/-/g, " "), link: `/adr/${f.slice(0, -3)}` }));
-
 export default defineConfig({
   title: "composurejs",
   description: "Discord bots over HTTP Interactions, on any fetch runtime",
   base: "/composure-js/",
   cleanUrls: true,
-  srcExclude: ["**/README.md"],
+  srcExclude: ["**/README.md", "adr/**", "agents/**"],
   markdown: {
     codeTransformers: [
       transformerTwoslash({
@@ -41,7 +35,6 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/getting-started" },
-      { text: "Decisions", link: "/adr/0001-explicit-registration" },
       { text: "GitHub", link: "https://github.com/BlueFrog130/composure-js" },
     ],
     sidebar: {
@@ -67,7 +60,6 @@ export default defineConfig({
           ],
         },
       ],
-      "/adr/": [{ text: "Architecture decisions", items: adrs }],
     },
     search: { provider: "local" },
     socialLinks: [{ icon: "github", link: "https://github.com/BlueFrog130/composure-js" }],

@@ -1,4 +1,4 @@
-# composurejs
+# <img src="https://raw.githubusercontent.com/BlueFrog130/composure-js/main/assets/logo.svg" width="32" height="32" alt="" align="top"> composurejs
 
 [![npm](https://img.shields.io/npm/v/composurejs?color=5865f2)](https://www.npmjs.com/package/composurejs)
 [![CI](https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml/badge.svg)](https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml)
@@ -49,7 +49,7 @@ const Counter = ({ count, owner }: { count: number; owner: string }) => (
 )
 ```
 
-The handler sits on the button. [`@composurejs/vite`](https://www.npmjs.com/package/@composurejs/vite) hoists it at build time, `count` and `owner` ride along in the button's `custom_id`, and the markup it returns replaces the message. No ids to invent, nothing to register.
+The handler sits on the button, so there are no ids to invent and nothing to register. [`@composurejs/vite`](https://www.npmjs.com/package/@composurejs/vite) hoists it at build time, `count` and `owner` ride along in the button's `custom_id`, and the markup it returns replaces the message.
 
 Every message is checked against Discord's limits when it renders. A broken rule throws an error that names it, rather than Discord's "This interaction failed".
 
