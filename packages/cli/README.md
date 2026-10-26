@@ -3,6 +3,7 @@
 [![npm](https://img.shields.io/npm/v/@composurejs/cli?color=5865f2)](https://www.npmjs.com/package/@composurejs/cli)
 [![Guide](https://img.shields.io/badge/docs-guide-5865f2)](https://bluefrog130.github.io/composure-js/)
 [![License](https://img.shields.io/npm/l/@composurejs/cli?color=blue)](https://github.com/BlueFrog130/composure-js/blob/main/LICENSE)
+[![Discord](https://img.shields.io/badge/chat-discord-5865f2?logo=discord&logoColor=white)](https://discord.com/invite/8rWjWtp3pG)
 
 `composure sync` makes Discord's Commands match your [composurejs](https://www.npmjs.com/package/composurejs) App. It shows what will change, asks, then applies it. Commands on Discord that the App no longer has are deleted.
 

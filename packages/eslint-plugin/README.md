@@ -3,6 +3,7 @@
 [![npm](https://img.shields.io/npm/v/@composurejs/eslint-plugin?color=5865f2)](https://www.npmjs.com/package/@composurejs/eslint-plugin)
 [![Guide](https://img.shields.io/badge/docs-guide-5865f2)](https://bluefrog130.github.io/composure-js/)
 [![License](https://img.shields.io/npm/l/@composurejs/eslint-plugin?color=blue)](https://github.com/BlueFrog130/composure-js/blob/main/LICENSE)
+[![Discord](https://img.shields.io/badge/chat-discord-5865f2?logo=discord&logoColor=white)](https://discord.com/invite/8rWjWtp3pG)
 
 Discord only accepts some components inside others: a `Button` goes in a `Row` or a `Section`'s `accessory`, a `TextInput` in a `Label` inside a `Modal`. This plugin underlines a misplaced [composurejs](https://www.npmjs.com/package/composurejs) tag in your editor, before you build or send anything.
 
