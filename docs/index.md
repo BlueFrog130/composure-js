@@ -9,8 +9,8 @@ hero:
       text: Get started
       link: /guide/getting-started
     - theme: alt
-      text: Why it's built this way
-      link: /adr/0001-explicit-registration
+      text: GitHub
+      link: https://github.com/BlueFrog130/composure-js
 features:
   - title: Handlers where the button is
     details: "onClick={(c) => <Counter count={count + 1} />}: the Vite plugin hoists the handler, carries what it reads in the button's custom_id, and the markup it returns updates the message."

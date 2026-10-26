@@ -20,7 +20,7 @@ export const app = new App().use(timing).route(moderation)
 ```
 
 - **Scope.** An App's middleware covers every Command it lists, whether `.use` comes before or after them. A nested App's runs inside its parents' and covers only its own Commands: `guildOnly` above guards `/ban` but no other Command.
-- **Clicks and modal submits** run the middleware of the Command whose answer rendered them, and keep it for whatever they render next. `guildOnly` above also guards the buttons `/ban` answers with, and the buttons those buttons render. Messages sent outside any Command (from a Webhook Event, or with a `BotClient` you built yourself) run the root App's middleware. If the Command is later removed, its old buttons answer "This message is outdated." ([ADR 0026](/adr/0026-owning-route)).
+- **Clicks and modal submits** run the middleware of the Command whose answer rendered them, and keep it for whatever they render next. `guildOnly` above also guards the buttons `/ban` answers with, and the buttons those buttons render. Messages sent outside any Command (from a Webhook Event, or with a `BotClient` you built yourself) run the root App's middleware. If the Command is later removed, its old buttons answer "This message is outdated.".
 - **Errors** thrown in middleware reach the [Error Renderer](./responses#errors) like handler errors.
 
 ## Variables

@@ -141,7 +141,7 @@ It is a TypeScript port of the ideas in [composure-rs](https://github.com/BlueFr
 | `packages/create-composurejs` | One template generator for every runtime |
 | `examples/bot` | One App, built and run on workerd, Node and Bun by its tests |
 | `bots/composure` | composurejs's own bot, deployed to Workers |
-| `docs` | The guide and the ADRs (VitePress) |
+| `docs` | The guide (VitePress) and the ADRs |
 | `CONTEXT.md` | The glossary |
 
 ```sh
