@@ -1,5 +1,11 @@
 # composurejs
 
+## 0.1.2
+
+### Patch Changes
+
+- [#17](https://github.com/BlueFrog130/composure-js/pull/17) [`46501eb`](https://github.com/BlueFrog130/composure-js/commit/46501ebcb154077b9ce362543ee0f925857c4efe) Thanks [@BlueFrog130](https://github.com/BlueFrog130)! - Add the logo to the README.
+
 ## 0.1.1
 
 ### Patch Changes
