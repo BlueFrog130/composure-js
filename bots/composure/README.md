@@ -1,4 +1,4 @@
-# composurejs bot
+# <img src="../../assets/logo.svg" width="32" height="32" alt="" align="top"> composurejs bot
 
 composurejs's own Discord bot, built with composurejs and served from Cloudflare Workers. It
 announces each release, pages through the changelog and searches the guide. It does what

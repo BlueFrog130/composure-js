@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" width="96" height="96" alt="composurejs logo">
+</p>
+
 <h1 align="center">composurejs</h1>
 
 <p align="center">

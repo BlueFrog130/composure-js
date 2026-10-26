@@ -1,4 +1,4 @@
-# @composurejs/vite
+# <img src="https://raw.githubusercontent.com/BlueFrog130/composure-js/main/assets/logo.svg" width="32" height="32" alt="" align="top"> @composurejs/vite
 
 [![npm](https://img.shields.io/npm/v/@composurejs/vite?color=5865f2)](https://www.npmjs.com/package/@composurejs/vite)
 [![Guide](https://img.shields.io/badge/docs-guide-5865f2)](https://bluefrog130.github.io/composure-js/)

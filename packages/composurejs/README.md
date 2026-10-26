@@ -1,4 +1,4 @@
-# composurejs
+# <img src="https://raw.githubusercontent.com/BlueFrog130/composure-js/main/assets/logo.svg" width="32" height="32" alt="" align="top"> composurejs
 
 [![npm](https://img.shields.io/npm/v/composurejs?color=5865f2)](https://www.npmjs.com/package/composurejs)
 [![CI](https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml/badge.svg)](https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml)
