@@ -58,4 +58,4 @@
 
 ## Something else?
 
-Open an issue on [GitHub](https://github.com/BlueFrog130/composure-js/issues).
+Ask in the [Discord server](https://discord.com/invite/8rWjWtp3pG), or open an issue on [GitHub](https://github.com/BlueFrog130/composure-js/issues).

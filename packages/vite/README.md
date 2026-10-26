@@ -3,6 +3,7 @@
 [![npm](https://img.shields.io/npm/v/@composurejs/vite?color=5865f2)](https://www.npmjs.com/package/@composurejs/vite)
 [![Guide](https://img.shields.io/badge/docs-guide-5865f2)](https://bluefrog130.github.io/composure-js/)
 [![License](https://img.shields.io/npm/l/@composurejs/vite?color=blue)](https://github.com/BlueFrog130/composure-js/blob/main/LICENSE)
+[![Discord](https://img.shields.io/badge/chat-discord-5865f2?logo=discord&logoColor=white)](https://discord.com/invite/8rWjWtp3pG)
 
 The Vite plugin for [composurejs](https://www.npmjs.com/package/composurejs). It compiles inline handlers, builds your bot for Cloudflare Workers, Node or Bun, and runs the dev loop.
 

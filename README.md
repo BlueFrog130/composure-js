@@ -14,13 +14,15 @@
   <a href="https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml"><img src="https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://bluefrog130.github.io/composure-js/"><img src="https://img.shields.io/badge/docs-guide-5865f2" alt="Guide"></a>
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/composurejs?color=blue" alt="License: Apache-2.0"></a>
+  <a href="https://discord.com/invite/8rWjWtp3pG"><img src="https://img.shields.io/badge/chat-discord-5865f2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
 <p align="center">
   <a href="https://bluefrog130.github.io/composure-js/guide/getting-started">Getting started</a> ·
   <a href="https://bluefrog130.github.io/composure-js/">Guide</a> ·
   <a href="docs/adr">Design decisions</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="https://discord.com/invite/8rWjWtp3pG">Discord</a>
 </p>
 
 ---

@@ -4,6 +4,7 @@
 [![CI](https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml/badge.svg)](https://github.com/BlueFrog130/composure-js/actions/workflows/ci.yml)
 [![Guide](https://img.shields.io/badge/docs-guide-5865f2)](https://bluefrog130.github.io/composure-js/)
 [![License](https://img.shields.io/npm/l/composurejs?color=blue)](https://github.com/BlueFrog130/composure-js/blob/main/LICENSE)
+[![Discord](https://img.shields.io/badge/chat-discord-5865f2?logo=discord&logoColor=white)](https://discord.com/invite/8rWjWtp3pG)
 
 Discord bots over HTTP Interactions, on any runtime that speaks `fetch`: Cloudflare Workers, Node and Bun. Typed Commands, JSX messages, and button handlers written where the button is.
 

@@ -62,6 +62,9 @@ export default defineConfig({
       ],
     },
     search: { provider: "local" },
-    socialLinks: [{ icon: "github", link: "https://github.com/BlueFrog130/composure-js" }],
+    socialLinks: [
+      { icon: "github", link: "https://github.com/BlueFrog130/composure-js" },
+      { icon: "discord", link: "https://discord.com/invite/8rWjWtp3pG" },
+    ],
   },
 });
