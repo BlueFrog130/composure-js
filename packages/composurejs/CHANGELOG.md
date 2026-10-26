@@ -1,5 +1,11 @@
 # composurejs
 
+## 0.1.3
+
+### Patch Changes
+
+- [#19](https://github.com/BlueFrog130/composure-js/pull/19) [`660677a`](https://github.com/BlueFrog130/composure-js/commit/660677af4df647f15f2ded5844adf95c9fcb47d6) Thanks [@BlueFrog130](https://github.com/BlueFrog130)! - Link the Discord server from the README.
+
 ## 0.1.2
 
 ### Patch Changes
