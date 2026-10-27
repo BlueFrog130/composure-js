@@ -4,6 +4,7 @@
 // syntactically: bindings of enclosing functions (props, locals, loop variables, a command
 // handler's c), as the member chains read from them; module-scope bindings are not captured.
 import { createHash } from "node:crypto";
+import { readFileSync, statSync } from "node:fs";
 import MagicString, { type SourceMap } from "magic-string";
 import { parseSync } from "oxc-parser";
 
@@ -286,6 +287,26 @@ interface Site {
 export function parseModule(code: string, id: string): Node | undefined {
   const { program, errors } = parseSync(id, code);
   return errors.length > 0 ? undefined : (program as unknown as Node);
+}
+
+const loaded = new Map<string, { mtime: number; program: Node | undefined }>();
+
+/**
+ * The program of the module at `path` on disk, for the placement check to follow a function
+ * component into (ADR 0032); undefined when there is none or it does not parse. Cached until the
+ * file changes.
+ */
+export function loadModule(path: string): Node | undefined {
+  try {
+    const { mtimeMs } = statSync(path);
+    const cached = loaded.get(path);
+    if (cached && cached.mtime === mtimeMs) return cached.program;
+    const program = parseModule(readFileSync(path, "utf8"), path);
+    loaded.set(path, { mtime: mtimeMs, program });
+    return program;
+  } catch {
+    return undefined;
+  }
 }
 
 export interface TransformOptions {

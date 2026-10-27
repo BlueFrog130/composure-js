@@ -107,7 +107,19 @@ Call `await render(view)` in a test to run the same checks before deploying.
 
 ## Placement
 
-TypeScript can't check where a tag goes, because it gives every JSX expression the same type. So placement is checked twice before render: by the Vite plugin when it builds, and by a lint rule in your editor. Both report a built-in tag written directly inside a parent that can't hold it. They follow children through fragments, `&&`, `? :`, arrays and `.map(..)`. A tag passed through your own component or a variable is still caught when the View renders.
+TypeScript can't check where a tag goes, because it gives every JSX expression the same type. So placement is checked twice before render: by the Vite plugin when it builds, and by a lint rule in your editor. Both report a built-in tag that ends up inside a parent that can't hold it. They follow children through fragments, `&&`, `? :`, arrays and `.map(..)`, and through your function components, in the same file or imported from a relative path:
+
+```tsx
+// ui.tsx
+export const Card = ({ children }) => <Container>{children}</Container>
+
+// shop.tsx
+<Card>
+  <Button customId="buy">Buy</Button> {/* <Button> cannot go inside <Container> (in <Card>) */}
+</Card>
+```
+
+What a function component renders is checked against where you place it too (`<Row><Card /></Row>`: `<Container> cannot go inside <Row> (rendered by <Card>)`). A tag passed through a variable, or a component from a package, is still caught when the View renders. The lint rule reads imported files as saved on disk.
 
 `vite dev` and `vite build` warn with the file and line:
 

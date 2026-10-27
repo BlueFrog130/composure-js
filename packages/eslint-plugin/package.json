@@ -36,6 +36,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
   },
+  "dependencies": {
+    "oxc-parser": "^0.155.0"
+  },
   "peerDependencies": {
     "composurejs": "workspace:^",
     "eslint": "^9.0.0 || ^10.0.0"

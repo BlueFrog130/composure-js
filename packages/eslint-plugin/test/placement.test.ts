@@ -44,23 +44,49 @@ test("the recommended config turns the rule on as an error", () => {
   expect(messages).toMatchObject([{ ruleId: "@composurejs/placement", severity: 2, message: "<Text> cannot go inside <Row>" }]);
 });
 
+const here = dirname(fileURLToPath(import.meta.url));
+const dir = join(here, ".tmp");
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+// A function component imported from another module (ADR 0032): the rule reads it from disk.
+const UI = `${IMPORT}export const Card = ({ children }) => <Container>{children}</Container>;\n`;
+const VIEW = `${IMPORT}import { Card } from "./ui.tsx"\nexport const v = <Card><Button customId="a">A</Button></Card>\n`;
+const writeTwoFiles = () => {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "ui.tsx"), UI);
+  writeFileSync(join(dir, "card-view.tsx"), VIEW);
+};
+
+test("follows a function component into the module it is imported from", () => {
+  writeTwoFiles();
+  const messages = new Linter().verify(VIEW, [{ files: ["**/*.tsx"], languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } } }, plugin.configs.recommended], {
+    filename: join(dir, "card-view.tsx"),
+  });
+  expect(messages).toMatchObject([{ message: "<Button> cannot go inside <Container> (in <Card>)", line: 3, column: 24 }]);
+});
+
 describe("oxlint", () => {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const dir = join(here, ".tmp");
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  const bin = resolve(here, "../node_modules/oxlint/bin/oxlint");
+  const oxlint = (file: string) => {
+    try {
+      execFileSync(process.execPath, [bin, "--format", "unix", file], { cwd: dir, encoding: "utf8" });
+      return "";
+    } catch (error) {
+      return (error as { stdout: string }).stdout;
+    }
+  };
 
   test("loads the plugin as a JS plugin and reports in TSX", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, ".oxlintrc.json"), JSON.stringify({ jsPlugins: [resolve(here, "../src/index.ts").replace(/\\/g, "/")], rules: { "@composurejs/placement": "error" } }));
     writeFileSync(join(dir, "view.tsx"), `${IMPORT}export const v = (n: number) => <Row>{(<Text>{n}</Text>) as any}</Row>\n`);
-    const bin = resolve(here, "../node_modules/oxlint/bin/oxlint");
-    let output = "";
-    try {
-      execFileSync(process.execPath, [bin, "--format", "unix", "view.tsx"], { cwd: dir, encoding: "utf8" });
-    } catch (error) {
-      output = (error as { stdout: string }).stdout;
-    }
+    const output = oxlint("view.tsx");
     expect(output).toContain("view.tsx:2:");
     expect(output).toContain("<Text> cannot go inside <Row>");
+  });
+
+  test("follows a function component into the module it is imported from", () => {
+    writeTwoFiles();
+    expect(oxlint("card-view.tsx")).toContain("card-view.tsx:3:24: <Button> cannot go inside <Container> (in <Card>)");
   });
 });

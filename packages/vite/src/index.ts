@@ -4,7 +4,7 @@ import { checkPlacement } from "composurejs/placement";
 import { normalizePath, type Plugin } from "vite";
 import { type DevOptions, setupDevLoop } from "./dev.ts";
 import { describeBreaks, diffLock, type HandlerLock, inCi, LOCK_FILE, lockOf, readLock, writeLock } from "./lock.ts";
-import { HandlerTransformError, parseModule, relativePath, type ShippedHandler, transformHandlers } from "./transform.ts";
+import { HandlerTransformError, loadModule, parseModule, relativePath, type ShippedHandler, transformHandlers } from "./transform.ts";
 import { tunnelFor } from "./tunnel.ts";
 
 export interface ComposureOptions {
@@ -95,10 +95,20 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
       if (!include.test(file) || /[\\/]node_modules[\\/]/.test(file)) return undefined;
       let parsed: ReturnType<typeof parseModule> | null = null;
       const parse = () => (parsed === null ? (parsed = parseModule(code, file)) : parsed);
-      if (placement && code.includes("composurejs") && /<[A-Za-z]/.test(code)) {
+      // A module that imports nothing from composurejs can still misplace a function component's tags.
+      if (placement && (file.endsWith("x") || code.includes("composurejs")) && /<[A-Za-z]/.test(code)) {
         const program = parse();
+        const followed: string[] = [];
+        const load = (path: string) => {
+          const loaded = loadModule(path);
+          if (loaded) followed.push(path);
+          return loaded;
+        };
+        const problems = program ? checkPlacement(program, { file, load }) : [];
+        // vite dev: an edit to a module a function component came from checks this one again.
+        for (const path of followed) this.addWatchFile(path);
         // `vite build` prints only the message, so it carries the position (`vite dev` adds a frame).
-        for (const { message, node } of program ? checkPlacement(program) : []) {
+        for (const { message, node } of problems) {
           const { line, column } = lineColumn(code, node.start);
           this.warn({ message: `${relativePath(file, root)}:${line}:${column + 1}: ${message}`, pos: node.start });
         }
