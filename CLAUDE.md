@@ -9,7 +9,7 @@ pnpm install
 pnpm test                      # pnpm build, then vitest projects: packages/*, examples/*
 pnpm vitest run -t "signed fixtures"   # one test by name (run pnpm build once first for examples/)
 pnpm typecheck                 # per package; composurejs also runs tsconfig.core.json (no Node types)
-pnpm lint                      # oxlint (.oxlintrc.json)
+pnpm lint                      # builds @composurejs/eslint-plugin (bots/composure's oxlint JS plugin), then oxlint (.oxlintrc.json)
 pnpm fmt                       # oxfmt (.oxfmtrc.json); CI runs pnpm fmt:check. Markdown is not formatted
 pnpm build                     # tsdown (declarations from tsconfig.build.json: src only)
 pnpm -C examples/bot build     # vite build → Worker in dist/ (minified)
