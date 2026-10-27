@@ -1,5 +1,13 @@
 # composurejs
 
+## 0.2.0
+
+### Minor Changes
+
+- [#21](https://github.com/BlueFrog130/composure-js/pull/21) [`11678d0`](https://github.com/BlueFrog130/composure-js/commit/11678d02195ed74292759d4ca8ed90c8d70cb667) Thanks [@BlueFrog130](https://github.com/BlueFrog130)! - The placement check follows function components: a tag passed to one is checked against the parent it puts its children in (`<Button> cannot go inside <Container> (in <ui.Primary>)`), and what one renders against where it is placed (`(rendered by <Card>)`). Function components are followed in the module and through relative imports and re-exports; `checkPlacement` takes `{ file, load }` for the latter. The lint rule reads imported modules from disk (`@composurejs/eslint-plugin` now depends on `oxc-parser`), and `vite dev` re-checks a module when one it followed changes.
+
+- [#21](https://github.com/BlueFrog130/composure-js/pull/21) [`aaacd5e`](https://github.com/BlueFrog130/composure-js/commit/aaacd5e4ecf4c306ac38b006333cc93bf43d2987) Thanks [@BlueFrog130](https://github.com/BlueFrog130)! - A local function is now an Inline Handler: `const add = (c) => ..` (or `function add(c) {..}`) in a component, named by `onClick` / `onSelect` / `onSubmit`, is hoisted with what it captures and stays callable. A hoisted handler that reads a function declared inside a function is now a compile error naming it, instead of failing at render.
+
 ## 0.1.3
 
 ### Patch Changes

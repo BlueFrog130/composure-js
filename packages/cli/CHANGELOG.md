@@ -1,5 +1,13 @@
 # @composurejs/cli
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [[`11678d0`](https://github.com/BlueFrog130/composure-js/commit/11678d02195ed74292759d4ca8ed90c8d70cb667), [`aaacd5e`](https://github.com/BlueFrog130/composure-js/commit/aaacd5e4ecf4c306ac38b006333cc93bf43d2987), [`c64948a`](https://github.com/BlueFrog130/composure-js/commit/c64948aa83124ea412fa8a3a8f35b3fb1e86d6d7)]:
+  - composurejs@0.2.0
+  - @composurejs/vite@0.2.0
+
 ## 0.1.3
 
 ### Patch Changes
