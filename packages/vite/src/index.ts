@@ -76,6 +76,13 @@ export default function composure(options: ComposureOptions = {}): Plugin<Compos
       return allowedHosts ? { server: { allowedHosts } } : undefined;
     },
 
+    // The dep scanner compiles a module with `import.meta.glob` without tsconfig, so its JSX would
+    // import react/jsx-dev-runtime: name the runtime, unless the config already sets the scanner's JSX.
+    configEnvironment(_name, config) {
+      if (config.optimizeDeps?.rolldownOptions?.transform?.jsx !== undefined) return undefined;
+      return { optimizeDeps: { rolldownOptions: { transform: { jsx: { importSource: "composurejs" } } } } };
+    },
+
     configResolved(config) {
       root = config.root;
       command = config.command;
