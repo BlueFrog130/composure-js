@@ -8,9 +8,11 @@
 
 **"This message is outdated."** The button's handler id no longer exists, or its values no longer decode. Usually the handler moved, was renamed, or now captures something different. Use [`named()`](./views#ids-deploys-and-named) for messages meant to last.
 
-**`<Button onClick> got a function the build did not compile`.** Either the build didn't run the plugin (add `composure()` to `plugins` in `vite.config.ts`, and to `vitest.config.ts` for tests), or the function reached the prop some way the plugin cannot follow, such as stored in an object or returned from a component. Write handlers inline, at module scope or with `named()`, and pass handler props on unchanged ([Where a handler can come from](./views#where-a-handler-can-come-from)).
+**`<Button onClick> got a function the build did not compile`.** Either the build didn't run the plugin (add `composure()` to `plugins` in `vite.config.ts`, and to `vitest.config.ts` for tests), or the function reached the prop some way the plugin cannot follow, such as stored in an object or returned from a component. Write handlers inline, as a local `const` or `function`, at module scope or with `named()`, and pass handler props on unchanged ([Where a handler can come from](./views#where-a-handler-can-come-from)).
 
-**`onClick={go}: go is a local variable`** or **`a handler made by a call cannot be hoisted`.** Write the function inline on the prop.
+**`onClick={go}: go is a local variable that does not hold a function written there`**, **`go is declared with let`** or **`a handler made by a call cannot be hoisted`.** Write the function inline on the prop, or declare it with `const go = (c) => ..` or `function go(c) {..}`.
+
+**`The onClick handler reads go, a function declared inside a function`.** A hoisted handler cannot reach a function declared in the component around it. Declare it inside the handler, or at module scope.
 
 **`The handler in .. captures \`user\`, which is an object`.** Handlers carry their values in the button's `custom_id`. Capture `user.id` and load the rest inside the handler.
 

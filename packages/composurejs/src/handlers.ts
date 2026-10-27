@@ -1,6 +1,7 @@
 // Inline Handlers (ADR 0015). @composurejs/vite hoists every `onClick` / `onSelect` / `onSubmit`
 // written as a function into a module-level `__handler(id, captures, make, where)` and rewrites its
-// site to `ref.bind([values])`. Registering happens when the module loads, so every handler a bot's
+// site to `ref.bind([values])`; a local function an `on*` prop names is tagged where it is declared,
+// `ref.local(fn, () => [values])`, and its reference made when it renders. Registering happens when the module loads, so every handler a bot's
 // bundle contains is known before its first click. A `custom_id` is `id:capturedValue:..`.
 import type { APIInteractionDataResolved, APIMessageComponentInteraction, APIModalSubmitInteraction } from "discord-api-types/v10";
 import { decodeValue, encodeValue, FAIL, type Fail, joinFields, prefixOf, splitFields } from "./codec.ts";
@@ -41,6 +42,9 @@ interface Handler {
 
 const registry = new Map<string, Handler>();
 
+/** Where a tagged local function keeps the making of its reference. */
+const LOCAL = Symbol("composurejs.handler");
+
 const PLUGIN_HINT = "Inline Handlers are compiled by @composurejs/vite, which must be in the build (vite.config.ts: plugins: [composure()])";
 
 /** @internal The call @composurejs/vite writes for each Inline Handler. */
@@ -51,24 +55,34 @@ export function __handler(id: string, captures: readonly string[], make: Handler
     throw new RenderError(`Handler id "${id}" is used twice: in ${existing.where} and in ${where}`);
   }
   registry.set(id, { id, captures, make, where });
+  /** The `custom_id` carrying the captured values, checked for the 100-character limit at render. */
+  const bind = (values: readonly unknown[]): HandlerRef => {
+    const fields = values.map((value, i) => {
+      const encoded = encodeValue(value);
+      if (encoded === undefined) {
+        const path = captures[i];
+        const hint =
+          typeof value === "function"
+            ? "define it at module scope, where the hoisted handler can reach it"
+            : `capture strings, numbers or booleans (like \`${path}.id\`), or load the rest from an id inside the handler`;
+        throw new RenderError(`The handler in ${where} captures \`${path}\`, which is ${describe(value)}; ${hint}`);
+      }
+      return encoded;
+    });
+    return fields.length > 0 ? `${id}:${joinFields(fields)}` : id;
+  };
   return {
-    /** The `custom_id` carrying the captured values, checked for the 100-character limit at render. */
-    bind(values: readonly unknown[]): HandlerRef {
-      const fields = values.map((value, i) => {
-        const encoded = encodeValue(value);
-        if (encoded === undefined) {
-          const path = captures[i];
-          const hint =
-            typeof value === "function"
-              ? "define it at module scope, where the hoisted handler can reach it"
-              : `capture strings, numbers or booleans (like \`${path}.id\`), or load the rest from an id inside the handler`;
-          throw new RenderError(`The handler in ${where} captures \`${path}\`, which is ${describe(value)}; ${hint}`);
-        }
-        return encoded;
-      });
-      return fields.length > 0 ? `${id}:${joinFields(fields)}` : id;
+    bind,
+    /** Tags a local function (`const inc = (c) => ..`) as this handler; its Captures are read when it renders. */
+    local<F extends object>(fn: F, values: () => readonly unknown[]): F {
+      return Object.defineProperty(fn, LOCAL, { value: () => bind(values()), configurable: true });
     },
   };
+}
+
+/** The `custom_id` of a local function the build tagged as a handler; undefined for any other function. */
+export function localRef(fn: object): HandlerRef | undefined {
+  return (fn as { [LOCAL]?: () => HandlerRef })[LOCAL]?.();
 }
 
 const describe = (value: unknown) =>
@@ -90,7 +104,7 @@ export function named<F extends (...args: any[]) => unknown>(id: string, handler
  */
 export function uncompiledHandler(prop: string): RenderError {
   return new RenderError(
-    `${prop} got a function the build did not compile. Write the handler inline, at module scope, or with named("id", ..), and pass handler props on unchanged; otherwise check that @composurejs/vite is in the build (vite.config.ts: plugins: [composure()])`,
+    `${prop} got a function the build did not compile. Write the handler inline, as a local const or function, at module scope, or with named("id", ..), and pass handler props on unchanged; otherwise check that @composurejs/vite is in the build (vite.config.ts: plugins: [composure()])`,
   );
 }
 

@@ -157,7 +157,7 @@ Markup a handler returns: built-in tags and plain function components (`const Co
 _Avoid_: Template, widget, component (alone: that word is Discord's)
 
 **Inline Handler**:
-A function written as `onClick` / `onSelect` / `onSubmit` anywhere in markup. `@composurejs/vite` hoists it to module scope under a stable id, and what it reads from the functions around it (props, locals, loop variables, a command handler's `c`) travels in its `custom_id` (ADR 0015).
+A function written as `onClick` / `onSelect` / `onSubmit` anywhere in markup, or a function a component declares locally (`const inc = (c) => ..`) and names in such a prop. `@composurejs/vite` hoists it to module scope under a stable id, and what it reads from the functions around it (props, locals, loop variables, a command handler's `c`) travels in its `custom_id` (ADR 0015).
 _Avoid_: Callback, listener, Component Handler
 
 **Capture**:

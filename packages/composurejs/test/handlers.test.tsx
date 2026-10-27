@@ -76,6 +76,24 @@ const Profile = async ({ id }: { id: string }) => {
   );
 };
 
+let tallyCalls = 0;
+/** Local handlers: a const, still callable, and a function declared after the return. */
+const Tally = ({ n, owner }: { n: number; owner: string }) => {
+  let shown = n;
+  const add = (c: ComponentContext) => (c.user.id === owner ? <Tally n={shown + 1} owner={owner} /> : c.ephemeral("Not yours"));
+  shown *= 10;
+  tallyCalls += add({ user: { id: "nobody" }, ephemeral: () => 1 } as never) as unknown as number;
+  return (
+    <Row>
+      <Button onClick={add}>add</Button>
+      <Button onClick={reset}>reset</Button>
+    </Row>
+  );
+  function reset() {
+    return <Tally n={0} owner={owner} />;
+  }
+};
+
 const Severity = defineChoices({ low: "Low", high: "High" });
 type ReportValues = { what: string; severity: "low" | "high" | undefined; notify: boolean; extra: string | undefined };
 const Report = ({ page }: { page: string }) => (
@@ -257,17 +275,14 @@ describe("Inline Handlers", () => {
     );
   });
 
-  test("capturing a local function fails at render, saying to define it at module scope", async () => {
+  test("capturing a function fails at render, saying to define it at module scope", async () => {
     const { logger, entries } = recordingLogger();
-    const Helper = () => {
-      const shout = (s: string) => s.toUpperCase();
-      return (
-        <Row>
-          <Button onClick={() => shout("hi")}>x</Button>
-        </Row>
-      );
-    };
-    await answer(new App({ logger }).command(command({ name: "h", description: "H", handler: () => <Helper /> })), chatInput("h"));
+    const Helper = ({ shout }: { shout: (s: string) => string }) => (
+      <Row>
+        <Button onClick={() => shout("hi")}>x</Button>
+      </Row>
+    );
+    await answer(new App({ logger }).command(command({ name: "h", description: "H", handler: () => <Helper shout={(s) => s.toUpperCase()} /> })), chatInput("h"));
     expect((entries[0]?.error as Error).message).toMatch(/captures `shout`, which is a function; define it at module scope/);
   });
 
@@ -283,6 +298,19 @@ describe("Inline Handlers", () => {
     expect(message).toMatch(/custom_id is \d+ characters; the limit is 100\. Carry an id and load the rest instead \(custom_id "[^":]+:…"\)$/);
     // Errors are logged: never the captured values (Custom ID State).
     expect(message).not.toContain("xxxx");
+  });
+
+  test("a local function an on* prop names is a handler, its captures read when it renders", async () => {
+    const tally = new App().command(command({ name: "tally", description: "T", handler: (c) => <Tally n={1} owner={c.user.id} /> }));
+    const res = await answer(tally, chatInput("tally"));
+    const ids = res.allComponents.filter((c) => c.type === 2).map((c) => c.custom_id as string);
+    // `shown` is read at render (10), after the declaration.
+    expect(ids[0]).toMatch(/:i[0-9a-z]+:na$/);
+    expect(tallyCalls).toBe(1);
+    const added = await answer(tally, res.click("add"));
+    expect([added.type, added.allComponents.find((c) => c.type === 2)?.custom_id]).toEqual([7, expect.stringMatching(/:n32$/)]);
+    expect((await answer(tally, res.click("add").by({ id: "2" }))).text).toBe("Not yours");
+    expect((await answer(tally, res.click("reset"))).allComponents.find((c) => c.type === 2)?.custom_id).toMatch(/:n0$/);
   });
 
   test("clicks run through the root App's middleware", async () => {

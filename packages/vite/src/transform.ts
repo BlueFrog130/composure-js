@@ -75,19 +75,44 @@ function patternNames(pattern: Node | null | undefined, out: string[] = []): str
 
 const isFunction = (n: Node) => n.type === "FunctionDeclaration" || n.type === "FunctionExpression" || n.type === "ArrowFunctionExpression";
 
-/** Declarations hoisted to the top of a block or function body. */
-function blockDeclarations(statements: Node[]): string[] {
+/** A name a block's statement binds to one value: `const go = ..`, `function go() {}`. */
+interface Declared {
+  kind: string;
+  /** The VariableDeclarator or FunctionDeclaration. */
+  node: Node;
+}
+
+/** Declarations hoisted to the top of a block or function body; `declared` collects the single-name ones. */
+function blockDeclarations(statements: Node[], declared?: Map<string, Declared>): string[] {
   const out: string[] = [];
   for (let s of statements) {
     if (s.type === "ExportNamedDeclaration" && s.declaration) s = s.declaration;
-    if (s.type === "VariableDeclaration") for (const d of s.declarations) patternNames(d.id, out);
-    else if ((s.type === "FunctionDeclaration" || s.type === "ClassDeclaration") && s.id) out.push(s.id.name);
+    if (s.type === "VariableDeclaration") {
+      for (const d of s.declarations) {
+        patternNames(d.id, out);
+        if (d.id.type === "Identifier") declared?.set(d.id.name, { kind: s.kind, node: d });
+      }
+    } else if ((s.type === "FunctionDeclaration" || s.type === "ClassDeclaration") && s.id) {
+      out.push(s.id.name);
+      if (s.type === "FunctionDeclaration") declared?.set(s.id.name, { kind: "function", node: s });
+    }
   }
   return out;
 }
 
-/** Names declared in one scope; `params` are the enclosing function's parameters. */
-type Scope = Set<string> & { params?: Set<string> };
+/**
+ * Names declared in one scope; `params` are the enclosing function's parameters. A block (or a
+ * function's block body) also keeps its `declared` bindings, itself, and the nodes around it.
+ */
+type Scope = Set<string> & { params?: Set<string>; declared?: Map<string, Declared>; block?: Node; parents?: Node[] };
+
+const unwrap = (expr: Node): Node =>
+  expr.type === "ParenthesizedExpression" || expr.type === "TSAsExpression" || expr.type === "TSSatisfiesExpression" || expr.type === "TSNonNullExpression"
+    ? unwrap(expr.expression)
+    : expr;
+
+/** The function a local declaration holds as written (`const go = (c) => ..`, `function go() {}`), if any. */
+const declaredFunction = (d: Declared): Node | undefined => (d.kind === "function" ? d.node : d.node.init && isFunction(unwrap(d.node.init)) ? unwrap(d.node.init) : undefined);
 
 interface Visitor {
   /** Return false to skip the node's children. */
@@ -106,7 +131,10 @@ function walk(node: Node, visitor: Visitor, parents: Node[] = [], scopes: Scope[
     if (node.type === "FunctionExpression" && node.id) scope.add(node.id.name);
     for (const n of scope.params) scope.add(n);
     const body = node.body;
-    if (body.type === "BlockStatement") blockDeclarations(body.body).forEach((n) => scope.add(n));
+    if (body.type === "BlockStatement") {
+      Object.assign(scope, { declared: new Map(), block: body, parents: inner });
+      blockDeclarations(body.body, scope.declared).forEach((n) => scope.add(n));
+    }
     const next = [...scopes, scope];
     for (const p of node.params) walkPattern(p, visitor, inner, next);
     if (body.type === "BlockStatement") for (const s of body.body) walk(s, visitor, [...inner, body], next);
@@ -114,7 +142,8 @@ function walk(node: Node, visitor: Visitor, parents: Node[] = [], scopes: Scope[
     return;
   }
   if (node.type === "BlockStatement" || node.type === "StaticBlock") {
-    const next = [...scopes, new Set(blockDeclarations(node.body))];
+    const declared = new Map<string, Declared>();
+    const next = [...scopes, Object.assign(new Set(blockDeclarations(node.body, declared)), { declared, block: node, parents: inner })];
     for (const s of node.body) walk(s, visitor, inner, next);
     return;
   }
@@ -243,6 +272,8 @@ interface Site {
   closure: Node;
   /** A module-level or imported name: wrapped when it holds a function, passed on when it already holds a reference. */
   reference?: true;
+  /** A local declaration an `on*` prop names, tagged where it is declared; `block` (a function declaration's) is where the tag goes. */
+  local?: { name: string; block?: Node };
   /** The id from named(), else generated. */
   name: string | undefined;
   owner: string;
@@ -300,6 +331,35 @@ export function transformHandlers(
         node.callee.property.name === "named"));
 
   const sites: Site[] = [];
+  const tagged = new Set<Node>();
+  /** `onClick={go}` naming a local: its declaration is tagged once, however many props name it. */
+  const localSite = (leaf: Node, scopes: Scope[], at: number, attr: string) => {
+    const scope = scopes[at]!;
+    const declared = scope.declared?.get(leaf.name);
+    if (declared?.kind === "const" && declared.node.init && isNamed(unwrap(declared.node.init))) return;
+    const fn = declared && declaredFunction(declared);
+    if (!fn) {
+      throw new HandlerTransformError(
+        `${attr}={${leaf.name}}: ${leaf.name} is a local variable that does not hold a function written there, so it cannot be hoisted. Write the handler inline, as a local const or function, at module scope, or use named("id", ..)`,
+        leaf.start,
+      );
+    }
+    if (declared.kind !== "const" && declared.kind !== "function") {
+      throw new HandlerTransformError(`${attr}={${leaf.name}}: ${leaf.name} is declared with ${declared.kind}; declare the handler with const`, leaf.start);
+    }
+    if (tagged.has(fn)) return;
+    tagged.add(fn);
+    const base = ownerOf(scope.parents!);
+    sites.push({
+      replace: fn,
+      closure: fn,
+      local: declared.kind === "function" ? { name: leaf.name, block: scope.block! } : { name: leaf.name },
+      name: undefined,
+      owner: base === "(module)" ? leaf.name : `${base}.${leaf.name}`,
+      attr: "local",
+      locals: captureLocals(fn, scopes.slice(0, at + 1), leaf.name, leaf.name),
+    });
+  };
   walk(program, {
     enter(node, parents, scopes) {
       if (node.type === "JSXAttribute" && node.name.type === "JSXIdentifier" && HANDLER_ATTRS.has(node.name.name) && node.value?.type === "JSXExpressionContainer") {
@@ -315,12 +375,7 @@ export function transformHandlers(
               if (leaf.name !== "undefined") sites.push({ replace: leaf, closure: leaf, reference: true, name: undefined, owner, attr, locals: [] });
             }
             // A parameter (a handler prop passed through a wrapper component) already holds a reference.
-            else if (!scopes[at]!.params?.has(leaf.name)) {
-              throw new HandlerTransformError(
-                `${attr}={${leaf.name}}: ${leaf.name} is a local variable, which cannot be hoisted. Write the handler inline (it is hoisted with what it captures), define it at module scope, or use named("id", ..)`,
-                leaf.start,
-              );
-            }
+            else if (!scopes[at]!.params?.has(leaf.name)) localSite(leaf, scopes, at, attr);
           } else if (leaf.type === "CallExpression" && !isNamed(leaf)) {
             throw new HandlerTransformError(
               `${attr}={${code.slice(leaf.callee.start, leaf.callee.end)}(..)}: a handler made by a call cannot be hoisted. Write it inline, define it at module scope, or use named("id", ..)`,
@@ -351,8 +406,10 @@ export function transformHandlers(
   const file = relativePath(id, options.root);
   const ordinals = new Map<string, number>();
   const ids = sites.map((site) => {
-    const ordinal = ordinals.get(site.owner) ?? 0;
-    ordinals.set(site.owner, ordinal + 1);
+    // A local counts apart from the handlers in its body, which share its owner.
+    const key = site.local ? `${site.owner}|local` : site.owner;
+    const ordinal = ordinals.get(key) ?? 0;
+    ordinals.set(key, ordinal + 1);
     return (
       site.name ??
       `_${createHash("sha256")
@@ -362,7 +419,8 @@ export function transformHandlers(
     );
   });
 
-  // Innermost first, so a handler that returns markup with handlers carries them rewritten.
+  // Innermost first, so a handler that returns markup with handlers carries them rewritten. A local
+  // stays where it is declared, tagged with its reference; its Captures are read when it renders.
   const s = new MagicString(code);
   const order = sites.map((_, i) => i).sort((a, b) => sites[b]!.replace.start - sites[a]!.replace.start);
   const decls: string[] = [];
@@ -371,7 +429,10 @@ export function transformHandlers(
     const ref = `__composure_h${i}`;
     const closure = s.slice(site.closure.start, site.closure.end);
     const bound = `${ref}.bind([${site.locals.join(", ")}])`;
-    s.overwrite(site.replace.start, site.replace.end, site.reference ? `(typeof ${closure} === "function" ? ${bound} : ${closure})` : bound);
+    const values = `() => [${site.locals.join(", ")}]`;
+    if (site.local?.block) s.appendLeft(site.local.block.start + 1, ` ${ref}.local(${site.local.name}, ${values});`);
+    else if (site.local) s.overwrite(site.replace.start, site.replace.end, `${ref}.local(${closure}, ${values})`);
+    else s.overwrite(site.replace.start, site.replace.end, site.reference ? `(typeof ${closure} === "function" ? ${bound} : ${closure})` : bound);
     const roots = [...new Set(site.locals.map((path) => path.split(".")[0]!))];
     const where = `${file}: ${site.owner}`;
     decls[i] =
@@ -427,8 +488,11 @@ function rootOfJsxMember(name: Node): Node | undefined {
   return at;
 }
 
-/** What a closure reads from the functions around it: shortest member chains, roots read bare whole. */
-function captureLocals(closure: Node, scopes: Scope[], what: string): string[] {
+/**
+ * What a closure reads from the functions around it: shortest member chains, roots read bare whole.
+ * `self` is the name of a local handler, which may not read itself.
+ */
+function captureLocals(closure: Node, scopes: Scope[], what: string, self?: string): string[] {
   const chains = new Map<string, string[]>();
   walk(
     closure,
@@ -450,6 +514,15 @@ function captureLocals(closure: Node, scopes: Scope[], what: string): string[] {
         const at = findScope(inner, node.name);
         // Declared in the closure itself, or module scope / global: not a capture.
         if (at < 0 || at >= scopes.length) return;
+        const declared = inner[at]!.declared?.get(node.name);
+        if (declared && declaredFunction(declared)) {
+          throw new HandlerTransformError(
+            node.name === self
+              ? `${self} is a local handler that names itself, but it is hoisted to module scope, where ${self} is out of reach: render a component that places it`
+              : `The ${what} handler reads ${node.name}, a function declared inside a function, but the handler is hoisted to module scope: declare ${node.name} inside the handler, or at module scope`,
+            node.start,
+          );
+        }
         const list = chains.get(node.name) ?? [];
         list.push(memberChain(node, parents).join("."));
         chains.set(node.name, list);
