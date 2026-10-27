@@ -156,8 +156,12 @@ _Avoid_: Guild (when meaning the named destination), environment
 Markup a handler returns: built-in tags and plain function components (`const Counter = ({ count }) => <Row>..</Row>`), with no declaration or registration. Re-rendering means answering a click with the View rendered from new props. A View is the whole message: components, `ephemeral`, allowed mentions, files.
 _Avoid_: Template, widget, component (alone: that word is Discord's)
 
+**Function component**:
+A plain function used as a tag in a View: it returns markup, and may place the `children` it is given somewhere inside it (`<ui.Primary>` puts them in a `<Container>`).
+_Avoid_: Custom component, user component, component (alone)
+
 **Inline Handler**:
-A function written as `onClick` / `onSelect` / `onSubmit` anywhere in markup. `@composurejs/vite` hoists it to module scope under a stable id, and what it reads from the functions around it (props, locals, loop variables, a command handler's `c`) travels in its `custom_id` (ADR 0015).
+A function written as `onClick` / `onSelect` / `onSubmit` anywhere in markup, or a function a component declares locally (`const inc = (c) => ..`) and names in such a prop. `@composurejs/vite` hoists it to module scope under a stable id, and what it reads from the functions around it (props, locals, loop variables, a command handler's `c`) travels in its `custom_id` (ADR 0015).
 _Avoid_: Callback, listener, Component Handler
 
 **Capture**:

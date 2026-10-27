@@ -5,7 +5,7 @@
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "oxlint",
+    "lint": "pnpm --filter \"@composurejs/eslint-plugin...\" build && oxlint",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "test": "pnpm build && vitest run",

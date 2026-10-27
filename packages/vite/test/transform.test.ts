@@ -110,8 +110,11 @@ describe("transformHandlers", () => {
   });
 
   test("errors point at the handler", () => {
-    expect(() => run(`import { Button } from "composurejs"\nexport const V = () => { const go = () => 1; return <Button onClick={go} /> }`)).toThrow(
-      "onClick={go}: go is a local variable, which cannot be hoisted. Write the handler inline",
+    expect(() => run(`import { Button } from "composurejs"\nimport { make } from "./x"\nexport const V = () => { const go = make(); return <Button onClick={go} /> }`)).toThrow(
+      "onClick={go}: go is a local variable that does not hold a function written there, so it cannot be hoisted",
+    );
+    expect(() => run(`import { Button } from "composurejs"\nexport const V = () => { let go = () => 1; return <Button onClick={go} /> }`)).toThrow(
+      "onClick={go}: go is declared with let; declare the handler with const",
     );
     expect(() => run(`import { Button, named } from "composurejs"\nconst id = "x"\nexport const V = () => <Button onClick={named(id, () => 1)} />`)).toThrow(
       "named() needs a string literal id",
@@ -126,6 +129,57 @@ describe("transformHandlers", () => {
     const out = run(`import { Button } from "composurejs"\nimport { refresh } from "./refs"\nexport const V = () => <Button onClick={refresh} />`)!;
     expect(out).toContain(`onClick={(typeof refresh === "function" ? __composure_h0.bind([]) : refresh)}`);
     expect(out).toMatch(/const __composure_h0 = __composure_handler\("_[\w-]{7}", \[\], \(\) => \(refresh\)/);
+  });
+
+  test("a local const an on* prop names is hoisted and tagged where it is declared, once", () => {
+    const out = run(`import { Button } from "composurejs"
+      export const V = ({ n, owner }) => {
+        const add = ((c) => <V n={n + 1} owner={owner} />) satisfies unknown
+        return <><Button onClick={add} /><Button onClick={add} /></>
+      }`)!;
+    expect(out).toContain(`const add = (__composure_h0.local((c) => <V n={n + 1} owner={owner} />, () => [n, owner])) satisfies unknown`);
+    expect(out).toContain(`<Button onClick={add} /><Button onClick={add} />`);
+    expect(out).toMatch(
+      /const __composure_h0 = __composure_handler\("_[\w-]{7}", \["n","owner"\], \(\{ n, owner \}\) => \(\(c\) => <V n=\{n \+ 1\} owner=\{owner\} \/>\), "src\/counter\.tsx: V\.add"\);/,
+    );
+    expect(idsIn(out)).toHaveLength(1);
+  });
+
+  test("a local function declaration is tagged at the top of its block, so it may be named before it", () => {
+    const out = run(`import { Button } from "composurejs"
+      export function V({ n }) {
+        return <Button onClick={go}>{n}</Button>
+        function go(c) { return <Button onClick={() => n}>again</Button> }
+      }`)!;
+    expect(out).toMatch(/export function V\(\{ n \}\) \{ __composure_h0\.local\(go, \(\) => \[n\]\);/);
+    expect(out).toContain(`function go(c) { return <Button onClick={__composure_h1.bind([n])}>again</Button> }`);
+    expect(out).toContain(`({ n }) => (function go(c) { return <Button onClick={__composure_h1.bind([n])}>again</Button> }), "src/counter.tsx: V.go");`);
+  });
+
+  test("a local holding named() passes on as it is", () => {
+    const out = run(`import { Button, named } from "composurejs"
+      export const V = ({ role }) => { const t = named("toggle", (c) => role); return <Button onClick={t} /> }`)!;
+    expect(out).toContain(`const t = __composure_h0.bind([role]); return <Button onClick={t} />`);
+  });
+
+  test("a hoisted handler may not read a function declared inside a function, its own name included", () => {
+    expect(() =>
+      run(`import { Button } from "composurejs"
+        export const V = ({ n }) => { const inc = (c) => n + 1; return <Button onClick={() => <Button onClick={inc} />} /> }`),
+    ).toThrow(
+      "The onClick handler reads inc, a function declared inside a function, but the handler is hoisted to module scope: declare inc inside the handler, or at module scope",
+    );
+    expect(() =>
+      run(`import { Button } from "composurejs"
+        export const V = () => { function shout(s) { return s } return <Button onClick={() => shout("hi")} /> }`),
+    ).toThrow("The onClick handler reads shout");
+    expect(() => run(`import { Button } from "composurejs"\nexport const V = () => { const inc = (c) => <Button onClick={inc} />; return <Button onClick={inc} /> }`)).toThrow(
+      "inc is a local handler that names itself, but it is hoisted to module scope, where inc is out of reach: render a component that places it",
+    );
+    // Declared inside the handler, it travels with it.
+    const out = run(`import { Button } from "composurejs"
+      export const V = ({ n }) => <Button onClick={() => { const go = (c) => n; return <Button onClick={go} /> }} />`)!;
+    expect(out).toContain(`const go = __composure_h1.local((c) => n, () => [n])`);
   });
 
   test("a handler prop passed through a wrapper component is left as it is", () => {

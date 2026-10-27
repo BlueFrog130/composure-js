@@ -40,6 +40,25 @@ On a click, the id finds the handler, the values are decoded, and the handler ru
 ## Where a handler can come from
 
 - **Written inline**, as above. Each branch of `?:`, `&&`, `||` and `??` counts: `onClick={mine ? (c) => .. : (c) => ..}` hoists both.
+- **A local function**, declared with `const` or `function` in the component (or command handler) and named by the prop. It captures what it reads around it, like an inline handler, and is read when the message renders. It stays an ordinary function you can call:
+
+```tsx twoslash
+import { Button, type ComponentContext, Row } from "composurejs"
+// ---cut---
+export const Counter = ({ count, owner }: { count: number; owner: string }) => {
+  const add = (c: ComponentContext) => (c.user.id === owner ? <Counter count={count + 1} owner={owner} /> : c.ephemeral("Not yours"))
+  return (
+    <Row>
+      <Button onClick={add}>+1</Button>
+      <Button onClick={reset}>Reset</Button>
+    </Row>
+  )
+  function reset() {
+    return <Counter count={0} owner={owner} />
+  }
+}
+```
+
 - **A function at module scope or an import**: `onClick={refresh}`. It captures nothing, so it reads only `c` and what is at module scope.
 - **A handler prop passed on** by a wrapper component, unchanged:
 
@@ -59,11 +78,11 @@ export const Menu = ({ page }: { page: number }) => (
 )
 ```
 
-The handler is compiled where it is written (`<Primary onClick={..}>`), and `Primary` receives its reference. A local variable holding a function (`const go = () => ..; <Button onClick={go}>`) and a handler made by a call (`onClick={make(x)}`) cannot be hoisted and are compile errors: write them inline instead.
+The handler is compiled where it is written (`<Primary onClick={..}>`), and `Primary` receives its reference. A handler made by a call (`onClick={make(x)}`), a local that does not hold a function written there (`const go = make(x)`), and one declared with `let` cannot be hoisted and are compile errors. So is a hoisted handler that reads a function declared inside a function, including a local handler naming itself: declare that function inside the handler, or at module scope. One message cannot place the same handler with the same captures twice, since each `custom_id` must be unique.
 
 ## What a handler may read
 
-- **Strings, numbers, booleans** (and `null` / `undefined`) from props, locals and loop variables. Read the part you need: `item.id`, not `item`. Capturing an object or a function fails at render, saying what to capture instead.
+- **Strings, numbers, booleans** (and `null` / `undefined`) from props, locals and loop variables. Read the part you need: `item.id`, not `item`. Capturing an object or a function fails at render, saying what to capture instead (reading a function declared inside a function fails at compile time).
 - **Anything at module scope**: imports, constants, other components. A component a handler renders must be defined at module scope; one defined inside a function is a compile error.
 - **Not too much.** Everything captured must fit in 100 characters. Carry an id and load the rest instead, for example in an async component:
 

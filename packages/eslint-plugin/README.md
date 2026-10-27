@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/npm/l/@composurejs/eslint-plugin?color=blue)](https://github.com/BlueFrog130/composure-js/blob/main/LICENSE)
 [![Discord](https://img.shields.io/badge/chat-discord-5865f2?logo=discord&logoColor=white)](https://discord.com/invite/8rWjWtp3pG)
 
-Discord only accepts some components inside others: a `Button` goes in a `Row` or a `Section`'s `accessory`, a `TextInput` in a `Label` inside a `Modal`. This plugin underlines a misplaced [composurejs](https://www.npmjs.com/package/composurejs) tag in your editor, before you build or send anything.
+Discord only accepts some components inside others: a `Button` goes in a `Row` or a `Section`'s `accessory`, a `TextInput` in a `Label` inside a `Modal`. This plugin underlines a misplaced [composurejs](https://www.npmjs.com/package/composurejs) tag in your editor, before you build or send anything, including one given to your own function component (`<Button> cannot go inside <Container> (in <Card>)`), followed into the file it is imported from.
 
 ```sh
 pnpm add -D @composurejs/eslint-plugin

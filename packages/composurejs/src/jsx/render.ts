@@ -4,7 +4,7 @@ import type { APIMessageTopLevelComponent, APIModalInteractionResponseCallbackDa
 import { type AllowedMentions, type Emoji, isUpload, type Upload } from "../components.ts";
 import { MessageFlags } from "../discord.ts";
 import { prefixOf, withRoute } from "../codec.ts";
-import { uncompiledHandler } from "../handlers.ts";
+import { localRef, uncompiledHandler } from "../handlers.ts";
 import { RenderError } from "../errors.ts";
 import type { Choices } from "../options.ts";
 import { INPUTS, SELECTS } from "../placement.ts";
@@ -611,8 +611,11 @@ async function renderInput(node: ElementNode, walk: Walk): Promise<Json> {
 /** `customId`, or the handler prop that stands for it (`onClick`, `onSelect`, `onSubmit`), marked with the Owning Route. */
 function handlerId(node: ElementNode, prop: string, walk: Walk): unknown {
   const { customId } = node.props;
-  const handler = node.props[prop];
-  if (typeof handler === "function") throw uncompiledHandler(`<${node.tag} ${prop}>`);
+  let handler = node.props[prop];
+  if (typeof handler === "function") {
+    handler = localRef(handler);
+    if (handler === undefined) throw uncompiledHandler(`<${node.tag} ${prop}>`);
+  }
   if (customId !== undefined && handler !== undefined) throw new RenderError(`${tag(node.tag)} takes customId or ${prop}, not both`);
   return typeof handler === "string" ? withRoute(handler, walk.route) : customId;
 }
